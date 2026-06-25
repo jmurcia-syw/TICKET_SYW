@@ -3,7 +3,10 @@
     "allow": [
       "PowerShell(git config *)",
       "Bash(docker info *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "PowerShell(Head *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Usuario\\\\Documents\\\\GitHub\\\\TICKET_SYW\\\\frontend\\\\src\" -Recurse | Where-Object {!$_.PSIsContainer} | Select-Object Name | Select-Object -First 40)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Usuario\\\\Documents\\\\GitHub\\\\TICKET_SYW\\\\backend\" -Recurse | Where-Object {!$_.PSIsContainer} | Select-Object -First 40 | Select-Object FullName)"
     ]
   }
 }
