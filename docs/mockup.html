@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SyWork Tickets — SDD V2.1</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;background:#f5f5f4;color:#1a1a18}
+/* NAV */
+.top-nav{display:flex;align-items:center;background:#fff;border-bottom:1px solid #e0dfd8;padding:0 24px;position:sticky;top:0;z-index:100}
+.top-nav .brand{font-size:14px;font-weight:600;padding:14px 20px 14px 0;border-right:1px solid #e0dfd8;margin-right:16px;color:#1a1a18}
+.top-nav .brand span{font-size:11px;color:#888;font-weight:400;display:block}
+.tab{padding:14px 16px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:#666;white-space:nowrap}
+.tab:hover{color:#1a1a18}
+.tab.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:500}
+/* PAGES */
+.page{display:none;padding:20px 24px;max-width:1200px;margin:0 auto}
+.page.active{display:block}
+/* APP LAYOUT */
+.app-frame{display:flex;height:calc(100vh - 49px);background:#f5f5f4;border:1px solid #e0dfd8;border-radius:8px;overflow:hidden}
+.sidebar{width:196px;flex-shrink:0;background:#fff;border-right:1px solid #e0dfd8;display:flex;flex-direction:column;padding:10px 0}
+.logo{padding:8px 14px 12px;font-size:13px;font-weight:600;color:#1a1a18;border-bottom:1px solid #e0dfd8;margin-bottom:6px}
+.logo span{font-size:10px;color:#888;font-weight:400;display:block}
+.nav-section{font-size:10px;color:#aaa;padding:8px 14px 3px;text-transform:uppercase;letter-spacing:.5px}
+.nav-item{display:flex;align-items:center;gap:7px;padding:7px 14px;font-size:12px;color:#666;cursor:pointer}
+.nav-item:hover{background:#f5f5f4;color:#1a1a18}
+.nav-item.active{background:#EBF4FC;color:#185FA5;font-weight:500;border-left:2px solid #378ADD}
+.main{flex:1;overflow:auto;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:9px 18px;background:#fff;border-bottom:1px solid #e0dfd8;flex-shrink:0}
+.topbar-title{font-size:14px;font-weight:600}
+.content{padding:14px 18px;flex:1}
+.screen{display:none}
+.screen.active{display:block}
+/* COMPONENTS */
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.metric{background:#fff;border:1px solid #e0dfd8;border-radius:8px;padding:12px 14px}
+.metric-label{font-size:11px;color:#888;margin-bottom:3px}
+.metric-value{font-size:22px;font-weight:600}
+.metric-sub{font-size:10px;color:#aaa;margin-top:2px}
+.badge{display:inline-flex;align-items:center;font-size:10px;font-weight:500;padding:2px 7px;border-radius:10px}
+.b-new{background:#E6F1FB;color:#0C447C}
+.b-progress{background:#EAF3DE;color:#27500A}
+.b-pending{background:#FEF3CD;color:#7B5800}
+.b-resolved{background:#EDE9FE;color:#3C3489}
+.b-closed{background:#f1f0ea;color:#444}
+.b-critical{background:#FCEBEB;color:#791F1F}
+.b-high{background:#FAECE7;color:#712B13}
+.b-medium{background:#FEF3CD;color:#7B5800}
+.b-low{background:#EAF3DE;color:#27500A}
+.card{background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.card-title{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.btn{padding:5px 11px;border:1px solid #d0cfc8;border-radius:6px;background:#fff;color:#1a1a18;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.btn:hover{background:#f5f5f4}
+.btn-primary{background:#378ADD;border-color:#378ADD;color:#fff}
+.btn-primary:hover{background:#185FA5}
+.trow{display:grid;gap:8px;padding:7px 0;border-bottom:1px solid #f0efe8;align-items:center;font-size:12px}
+.trow:last-child{border:none}
+.trow.hdr{font-weight:600;font-size:10px;color:#888;padding-bottom:5px}
+.sla-ok{color:#27500A}
+.sla-warn{color:#7B5800}
+.sla-crit{color:#791F1F;font-weight:600}
+.kanban-cols{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.kol{background:#f5f5f4;border-radius:7px;padding:8px}
+.kol-hdr{font-size:11px;font-weight:600;color:#666;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center}
+.kcard{background:#fff;border:1px solid #e0dfd8;border-radius:6px;padding:8px;margin-bottom:5px;font-size:11px;cursor:grab}
+.kcard:hover{border-color:#378ADD}
+.kcard-id{color:#378ADD;font-weight:600;margin-bottom:2px}
+.kcard-title{color:#1a1a18;margin-bottom:5px;line-height:1.4}
+.kcard-foot{display:flex;justify-content:space-between;align-items:center}
+.av{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700}
+.triage-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rc{background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:12px}
+.rc-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.av-lg{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.stag{background:#EDE9FE;color:#3C3489;font-size:10px;padding:2px 6px;border-radius:4px;margin:2px;display:inline-block}
+.wb{height:5px;background:#f0efe8;border-radius:3px;margin:5px 0}
+.wf{height:5px;border-radius:3px}
+.detail-grid{display:grid;grid-template-columns:1fr 300px;gap:12px}
+.comment{display:flex;gap:9px;margin-bottom:9px}
+.cb{flex:1}
+.chdr{font-size:10px;color:#888;margin-bottom:2px}
+.ctext{font-size:12px;line-height:1.5;padding:7px 9px;border-radius:6px}
+.c-int{background:#FEF3CD}
+.c-cli{background:#E6F1FB}
+.c-fol{background:#EAF3DE}
+.fsm-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:9px 0}
+.fsm-step{padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600}
+.fsm-arr{color:#ccc;font-size:12px}
+.fsm-on{border:2px solid #378ADD;color:#0C447C;background:#E6F1FB}
+.field-row{display:grid;grid-template-columns:110px 1fr;gap:4px;margin-bottom:5px;font-size:12px;align-items:start}
+.field-lbl{color:#888}
+.session-bar{display:flex;align-items:center;justify-content:space-between;background:#FEF3CD;border-radius:7px;padding:8px 11px;margin-bottom:7px;font-size:12px}
+.user-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0efe8;font-size:12px}
+.user-row:last-child{border:none}
+/* Lista de tareas */
+.lista-nav-item{padding:6px 14px;font-size:11px;color:#555;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-left:2px solid transparent}
+.lista-nav-item:hover{background:#f0efe8;color:#1a1a18}
+.lista-nav-item.active{background:#EBF4FC;color:#185FA5;font-weight:600;border-left-color:#378ADD}
+.lista-count{background:#e8e7e0;color:#666;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600}
+.lista-nav-item.active .lista-count{background:#B5D4F4;color:#0C447C}
+.grupo-header{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#fafaf8;border-top:1px solid #e0dfd8;border-bottom:1px solid #f0efe8;cursor:pointer;font-size:12px;font-weight:700;color:#333;user-select:none}
+.grupo-header:hover{background:#f0efe8}
+.grupo-toggle{font-size:10px;color:#888;width:12px;flex-shrink:0}
+.grupo-nombre{flex:1}
+.grupo-count{background:#e8e7e0;color:#555;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600;margin-right:4px}
+.grupo-actions{font-size:11px;color:#aaa;display:flex;gap:8px;letter-spacing:2px}
+.tarea-header-row{display:grid;grid-template-columns:28px 1fr 36px 160px 70px 70px 100px;gap:6px;padding:5px 14px;font-size:10px;font-weight:700;color:#aaa;background:#fff;border-bottom:1px solid #f0efe8}
+.tarea-row{display:grid;grid-template-columns:28px 1fr 36px 160px 70px 70px 100px;gap:6px;padding:7px 14px;border-bottom:1px solid #f5f5f4;align-items:center;font-size:12px;cursor:pointer}
+.tarea-row:hover{background:#f9f9f7}
+.subtarea-row{display:grid;grid-template-columns:28px 1fr 36px 160px 70px 70px 100px;gap:6px;padding:4px 14px 4px 38px;border-bottom:1px solid #f5f5f4;align-items:center;background:#fdfdf9}
+.check-btn{width:18px;height:18px;border-radius:50%;border:1.5px solid #d0cfc8;display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:#aaa;flex-shrink:0;background:#fff;transition:all .15s}
+.check-btn:hover{border-color:#378ADD;color:#378ADD}
+.check-btn.done{background:#27500A;border-color:#27500A;color:#fff}
+.tarea-nombre{font-size:12px;color:#1a1a18;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tarea-avatar{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
+.cf{background:#CECBF6;color:#26215C}
+.jg{background:#9FE1CB;color:#04342C}
+.ne{background:#F4C0D1;color:#4B1528}
+.mo{background:#FAC775;color:#412402}
+.tarea-fecha{font-size:11px;color:#666;white-space:nowrap}
+.fecha-alerta{color:#E24B4A;font-weight:600}
+.tarea-meta{font-size:11px;color:#888;text-align:center}
+.meta-icon{font-size:12px}
+.lista-grupo[data-hidden="true"]{display:none}
+/* DOCS PAGE */
+.docs-layout{display:grid;grid-template-columns:200px 1fr;gap:0;min-height:calc(100vh - 89px)}
+.docs-sidebar{background:#fff;border-right:1px solid #e0dfd8;padding:16px 0;position:sticky;top:49px;height:calc(100vh - 49px);overflow-y:auto}
+.docs-nav-item{display:block;padding:6px 16px;font-size:12px;color:#666;cursor:pointer;text-decoration:none}
+.docs-nav-item:hover{color:#185FA5;background:#f5f5f4}
+.docs-nav-item.active{color:#185FA5;font-weight:600;border-left:2px solid #378ADD;background:#EBF4FC}
+.docs-nav-section{font-size:10px;color:#aaa;padding:10px 16px 3px;text-transform:uppercase;letter-spacing:.5px}
+.docs-content{padding:24px 32px;max-width:800px}
+.docs-content h1{font-size:24px;font-weight:700;margin-bottom:6px;color:#1a1a18}
+.docs-content h2{font-size:18px;font-weight:700;margin:28px 0 10px;color:#1a1a18;padding-bottom:6px;border-bottom:1px solid #e0dfd8}
+.docs-content h3{font-size:14px;font-weight:700;margin:18px 0 7px;color:#1a1a18}
+.docs-content p{font-size:13px;line-height:1.75;color:#333;margin-bottom:12px}
+.docs-content ul,.docs-content ol{margin:8px 0 12px 20px;font-size:13px;line-height:1.8;color:#333}
+.docs-content li{margin-bottom:4px}
+.docs-content code{font-family:'Roboto Mono','Courier New',monospace;font-size:12px;background:#f5f5f4;border:1px solid #e0dfd8;padding:1px 5px;border-radius:4px;color:#185FA5}
+.docs-content pre{background:#f5f5f4;border:1px solid #e0dfd8;border-radius:8px;padding:14px 16px;margin:12px 0;overflow-x:auto}
+.docs-content pre code{background:none;border:none;padding:0;font-size:12px;color:#1a1a18}
+.info-box{background:#EBF4FC;border:1px solid #B5D4F4;border-radius:8px;padding:12px 14px;margin:12px 0;font-size:12px;line-height:1.7;color:#0C447C}
+.warn-box{background:#FEF3CD;border:1px solid #FAC775;border-radius:8px;padding:12px 14px;margin:12px 0;font-size:12px;line-height:1.7;color:#7B5800}
+.success-box{background:#EAF3DE;border:1px solid #C0DD97;border-radius:8px;padding:12px 14px;margin:12px 0;font-size:12px;line-height:1.7;color:#27500A}
+.arch-diagram{background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:20px;margin:14px 0;text-align:center}
+.arch-layer{border-radius:8px;padding:12px 16px;margin-bottom:8px;text-align:left}
+.layer-title{font-size:12px;font-weight:700;margin-bottom:6px}
+.layer-items{display:flex;gap:8px;flex-wrap:wrap}
+.layer-item{padding:5px 10px;border-radius:5px;font-size:11px;font-weight:500;border:1px solid}
+.arch-arrow{text-align:center;color:#aaa;font-size:18px;margin:2px 0}
+.pill-grid{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.pill{padding:6px 12px;border-radius:6px;font-size:12px;font-weight:500}
+.fsm-diagram{display:flex;align-items:center;gap:0;overflow-x:auto;padding:16px 0}
+.fsm-node{text-align:center;flex-shrink:0}
+.fsm-box{padding:8px 14px;border-radius:6px;font-size:11px;font-weight:600;border:2px solid}
+.fsm-sub{font-size:9px;color:#888;margin-top:3px}
+.fsm-conn{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 4px;flex-shrink:0}
+.fsm-line{width:30px;height:2px;background:#d0cfc8}
+.fsm-label{font-size:9px;color:#888;margin-top:2px;white-space:nowrap}
+table.doc-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px}
+table.doc-table th{background:#f5f5f4;padding:8px 10px;text-align:left;font-weight:600;border:1px solid #e0dfd8;color:#444}
+table.doc-table td{padding:7px 10px;border:1px solid #e0dfd8;color:#333;vertical-align:top}
+table.doc-table tr:nth-child(even) td{background:#fafaf8}
+</style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<div class="top-nav">
+  <div class="brand">SyWork Tickets<span>SDD V2.1 — Oracle Partner</span></div>
+  <div class="tab active" onclick="showPage('app',this)">🖥 Maqueta UI</div>
+  <div class="tab" onclick="showPage('docs',this)">📖 Arquitectura & Docs</div>
+  <div class="tab" onclick="showPage('sdd',this)">⚙ Metodología SDD</div>
+  <div class="tab" onclick="showPage('testing',this)">🧪 Pruebas</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE 1: APP MOCKUP
+═══════════════════════════════════════════════════════════ -->
+<div class="page active" id="p-app" style="padding:12px;max-width:100%">
+  <div class="app-frame">
+    <div class="sidebar">
+      <div class="logo">SyWork Tickets<span>v2.1 Fase 1</span></div>
+      <div class="nav-section">Principal</div>
+      <div class="nav-item active" onclick="showScreen('dashboard',this)">📊 Dashboard</div>
+      <div class="nav-item" onclick="showScreen('tickets',this)">🎫 Tickets</div>
+      <div class="nav-item" onclick="showScreen('kanban',this)">📋 Kanban</div>
+      <div class="nav-item" onclick="showScreen('triage',this)">🎯 Triage</div>
+      <div class="nav-section">Proyectos</div>
+      <div class="nav-item" onclick="showScreen('proyectos',this)">📁 Proyectos</div>
+      <div class="nav-item" onclick="showScreen('lista',this)" style="padding-left:22px;font-size:11px">└ Aris – Lower Mine</div>
+      <div class="nav-section">Ticket</div>
+      <div class="nav-item" onclick="showScreen('detail',this)">📄 Detalle ticket</div>
+      <div class="nav-section">Admin</div>
+      <div class="nav-item" onclick="showScreen('setup',this)">⚙ Configuración</div>
+      <div class="nav-item" onclick="showScreen('users',this)">👥 Usuarios</div>
+      <div style="margin-top:auto;padding:10px 14px;border-top:1px solid #e0dfd8">
+        <div class="user-row" style="border:none;padding:0">
+          <div class="av-lg" style="width:28px;height:28px;background:#9FE1CB;color:#04342C;font-size:10px">JM</div>
+          <div><div style="font-size:11px;font-weight:600">Juan M.</div><div style="font-size:10px;color:#888">Coordinador</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <div class="topbar-title" id="scr-title">Dashboard</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:11px;color:#888">🔔 3 alertas</span>
+          <button class="btn btn-primary" style="font-size:12px">+ Nuevo ticket</button>
+        </div>
+      </div>
+      <div class="content">
+
+        <!-- DASHBOARD -->
+        <div class="screen active" id="s-dashboard">
+          <div class="grid-4">
+            <div class="metric"><div class="metric-label">Tickets abiertos</div><div class="metric-value">24</div><div class="metric-sub">+3 hoy</div></div>
+            <div class="metric"><div class="metric-label">Pendiente cliente</div><div class="metric-value" style="color:#7B5800">7</div><div class="metric-sub">SLA pausado</div></div>
+            <div class="metric"><div class="metric-label">SLA en riesgo</div><div class="metric-value" style="color:#791F1F">4</div><div class="metric-sub">Vencen hoy</div></div>
+            <div class="metric"><div class="metric-label">Cerrados este mes</div><div class="metric-value" style="color:#27500A">61</div><div class="metric-sub">94% resolución</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="card">
+              <div class="card-title">Estados actuales</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <div style="flex:1;min-width:70px;padding:10px;border-radius:7px;background:#EBF4FC;text-align:center"><div style="font-size:18px;font-weight:700;color:#0C447C">8</div><div style="font-size:10px;color:#185FA5">Nuevo</div></div>
+                <div style="flex:1;min-width:70px;padding:10px;border-radius:7px;background:#EAF3DE;text-align:center"><div style="font-size:18px;font-weight:700;color:#27500A">10</div><div style="font-size:10px;color:#3B6D11">En progreso</div></div>
+                <div style="flex:1;min-width:70px;padding:10px;border-radius:7px;background:#FEF3CD;text-align:center"><div style="font-size:18px;font-weight:700;color:#7B5800">7</div><div style="font-size:10px;color:#854F0B">Pendiente</div></div>
+                <div style="flex:1;min-width:70px;padding:10px;border-radius:7px;background:#EDE9FE;text-align:center"><div style="font-size:18px;font-weight:700;color:#26215C">4</div><div style="font-size:10px;color:#534AB7">Resuelto</div></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">Alertas SLA <span style="font-size:11px;color:#791F1F">4 críticas</span></div>
+              <div class="trow hdr" style="grid-template-columns:55px 1fr 70px 70px">#ID<span>Título</span><span>Resolutor</span><span>Vence en</span></div>
+              <div class="trow" style="grid-template-columns:55px 1fr 70px 70px"><span style="color:#378ADD;font-weight:600">#0042</span><span>Error login JDE</span><span>Carlos R.</span><span class="sla-crit">00:34</span></div>
+              <div class="trow" style="grid-template-columns:55px 1fr 70px 70px"><span style="color:#378ADD;font-weight:600">#0039</span><span>Reporte GL vacío</span><span>Ana P.</span><span class="sla-crit">01:15</span></div>
+              <div class="trow" style="grid-template-columns:55px 1fr 70px 70px"><span style="color:#378ADD;font-weight:600">#0035</span><span>API no responde</span><span>Luis M.</span><span class="sla-warn">02:50</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Sesiones de trabajo activas (Focus Mode)</div>
+            <div class="session-bar"><span>▶ <b>Carlos R.</b> trabajando en #0042 — Error login JDE</span><span style="color:#7B5800;font-weight:700">02:14:33</span><button class="btn" style="font-size:11px">Ver</button></div>
+            <div class="session-bar"><span>▶ <b>Ana P.</b> trabajando en #0039 — Reporte GL vacío</span><span style="color:#27500A;font-weight:700">00:45:10</span><button class="btn" style="font-size:11px">Ver</button></div>
+          </div>
+        </div>
+
+        <!-- TICKETS LIST -->
+        <div class="screen" id="s-tickets">
+          <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+            <input type="text" placeholder="Buscar tickets..." style="flex:1;max-width:240px;font-size:12px;padding:6px 10px;border:1px solid #d0cfc8;border-radius:6px">
+            <select style="font-size:12px;padding:6px 8px;border:1px solid #d0cfc8;border-radius:6px"><option>Todos los estados</option><option>Nuevo</option><option>En progreso</option><option>Pendiente</option><option>Resuelto</option></select>
+            <select style="font-size:12px;padding:6px 8px;border:1px solid #d0cfc8;border-radius:6px"><option>Todas las prioridades</option><option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option></select>
+            <select style="font-size:12px;padding:6px 8px;border:1px solid #d0cfc8;border-radius:6px"><option>Todos los resolutores</option><option>Carlos R.</option><option>Ana P.</option><option>Luis M.</option></select>
+          </div>
+          <div class="card" style="padding:0;overflow:hidden">
+            <div class="trow hdr" style="grid-template-columns:65px 1fr 90px 80px 90px 75px;padding:9px 14px;background:#f5f5f4">
+              <span>#ID</span><span>Título</span><span>Estado</span><span>Prioridad</span><span>Resolutor</span><span>SLA</span>
+            </div>
+            <div style="padding:0 14px">
+              <div class="trow" style="grid-template-columns:65px 1fr 90px 80px 90px 75px;cursor:pointer" onclick="showScreen('detail',null)"><span style="color:#378ADD;font-weight:600">#0042</span><span>Error al iniciar sesión en JDE</span><span><span class="badge b-progress">En progreso</span></span><span><span class="badge b-critical">Crítica</span></span><span>Carlos R.</span><span class="sla-crit">00:34</span></div>
+              <div class="trow" style="grid-template-columns:65px 1fr 90px 80px 90px 75px"><span style="color:#378ADD;font-weight:600">#0041</span><span>Módulo AP no carga facturas</span><span><span class="badge b-new">Nuevo</span></span><span><span class="badge b-high">Alta</span></span><span style="color:#aaa">Sin asignar</span><span class="sla-warn">03:20</span></div>
+              <div class="trow" style="grid-template-columns:65px 1fr 90px 80px 90px 75px"><span style="color:#378ADD;font-weight:600">#0039</span><span>Reporte GL aparece vacío Q2</span><span><span class="badge b-progress">En progreso</span></span><span><span class="badge b-high">Alta</span></span><span>Ana P.</span><span class="sla-warn">01:15</span></div>
+              <div class="trow" style="grid-template-columns:65px 1fr 90px 80px 90px 75px"><span style="color:#378ADD;font-weight:600">#0038</span><span>Pendiente confirmación usuario</span><span><span class="badge b-pending">Pendiente</span></span><span><span class="badge b-medium">Media</span></span><span>Luis M.</span><span style="color:#aaa">⏸ pausado</span></div>
+              <div class="trow" style="grid-template-columns:65px 1fr 90px 80px 90px 75px"><span style="color:#378ADD;font-weight:600">#0037</span><span>Integración API REST con Zendesk</span><span><span class="badge b-progress">En progreso</span></span><span><span class="badge b-medium">Media</span></span><span>Ana P.</span><span class="sla-ok">08:00</span></div>
+              <div class="trow" style="grid-template-columns:65px 1fr 90px 80px 90px 75px"><span style="color:#378ADD;font-weight:600">#0035</span><span>Servidor API no responde GET</span><span><span class="badge b-progress">En progreso</span></span><span><span class="badge b-critical">Crítica</span></span><span>Luis M.</span><span class="sla-crit">02:50</span></div>
+              <div class="trow" style="grid-template-columns:65px 1fr 90px 80px 90px 75px"><span style="color:#378ADD;font-weight:600">#0031</span><span>Factura duplicada en AR</span><span><span class="badge b-resolved">Resuelto</span></span><span><span class="badge b-high">Alta</span></span><span>Ana P.</span><span class="sla-ok">✓</span></div>
+              <div class="trow" style="grid-template-columns:65px 1fr 90px 80px 90px 75px"><span style="color:#378ADD;font-weight:600">#0028</span><span>Usuario sin acceso módulo CM</span><span><span class="badge b-closed">Cerrado</span></span><span><span class="badge b-low">Baja</span></span><span>Carlos R.</span><span class="sla-ok">✓</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KANBAN -->
+        <div class="screen" id="s-kanban">
+          <div class="kanban-cols">
+            <div class="kol">
+              <div class="kol-hdr"><span>Nuevo</span><span style="background:#EBF4FC;color:#185FA5;border-radius:10px;padding:1px 6px;font-size:10px">3</span></div>
+              <div class="kcard"><div class="kcard-id">#0043</div><div class="kcard-title">Error carga masiva inventario</div><div class="kcard-foot"><span class="badge b-high">Alta</span><div class="av" style="background:#B5D4F4;color:#0C447C">MG</div></div></div>
+              <div class="kcard"><div class="kcard-id">#0041</div><div class="kcard-title">Módulo AP no carga facturas</div><div class="kcard-foot"><span class="badge b-high">Alta</span><div class="av" style="background:#ddd;color:#666">—</div></div></div>
+              <div class="kcard"><div class="kcard-id">#0040</div><div class="kcard-title">Consulta permisos GL</div><div class="kcard-foot"><span class="badge b-low">Baja</span><div class="av" style="background:#ddd;color:#666">—</div></div></div>
+            </div>
+            <div class="kol">
+              <div class="kol-hdr"><span>Asignado</span><span style="background:#EAF3DE;color:#27500A;border-radius:10px;padding:1px 6px;font-size:10px">2</span></div>
+              <div class="kcard"><div class="kcard-id">#0044</div><div class="kcard-title">Falla en batch nocturno JDE</div><div class="kcard-foot"><span class="badge b-critical">Crítica</span><div class="av" style="background:#B5D4F4;color:#0C447C">CR</div></div></div>
+              <div class="kcard"><div class="kcard-id">#0036</div><div class="kcard-title">Ajuste reporte financiero Q2</div><div class="kcard-foot"><span class="badge b-medium">Media</span><div class="av" style="background:#F4C0D1;color:#4B1528">AP</div></div></div>
+            </div>
+            <div class="kol">
+              <div class="kol-hdr"><span>En progreso</span><span style="background:#FEF3CD;color:#7B5800;border-radius:10px;padding:1px 6px;font-size:10px">4</span></div>
+              <div class="kcard" style="border-left:3px solid #E24B4A"><div class="kcard-id">#0042 <span class="sla-crit" style="font-size:9px">⚠ 00:34</span></div><div class="kcard-title">Error login JDE</div><div class="kcard-foot"><span class="badge b-critical">Crítica</span><div class="av" style="background:#B5D4F4;color:#0C447C">CR</div></div></div>
+              <div class="kcard" style="border-left:3px solid #EF9F27"><div class="kcard-id">#0039 <span class="sla-warn" style="font-size:9px">⚠ 01:15</span></div><div class="kcard-title">Reporte GL vacío</div><div class="kcard-foot"><span class="badge b-high">Alta</span><div class="av" style="background:#F4C0D1;color:#4B1528">AP</div></div></div>
+              <div class="kcard"><div class="kcard-id">#0037</div><div class="kcard-title">Integración API Zendesk</div><div class="kcard-foot"><span class="badge b-medium">Media</span><div class="av" style="background:#F4C0D1;color:#4B1528">AP</div></div></div>
+              <div class="kcard" style="border-left:3px solid #E24B4A"><div class="kcard-id">#0035 <span class="sla-crit" style="font-size:9px">⚠ 02:50</span></div><div class="kcard-title">API no responde GET</div><div class="kcard-foot"><span class="badge b-critical">Crítica</span><div class="av" style="background:#9FE1CB;color:#04342C">LM</div></div></div>
+            </div>
+            <div class="kol">
+              <div class="kol-hdr"><span>Pendiente</span><span style="background:#FEF3CD;color:#7B5800;border-radius:10px;padding:1px 6px;font-size:10px">2</span></div>
+              <div class="kcard" style="opacity:.75"><div class="kcard-id">#0038</div><div class="kcard-title">Esperando confirmación usuario ⏸</div><div class="kcard-foot"><span class="badge b-medium">Media</span><div class="av" style="background:#9FE1CB;color:#04342C">LM</div></div></div>
+              <div class="kcard" style="opacity:.75"><div class="kcard-id">#0033</div><div class="kcard-title">Pendiente acceso entorno prod ⏸</div><div class="kcard-foot"><span class="badge b-high">Alta</span><div class="av" style="background:#B5D4F4;color:#0C447C">CR</div></div></div>
+            </div>
+            <div class="kol">
+              <div class="kol-hdr"><span>Resuelto</span><span style="background:#EDE9FE;color:#26215C;border-radius:10px;padding:1px 6px;font-size:10px">3</span></div>
+              <div class="kcard"><div class="kcard-id">#0031</div><div class="kcard-title">Factura duplicada AR</div><div class="kcard-foot"><span class="badge b-low">Baja</span><div class="av" style="background:#F4C0D1;color:#4B1528">AP</div></div></div>
+              <div class="kcard"><div class="kcard-id">#0029</div><div class="kcard-title">Error exportación CSV</div><div class="kcard-foot"><span class="badge b-medium">Media</span><div class="av" style="background:#B5D4F4;color:#0C447C">CR</div></div></div>
+              <div class="kcard"><div class="kcard-id">#0027</div><div class="kcard-title">Reseteo contraseña BI</div><div class="kcard-foot"><span class="badge b-low">Baja</span><div class="av" style="background:#9FE1CB;color:#04342C">LM</div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TRIAGE -->
+        <div class="screen" id="s-triage">
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">Asignar ticket sin resolver: #0041 — Módulo AP no carga facturas <span class="badge b-high">Alta</span></div>
+            <p style="font-size:12px;color:#888">Selecciona el resolutor más idóneo. El sistema muestra skills compatibles y carga de trabajo actual.</p>
+          </div>
+          <div class="triage-grid">
+            <div class="rc">
+              <div class="rc-hdr">
+                <div class="av-lg" style="background:#B5D4F4;color:#0C447C">CR</div>
+                <div style="flex:1"><div style="font-weight:600;font-size:13px">Carlos Rodríguez</div><div style="font-size:11px;color:#888">Consultor Sr. · Nivel 2</div></div>
+                <button class="btn btn-primary" style="font-size:11px">Asignar</button>
+              </div>
+              <div><span class="stag">JDE_GL</span><span class="stag">JDE_AP</span><span class="stag">JDE_AR</span><span class="stag">SQL</span></div>
+              <div style="font-size:11px;color:#888;margin-top:7px;margin-bottom:2px">Carga: 3 tickets activos (Alta)</div>
+              <div class="wb"><div class="wf" style="width:60%;background:#E24B4A"></div></div>
+              <div style="font-size:10px;color:#888">⚠ Skill compatible · Alta carga</div>
+            </div>
+            <div class="rc" style="border:2px solid #378ADD">
+              <div style="font-size:10px;font-weight:600;color:#185FA5;background:#EBF4FC;display:inline-block;padding:2px 8px;border-radius:4px;margin-bottom:8px">⭐ Recomendado</div>
+              <div class="rc-hdr">
+                <div class="av-lg" style="background:#F4C0D1;color:#4B1528">AP</div>
+                <div style="flex:1"><div style="font-weight:600;font-size:13px">Ana Pérez</div><div style="font-size:11px;color:#888">Consultora Sr. · Nivel 2</div></div>
+                <button class="btn btn-primary" style="font-size:11px">Asignar</button>
+              </div>
+              <div><span class="stag">JDE_AP</span><span class="stag">API_REST</span><span class="stag">Fusion</span><span class="stag">Reportes</span></div>
+              <div style="font-size:11px;color:#888;margin-top:7px;margin-bottom:2px">Carga: 2 tickets activos (Media)</div>
+              <div class="wb"><div class="wf" style="width:40%;background:#EF9F27"></div></div>
+              <div style="font-size:10px;color:#27500A">✓ Skill compatible · Carga media</div>
+            </div>
+            <div class="rc">
+              <div class="rc-hdr">
+                <div class="av-lg" style="background:#9FE1CB;color:#04342C">LM</div>
+                <div style="flex:1"><div style="font-weight:600;font-size:13px">Luis Mora</div><div style="font-size:11px;color:#888">Consultor · Nivel 2</div></div>
+                <button class="btn" style="font-size:11px">Asignar</button>
+              </div>
+              <div><span class="stag">API_REST</span><span class="stag">Python</span><span class="stag">DevOps</span></div>
+              <div style="font-size:11px;color:#888;margin-top:7px;margin-bottom:2px">Carga: 1 ticket activo (Baja)</div>
+              <div class="wb"><div class="wf" style="width:20%;background:#639922"></div></div>
+              <div style="font-size:10px;color:#aaa">⚠ Skills no coinciden con el ticket</div>
+            </div>
+            <div class="rc">
+              <div class="rc-hdr">
+                <div class="av-lg" style="background:#CECBF6;color:#26215C">MG</div>
+                <div style="flex:1"><div style="font-weight:600;font-size:13px">María González</div><div style="font-size:11px;color:#888">Consultora Jr. · Nivel 2</div></div>
+                <button class="btn btn-primary" style="font-size:11px">Asignar</button>
+              </div>
+              <div><span class="stag">JDE_AP</span><span class="stag">JDE_GL</span></div>
+              <div style="font-size:11px;color:#888;margin-top:7px;margin-bottom:2px">Carga: 0 tickets activos</div>
+              <div class="wb"><div class="wf" style="width:5%;background:#639922"></div></div>
+              <div style="font-size:10px;color:#27500A">✓ Skill compatible · Disponible</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DETAIL -->
+        <div class="screen" id="s-detail">
+          <div class="detail-grid">
+            <div>
+              <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+                  <div><div style="font-size:11px;color:#888;margin-bottom:2px">#0042 · 17/06/2026 09:14 · Origen: Manual</div><div style="font-size:15px;font-weight:700">Error al iniciar sesión en JDE</div></div>
+                  <div style="display:flex;gap:5px"><span class="badge b-progress" style="font-size:11px;padding:3px 8px">En progreso</span><span class="badge b-critical" style="font-size:11px;padding:3px 8px">Crítica</span></div>
+                </div>
+                <div class="card-title" style="font-size:11px;color:#888;font-weight:normal;margin-bottom:5px">Máquina de estados (FSM)</div>
+                <div class="fsm-row">
+                  <span class="fsm-step" style="background:#EBF4FC;color:#0C447C;border:1px solid #B5D4F4">Nuevo</span><span class="fsm-arr">→</span>
+                  <span class="fsm-step" style="background:#f0efe8;color:#666;border:1px solid #ddd">Asignado</span><span class="fsm-arr">→</span>
+                  <span class="fsm-step fsm-on">En progreso</span><span class="fsm-arr">→</span>
+                  <span class="fsm-step" style="background:#f0efe8;color:#aaa;border:1px solid #eee">Pendiente</span><span class="fsm-arr">→</span>
+                  <span class="fsm-step" style="background:#f0efe8;color:#aaa;border:1px solid #eee">Resuelto</span><span class="fsm-arr">→</span>
+                  <span class="fsm-step" style="background:#f0efe8;color:#aaa;border:1px solid #eee">Cerrado</span>
+                </div>
+                <p style="font-size:12px;line-height:1.7;color:#555;margin-top:8px">El usuario reporta que al intentar ingresar a JDE WorldSoftware desde las 8am, el sistema muestra "Oracle JDBC connection failed". Afecta a todo el departamento de contabilidad (12 usuarios).</p>
+              </div>
+              <div class="card">
+                <div class="card-title">Comentarios y actividad
+                  <div style="display:flex;gap:6px">
+                    <button class="btn" style="font-size:11px">📎 Adjunto</button>
+                    <button class="btn btn-primary" style="font-size:11px">+ Comentar</button>
+                  </div>
+                </div>
+                <div class="comment">
+                  <div class="av" style="width:26px;height:26px;font-size:10px;flex-shrink:0;background:#B5D4F4;color:#0C447C">CR</div>
+                  <div class="cb"><div class="chdr">Carlos R. · <span style="background:#EAF3DE;color:#27500A;font-size:10px;padding:1px 6px;border-radius:4px">Contacto al cliente</span> · hace 1h</div><div class="ctext c-cli">Hola equipo, confirmo que recibí el ticket y ya estoy revisando la conexión JDBC. Los informo en 30 minutos.</div></div>
+                </div>
+                <div class="comment">
+                  <div class="av" style="width:26px;height:26px;font-size:10px;flex-shrink:0;background:#B5D4F4;color:#0C447C">CR</div>
+                  <div class="cb"><div class="chdr">Carlos R. · <span style="background:#FEF3CD;color:#7B5800;font-size:10px;padding:1px 6px;border-radius:4px">Comentario interno</span> · hace 45m</div><div class="ctext c-int">Revisé el listener Oracle, el servicio cayó. Intentando reiniciar; si no, escalo a DBA.</div></div>
+                </div>
+                <div class="comment">
+                  <div class="av" style="width:26px;height:26px;font-size:10px;flex-shrink:0;background:#9FE1CB;color:#04342C">JM</div>
+                  <div class="cb"><div class="chdr">Juan M. (Coord.) · <span style="background:#EDE9FE;color:#3C3489;font-size:10px;padding:1px 6px;border-radius:4px">Seguimiento</span> · hace 20m</div><div class="ctext c-fol">Carlos, el cliente está muy urgente. ¿Necesitas apoyo del QM?</div></div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:8px">
+                  <select style="font-size:11px;padding:4px 6px;border:1px solid #d0cfc8;border-radius:5px"><option>Comentario interno</option><option>Contacto al cliente</option><option>Seguimiento</option></select>
+                  <input type="text" placeholder="Escribe un comentario..." style="flex:1;font-size:12px;padding:5px 8px;border:1px solid #d0cfc8;border-radius:5px">
+                  <button class="btn btn-primary" style="font-size:11px">Enviar</button>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="card">
+                <div class="card-title">Sesión de trabajo <span style="background:#FEF3CD;color:#7B5800;font-size:10px;padding:2px 7px;border-radius:10px">Activa</span></div>
+                <div style="background:#FEF3CD;border-radius:7px;padding:10px;margin-bottom:8px">
+                  <div style="font-size:11px;color:#7B5800">Tiempo de sesión actual</div>
+                  <div style="font-size:22px;font-weight:700;color:#854F0B;margin:4px 0">02:14:33</div>
+                  <div style="font-size:11px;color:#7B5800">Carlos R. · Inicio 09:45</div>
+                </div>
+                <button class="btn" style="width:100%;justify-content:center;font-size:12px">⏸ Salir de sesión</button>
+              </div>
+              <div class="card">
+                <div class="card-title">SLA</div>
+                <div style="background:#FCEBEB;border-radius:7px;padding:10px;margin-bottom:8px">
+                  <div style="font-size:11px;color:#A32D2D">Tiempo restante resolución</div>
+                  <div style="font-size:22px;font-weight:700;color:#E24B4A;margin:4px 0">00:34 min</div>
+                  <div style="font-size:11px;color:#A32D2D">Límite: 17/06 10:45 · Prioridad Crítica</div>
+                </div>
+                <div class="field-row"><span class="field-lbl">T. atención</span><span class="sla-ok">✓ 31 min (máx. 1h)</span></div>
+                <div class="field-row"><span class="field-lbl">T. resolución</span><span class="sla-crit">⚠ 00:34 restante</span></div>
+              </div>
+              <div class="card">
+                <div class="card-title">Información</div>
+                <div class="field-row"><span class="field-lbl">Cliente</span><span>Grupo ACME S.A.</span></div>
+                <div class="field-row"><span class="field-lbl">Resolutor</span><span>Carlos Rodríguez</span></div>
+                <div class="field-row"><span class="field-lbl">Severidad</span><span><span class="badge b-critical">SEV-1</span></span></div>
+                <div class="field-row"><span class="field-lbl">Prioridad</span><span><span class="badge b-critical">Crítica</span></span></div>
+                <div class="field-row"><span class="field-lbl">Skill req.</span><span>JDE_GL, JDE_AP</span></div>
+                <div class="field-row"><span class="field-lbl">Tipificación</span><span>Incidente / Acceso</span></div>
+                <div class="field-row"><span class="field-lbl">Nivel</span><span>N2 → posible N3</span></div>
+                <div class="field-row"><span class="field-lbl">Origen</span><span>Manual (Coordinador)</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SETUP -->
+        <div class="screen" id="s-setup">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="card">
+              <div class="card-title">⏱ SLA por prioridad</div>
+              <table class="doc-table">
+                <tr><th>Prioridad</th><th>Atención</th><th>Análisis</th><th>Resolución</th></tr>
+                <tr><td><span class="badge b-critical">Crítica</span></td><td>30 min</td><td>1 h</td><td>4 h</td></tr>
+                <tr><td><span class="badge b-high">Alta</span></td><td>1 h</td><td>3 h</td><td>8 h</td></tr>
+                <tr><td><span class="badge b-medium">Media</span></td><td>4 h</td><td>8 h</td><td>24 h</td></tr>
+                <tr><td><span class="badge b-low">Baja</span></td><td>8 h</td><td>16 h</td><td>72 h</td></tr>
+              </table>
+              <button class="btn" style="margin-top:8px;font-size:11px">✏ Editar tiempos</button>
+            </div>
+            <div class="card">
+              <div class="card-title">📅 Calendario de soporte</div>
+              <div class="field-row"><span class="field-lbl">Lun – Vie</span><span>08:00 – 18:00</span></div>
+              <div class="field-row"><span class="field-lbl">Sábado</span><span>09:00 – 13:00 (urgencias)</span></div>
+              <div class="field-row"><span class="field-lbl">Domingo</span><span>No laborable</span></div>
+              <div class="field-row"><span class="field-lbl">Zona horaria</span><span>America/Bogota (UTC-5)</span></div>
+              <div class="info-box" style="font-size:11px;margin-top:8px">El SLA solo descuenta tiempo dentro del horario laboral definido.</div>
+              <button class="btn" style="margin-top:8px;font-size:11px">✏ Editar horario</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">⚙ Parámetros de cierre automático</div>
+            <div class="field-row" style="margin-bottom:10px"><span class="field-lbl">Días sin respuesta</span><span><input type="number" value="3" style="width:55px;font-size:12px;padding:4px 6px;border:1px solid #d0cfc8;border-radius:5px"> días para cierre automático</span></div>
+            <div class="field-row" style="margin-bottom:10px"><span class="field-lbl">Al rechazar resolución</span><span><select style="font-size:12px;padding:4px 8px;border:1px solid #d0cfc8;border-radius:5px"><option>Reabrir el mismo ticket</option><option>Crear ticket nuevo</option></select></span></div>
+            <div class="field-row" style="margin-bottom:10px"><span class="field-lbl">SLA en Pendiente</span><span><select style="font-size:12px;padding:4px 8px;border:1px solid #d0cfc8;border-radius:5px"><option>Pausar SLA automáticamente</option><option>Continuar SLA</option></select></span></div>
+            <button class="btn btn-primary" style="font-size:11px">Guardar configuración</button>
+          </div>
+        </div>
+
+        <!-- USERS -->
+        <div class="screen" id="s-users">
+          <div class="card">
+            <div class="card-title">Usuarios y skills <button class="btn" style="font-size:11px">+ Agregar</button></div>
+            <div class="user-row" style="font-size:10px;font-weight:700;color:#888;padding-bottom:6px">
+              <span style="width:190px">Nombre</span><span style="width:110px">Rol</span><span style="flex:1">Skills</span><span>Estado</span>
+            </div>
+            <div class="user-row"><div style="display:flex;align-items:center;gap:8px;width:190px"><div class="av-lg" style="width:28px;height:28px;background:#B5D4F4;color:#0C447C;font-size:10px">CR</div>Carlos Rodríguez</div><span style="width:110px;color:#888;font-size:11px">Consultor Sr.</span><span style="flex:1"><span class="stag">JDE_GL</span><span class="stag">JDE_AP</span><span class="stag">JDE_AR</span><span class="stag">SQL</span></span><span style="color:#27500A;font-size:11px">● Activo</span></div>
+            <div class="user-row"><div style="display:flex;align-items:center;gap:8px;width:190px"><div class="av-lg" style="width:28px;height:28px;background:#F4C0D1;color:#4B1528;font-size:10px">AP</div>Ana Pérez</div><span style="width:110px;color:#888;font-size:11px">Consultora Sr.</span><span style="flex:1"><span class="stag">JDE_AP</span><span class="stag">API_REST</span><span class="stag">Fusion</span><span class="stag">Reportes</span></span><span style="color:#27500A;font-size:11px">● Activo</span></div>
+            <div class="user-row"><div style="display:flex;align-items:center;gap:8px;width:190px"><div class="av-lg" style="width:28px;height:28px;background:#9FE1CB;color:#04342C;font-size:10px">LM</div>Luis Mora</div><span style="width:110px;color:#888;font-size:11px">Consultor</span><span style="flex:1"><span class="stag">API_REST</span><span class="stag">Python</span><span class="stag">DevOps</span></span><span style="color:#27500A;font-size:11px">● Activo</span></div>
+            <div class="user-row"><div style="display:flex;align-items:center;gap:8px;width:190px"><div class="av-lg" style="width:28px;height:28px;background:#CECBF6;color:#26215C;font-size:10px">MG</div>María González</div><span style="width:110px;color:#888;font-size:11px">Consultora Jr.</span><span style="flex:1"><span class="stag">JDE_AP</span><span class="stag">JDE_GL</span></span><span style="color:#27500A;font-size:11px">● Activo</span></div>
+            <div class="user-row"><div style="display:flex;align-items:center;gap:8px;width:190px"><div class="av-lg" style="width:28px;height:28px;background:#9FE1CB;color:#04342C;font-size:10px">JM</div>Juan Murcia</div><span style="width:110px;color:#888;font-size:11px">Coordinador</span><span style="flex:1"><span class="stag">Triage</span><span class="stag">QM</span><span class="stag">Todos</span></span><span style="color:#27500A;font-size:11px">● Activo</span></div>
+          </div>
+        </div>
+
+        <!-- PROYECTOS LIST -->
+        <div class="screen" id="s-proyectos">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div>
+              <div style="font-size:12px;color:#888;margin-bottom:2px">Principal › Proyectos</div>
+              <div style="font-size:15px;font-weight:700">Proyectos</div>
+            </div>
+            <button class="btn btn-primary" style="font-size:12px">+ Nuevo proyecto</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div class="card" style="cursor:pointer;border-top:3px solid #378ADD" onclick="showScreen('lista',document.querySelector('.nav-item:nth-child(9)'))">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+                <div style="width:36px;height:36px;border-radius:50%;background:#EBF4FC;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">A</div>
+                <span class="badge b-progress">Activo</span>
+              </div>
+              <div style="font-size:13px;font-weight:700;margin-bottom:3px">Aris – Lower Mine</div>
+              <div style="font-size:11px;color:#888;margin-bottom:10px">Cliente: Aris Mining Corp.</div>
+              <div style="display:flex;gap:10px;font-size:11px;color:#666">
+                <span>📋 40 tareas</span><span>👥 4 miembros</span>
+              </div>
+              <div style="margin-top:8px">
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:3px"><span>Progreso</span><span>38%</span></div>
+                <div style="height:4px;background:#f0efe8;border-radius:3px"><div style="height:4px;width:38%;background:#378ADD;border-radius:3px"></div></div>
+              </div>
+            </div>
+            <div class="card" style="border-top:3px solid #639922">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+                <div style="width:36px;height:36px;border-radius:50%;background:#EAF3DE;color:#27500A;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">G</div>
+                <span class="badge b-progress">Activo</span>
+              </div>
+              <div style="font-size:13px;font-weight:700;margin-bottom:3px">Grupo ACME – ERP JDE</div>
+              <div style="font-size:11px;color:#888;margin-bottom:10px">Cliente: Grupo ACME S.A.</div>
+              <div style="display:flex;gap:10px;font-size:11px;color:#666">
+                <span>📋 28 tareas</span><span>👥 3 miembros</span>
+              </div>
+              <div style="margin-top:8px">
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:3px"><span>Progreso</span><span>61%</span></div>
+                <div style="height:4px;background:#f0efe8;border-radius:3px"><div style="height:4px;width:61%;background:#639922;border-radius:3px"></div></div>
+              </div>
+            </div>
+            <div class="card" style="border-top:3px solid #EF9F27">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+                <div style="width:36px;height:36px;border-radius:50%;background:#FEF3CD;color:#7B5800;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">T</div>
+                <span class="badge b-pending">Pausado</span>
+              </div>
+              <div style="font-size:13px;font-weight:700;margin-bottom:3px">TechCorp – CRM Oracle</div>
+              <div style="font-size:11px;color:#888;margin-bottom:10px">Cliente: TechCorp Ltda.</div>
+              <div style="display:flex;gap:10px;font-size:11px;color:#666">
+                <span>📋 15 tareas</span><span>👥 2 miembros</span>
+              </div>
+              <div style="margin-top:8px">
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:3px"><span>Progreso</span><span>20%</span></div>
+                <div style="height:4px;background:#f0efe8;border-radius:3px"><div style="height:4px;width:20%;background:#EF9F27;border-radius:3px"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LISTA DE TAREAS (vista tipo Teamwork/Asana) -->
+        <div class="screen" id="s-lista">
+          <!-- breadcrumb + tabs -->
+          <div style="margin-bottom:2px">
+            <div style="font-size:11px;color:#888;margin-bottom:6px">Principal › Proyectos › <span style="color:#378ADD;cursor:pointer" onclick="showScreen('proyectos',null)">Proyectos</span> › Aris – Lower Mine › <strong>Lista</strong></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div style="width:28px;height:28px;border-radius:50%;background:#EBF4FC;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">A</div>
+              <span style="font-size:15px;font-weight:700">Aris – Lower Mine</span>
+              <span style="font-size:11px;color:#aaa">⭐</span>
+            </div>
+            <div style="display:flex;gap:0;border-bottom:1px solid #e0dfd8;margin-bottom:0">
+              <div style="padding:7px 14px;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent">Tablero de control</div>
+              <div style="padding:7px 14px;font-size:12px;color:#378ADD;font-weight:600;cursor:pointer;border-bottom:2px solid #378ADD">Lista</div>
+              <div style="padding:7px 14px;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent">Tablero</div>
+              <div style="padding:7px 14px;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent">Tabla</div>
+              <div style="padding:7px 14px;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent">Línea de tiempo</div>
+              <div style="padding:7px 14px;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent">Tiempo</div>
+              <div style="padding:7px 14px;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent">Más…</div>
+            </div>
+          </div>
+
+          <!-- layout: sidebar listas + contenido -->
+          <div style="display:grid;grid-template-columns:210px 1fr;gap:0;min-height:500px;border:1px solid #e0dfd8;border-radius:8px;overflow:hidden;margin-top:10px">
+            <!-- sidebar listas -->
+            <div style="background:#fafaf8;border-right:1px solid #e0dfd8;padding:12px 0">
+              <div style="padding:6px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                <span style="font-size:11px;font-weight:700;color:#444">Listas de tareas</span>
+                <span style="font-size:16px;color:#aaa;cursor:pointer">+</span>
+              </div>
+              <div id="lista-nav">
+                <div class="lista-nav-item active" onclick="filtrarLista('todas',this)">Todas las listas <span class="lista-count">40</span></div>
+                <div class="lista-nav-item" onclick="filtrarLista('f1',this)">F1: Definiciones y Alistamiento <span class="lista-count">3</span></div>
+                <div class="lista-nav-item" onclick="filtrarLista('f2',this)">F2: Diseño <span class="lista-count">4</span></div>
+                <div class="lista-nav-item" onclick="filtrarLista('f3',this)">F3: Construcción <span class="lista-count">7</span></div>
+                <div class="lista-nav-item" onclick="filtrarLista('f4',this)">F4: Pruebas <span class="lista-count">23</span></div>
+                <div class="lista-nav-item" onclick="filtrarLista('f5',this)">F5: Salida a Vivo <span class="lista-count">0</span></div>
+                <div class="lista-nav-item" onclick="filtrarLista('f0',this)">0: Gestión <span class="lista-count">3</span></div>
+              </div>
+            </div>
+
+            <!-- contenido principal -->
+            <div style="padding:0;overflow:auto">
+              <div style="padding:8px 16px;font-size:11px;color:#888;border-bottom:1px solid #f0efe8">40 tareas</div>
+
+              <!-- F1 -->
+              <div class="lista-grupo" data-grupo="f1">
+                <div class="grupo-header" onclick="toggleGrupo('f1')">
+                  <span class="grupo-toggle" id="toggle-f1">▼</span>
+                  <span class="grupo-nombre">F1: Definiciones y Alistamiento</span>
+                  <span class="grupo-count">3</span>
+                  <span class="grupo-actions">✕ ⋮ +</span>
+                </div>
+                <!-- header columnas -->
+                <div class="tarea-header-row">
+                  <span></span><span>Tarea</span><span>Encargado</span><span>Fechas</span><span>Comentarios</span><span>Adjuntos</span><span>Estado</span>
+                </div>
+                <div class="tarea-row" data-tarea="t1">
+                  <span class="check-btn" onclick="toggleCheck(this)">○</span>
+                  <span class="tarea-nombre">Sesiones de acompañamiento y definiciones ARIS</span>
+                  <span class="tarea-avatar cf">CF</span>
+                  <span class="tarea-fecha vencida">jue, 14 may → <span class="fecha-alerta">lun, 15 jun</span></span>
+                  <span class="tarea-meta">—</span>
+                  <span class="tarea-meta">—</span>
+                  <span><span class="badge b-progress" style="font-size:10px">En curso</span></span>
+                </div>
+                <div style="padding:3px 16px 3px 48px"><span style="font-size:11px;color:#aaa;cursor:pointer">+ Añadir una subtarea</span></div>
+                <div class="tarea-row">
+                  <span class="check-btn" onclick="toggleCheck(this)">○</span>
+                  <span class="tarea-nombre">Sesiones de acompañamiento y definiciones ARIS</span>
+                  <span class="tarea-avatar jg">JG</span>
+                  <span class="tarea-fecha vencida">jue, 14 may → <span class="fecha-alerta">lun, 15 jun</span></span>
+                  <span class="tarea-meta"><span class="meta-icon">💬</span> 5</span>
+                  <span class="tarea-meta">—</span>
+                  <span><span class="badge b-progress" style="font-size:10px">En curso</span></span>
+                </div>
+                <div style="padding:3px 16px 3px 48px"><span style="font-size:11px;color:#aaa;cursor:pointer">+ Añadir una subtarea</span></div>
+                <div class="tarea-row">
+                  <span class="check-btn done" onclick="toggleCheck(this)">✓</span>
+                  <span class="tarea-nombre" style="text-decoration:line-through;color:#aaa">Sesiones de acompañamiento y definiciones ARIS</span>
+                  <span class="tarea-avatar ne">NE</span>
+                  <span class="tarea-fecha">jue, 14 may → lun, 15 jun</span>
+                  <span class="tarea-meta">—</span>
+                  <span class="tarea-meta">—</span>
+                  <span><span class="badge b-closed" style="font-size:10px">Completado</span></span>
+                </div>
+                <div style="padding:3px 16px 3px 48px"><span style="font-size:11px;color:#aaa;cursor:pointer">+ Añadir una subtarea</span></div>
+                <div style="padding:6px 16px"><span style="font-size:11px;color:#aaa;cursor:pointer">+ Añadir una tarea</span></div>
+              </div>
+
+              <!-- F2 -->
+              <div class="lista-grupo" data-grupo="f2">
+                <div class="grupo-header" onclick="toggleGrupo('f2')">
+                  <span class="grupo-toggle" id="toggle-f2">▼</span>
+                  <span class="grupo-nombre">F2: Diseño</span>
+                  <span class="grupo-count">4</span>
+                  <span class="grupo-actions">✕ ⋮ +</span>
+                </div>
+                <div class="tarea-header-row">
+                  <span></span><span>Tarea</span><span>Encargado</span><span>Fechas</span><span>Comentarios</span><span>Adjuntos</span><span>Estado</span>
+                </div>
+                <div class="tarea-row">
+                  <span class="check-btn" onclick="toggleCheck(this)">○</span>
+                  <span class="tarea-nombre">Documento de Diseño Manufactura</span>
+                  <span class="tarea-avatar ne">NE</span>
+                  <span class="tarea-fecha vencida">mar, 19 may → <span class="fecha-alerta">lun, 15 jun</span></span>
+                  <span class="tarea-meta">—</span>
+                  <span class="tarea-meta">—</span>
+                  <span><span class="badge b-pending" style="font-size:10px">En revisión</span></span>
+                </div>
+                <div class="tarea-row">
+                  <span class="check-btn" onclick="toggleCheck(this)">○</span>
+                  <span class="tarea-nombre">Documento de Diseño Activos y Proyectos</span>
+                  <span class="tarea-avatar cf">CF</span>
+                  <span class="tarea-fecha vencida">mar, 19 may → <span class="fecha-alerta">lun, 15 jun</span></span>
+                  <span class="tarea-meta"><span class="meta-icon">💬</span> 1</span>
+                  <span class="tarea-meta"><span class="meta-icon">📎</span> 4</span>
+                  <span><span class="badge b-progress" style="font-size:10px">En curso</span></span>
+                </div>
+                <!-- subtareas expandidas -->
+                <div class="subtarea-row">
+                  <span class="check-btn" onclick="toggleCheck(this)" style="font-size:10px">○</span>
+                  <span style="font-size:11px;color:#555">└ Revisar módulo de Activos Fijos</span>
+                  <span class="tarea-avatar cf" style="width:16px;height:16px;font-size:8px">CF</span>
+                  <span style="font-size:10px;color:#888">28 may → 5 jun</span>
+                  <span></span><span></span>
+                  <span><span class="badge b-progress" style="font-size:9px;padding:1px 5px">En curso</span></span>
+                </div>
+                <div class="subtarea-row">
+                  <span class="check-btn done" style="font-size:10px">✓</span>
+                  <span style="font-size:11px;color:#aaa;text-decoration:line-through">└ Validar catálogo de proyectos</span>
+                  <span class="tarea-avatar cf" style="width:16px;height:16px;font-size:8px">CF</span>
+                  <span style="font-size:10px;color:#aaa">19 may → 25 may</span>
+                  <span></span><span></span>
+                  <span><span class="badge b-closed" style="font-size:9px;padding:1px 5px">Hecho</span></span>
+                </div>
+                <div class="tarea-row">
+                  <span class="check-btn" onclick="toggleCheck(this)">○</span>
+                  <span class="tarea-nombre">Documento de Diseño Mantenimiento</span>
+                  <span class="tarea-avatar jg">JG</span>
+                  <span class="tarea-fecha vencida">mar, 19 may → <span class="fecha-alerta">lun, 15 jun</span></span>
+                  <span class="tarea-meta"><span class="meta-icon">💬</span> 1</span>
+                  <span class="tarea-meta">—</span>
+                  <span><span class="badge b-new" style="font-size:10px">Pendiente</span></span>
+                </div>
+                <div class="tarea-row">
+                  <span class="check-btn" onclick="toggleCheck(this)">○</span>
+                  <span class="tarea-nombre">Documento de Diseño Inventarios</span>
+                  <span class="tarea-avatar mo">MO</span>
+                  <span class="tarea-fecha vencida">vie, 15 may → <span class="fecha-alerta">lun, 15 jun</span></span>
+                  <span class="tarea-meta">—</span>
+                  <span class="tarea-meta">—</span>
+                  <span><span class="badge b-new" style="font-size:10px">Pendiente</span></span>
+                </div>
+                <div style="padding:6px 16px"><span style="font-size:11px;color:#aaa;cursor:pointer">+ Añadir una tarea</span></div>
+              </div>
+
+              <!-- F3 colapsado -->
+              <div class="lista-grupo" data-grupo="f3">
+                <div class="grupo-header" onclick="toggleGrupo('f3')">
+                  <span class="grupo-toggle" id="toggle-f3">▶</span>
+                  <span class="grupo-nombre">F3: Construcción</span>
+                  <span class="grupo-count">7</span>
+                  <span class="grupo-actions">✕ ⋮ +</span>
+                </div>
+                <div id="body-f3" style="display:none">
+                  <div class="tarea-header-row"><span></span><span>Tarea</span><span>Encargado</span><span>Fechas</span><span>Comentarios</span><span>Adjuntos</span><span>Estado</span></div>
+                  <div class="tarea-row"><span class="check-btn">○</span><span class="tarea-nombre">Configuración módulo Manufactura</span><span class="tarea-avatar cf">CF</span><span class="tarea-fecha">1 jul → 15 ago</span><span class="tarea-meta">—</span><span class="tarea-meta">—</span><span><span class="badge b-new" style="font-size:10px">No iniciado</span></span></div>
+                  <div class="tarea-row"><span class="check-btn">○</span><span class="tarea-nombre">Configuración módulo Activos</span><span class="tarea-avatar jg">JG</span><span class="tarea-fecha">1 jul → 15 ago</span><span class="tarea-meta">—</span><span class="tarea-meta">—</span><span><span class="badge b-new" style="font-size:10px">No iniciado</span></span></div>
+                  <div style="padding:6px 16px"><span style="font-size:11px;color:#aaa;cursor:pointer">+ Añadir una tarea</span></div>
+                </div>
+              </div>
+
+              <!-- F4 colapsado -->
+              <div class="lista-grupo" data-grupo="f4">
+                <div class="grupo-header" onclick="toggleGrupo('f4')">
+                  <span class="grupo-toggle" id="toggle-f4">▶</span>
+                  <span class="grupo-nombre">F4: Pruebas</span>
+                  <span class="grupo-count">23</span>
+                  <span class="grupo-actions">✕ ⋮ +</span>
+                </div>
+                <div id="body-f4" style="display:none">
+                  <div class="tarea-row"><span class="check-btn">○</span><span class="tarea-nombre">Pruebas de integración módulos</span><span class="tarea-avatar ne">NE</span><span class="tarea-fecha">1 sep → 30 sep</span><span class="tarea-meta">—</span><span class="tarea-meta">—</span><span><span class="badge b-new" style="font-size:10px">No iniciado</span></span></div>
+                  <div style="padding:6px 16px"><span style="font-size:11px;color:#aaa;cursor:pointer">+ Añadir una tarea</span></div>
+                </div>
+              </div>
+
+              <!-- F5 vacío -->
+              <div class="lista-grupo" data-grupo="f5">
+                <div class="grupo-header" onclick="toggleGrupo('f5')">
+                  <span class="grupo-toggle" id="toggle-f5">▶</span>
+                  <span class="grupo-nombre">F5: Salida a Vivo</span>
+                  <span class="grupo-count">0</span>
+                  <span class="grupo-actions">✕ ⋮ +</span>
+                </div>
+                <div id="body-f5" style="display:none">
+                  <div style="padding:14px 16px;font-size:12px;color:#aaa;text-align:center">Sin tareas. <span style="color:#378ADD;cursor:pointer">+ Añadir una tarea</span></div>
+                </div>
+              </div>
+
+              <!-- Gestión -->
+              <div class="lista-grupo" data-grupo="f0">
+                <div class="grupo-header" onclick="toggleGrupo('f0')">
+                  <span class="grupo-toggle" id="toggle-f0">▶</span>
+                  <span class="grupo-nombre">0: Gestión</span>
+                  <span class="grupo-count">3</span>
+                  <span class="grupo-actions">✕ ⋮ +</span>
+                </div>
+                <div id="body-f0" style="display:none">
+                  <div class="tarea-row"><span class="check-btn">○</span><span class="tarea-nombre">Kickoff con cliente</span><span class="tarea-avatar mo">MO</span><span class="tarea-fecha">14 may → 14 may</span><span class="tarea-meta">—</span><span class="tarea-meta">—</span><span><span class="badge b-closed" style="font-size:10px">Completado</span></span></div>
+                  <div style="padding:6px 16px"><span style="font-size:11px;color:#aaa;cursor:pointer">+ Añadir una tarea</span></div>
+                </div>
+              </div>
+
+            </div><!-- fin contenido -->
+          </div><!-- fin grid lista -->
+        </div><!-- fin s-lista -->
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE 2: ARQUITECTURA
+═══════════════════════════════════════════════════════════ -->
+<div class="page" id="p-docs" style="padding:0;max-width:100%">
+  <div class="docs-layout">
+    <div class="docs-sidebar">
+      <div class="docs-nav-section">Visión general</div>
+      <a class="docs-nav-item active" href="#overview" onclick="docScroll('overview',this)">Arquitectura general</a>
+      <a class="docs-nav-item" href="#stack" onclick="docScroll('stack',this)">Stack tecnológico</a>
+      <a class="docs-nav-item" href="#layers" onclick="docScroll('layers',this)">Capas (Clean Arch.)</a>
+      <div class="docs-nav-section">Backend</div>
+      <a class="docs-nav-item" href="#flask" onclick="docScroll('flask',this)">Flask & Swagger</a>
+      <a class="docs-nav-item" href="#fsm" onclick="docScroll('fsm',this)">FSM — Transitions</a>
+      <a class="docs-nav-item" href="#sla" onclick="docScroll('sla',this)">SLA Engine</a>
+      <div class="docs-nav-section">Frontend</div>
+      <a class="docs-nav-item" href="#react" onclick="docScroll('react',this)">React & Ant Design</a>
+      <a class="docs-nav-item" href="#zustand" onclick="docScroll('zustand',this)">Estado — Zustand</a>
+      <div class="docs-nav-section">Datos</div>
+      <a class="docs-nav-item" href="#postgres" onclick="docScroll('postgres',this)">PostgreSQL & RLS</a>
+      <a class="docs-nav-item" href="#schema" onclick="docScroll('schema',this)">Modelo de datos (5 niveles)</a>
+      <div class="docs-nav-section">Seguridad</div>
+      <a class="docs-nav-item" href="#auth" onclick="docScroll('auth',this)">JWT & OAuth2</a>
+      <div class="docs-nav-section">AI</div>
+      <a class="docs-nav-item" href="#ai" onclick="docScroll('ai',this)">AI Dispatcher (Fase 2)</a>
+    </div>
+    <div class="docs-content">
+      <h1>Arquitectura del Sistema</h1>
+      <p>SyWork Tickets es una aplicación interna de gestión de tickets e incidentes para un equipo de consultoría Oracle ERP/CRM. Stack: React + Flask + PostgreSQL on-premise. Metodología: SDD sobre GitHub Spec Kit.</p>
+
+      <h2 id="overview">Arquitectura general</h2>
+      <div class="arch-diagram">
+        <div class="arch-layer" style="background:#EBF4FC;border:1px solid #B5D4F4">
+          <div class="layer-title" style="color:#0C447C">🖥 Capa de Presentación (Frontend)</div>
+          <div class="layer-items">
+            <span class="layer-item" style="background:#fff;border-color:#B5D4F4;color:#185FA5">React 18 + TypeScript strict</span>
+            <span class="layer-item" style="background:#fff;border-color:#B5D4F4;color:#185FA5">Ant Design 5</span>
+            <span class="layer-item" style="background:#fff;border-color:#B5D4F4;color:#185FA5">Zustand (estado global)</span>
+            <span class="layer-item" style="background:#fff;border-color:#B5D4F4;color:#185FA5">@hello-pangea/dnd (Kanban)</span>
+            <span class="layer-item" style="background:#fff;border-color:#B5D4F4;color:#185FA5">date-fns</span>
+          </div>
+        </div>
+        <div class="arch-arrow">⬇ JWT via HTTPS ⬆</div>
+        <div class="arch-layer" style="background:#EAF3DE;border:1px solid #C0DD97">
+          <div class="layer-title" style="color:#27500A">⚙ Capa de Aplicación (Backend API)</div>
+          <div class="layer-items">
+            <span class="layer-item" style="background:#fff;border-color:#C0DD97;color:#3B6D11">Python 3.11 + Flask</span>
+            <span class="layer-item" style="background:#fff;border-color:#C0DD97;color:#3B6D11">Swagger / OpenAPI 3.0</span>
+            <span class="layer-item" style="background:#fff;border-color:#C0DD97;color:#3B6D11">python-transitions (FSM)</span>
+            <span class="layer-item" style="background:#fff;border-color:#C0DD97;color:#3B6D11">Flask-JWT-Extended</span>
+            <span class="layer-item" style="background:#fff;border-color:#C0DD97;color:#3B6D11">Celery (tareas async)</span>
+            <span class="layer-item" style="background:#fff;border-color:#C0DD97;color:#3B6D11">SLA Engine (custom)</span>
+          </div>
+        </div>
+        <div class="arch-arrow">⬇ SQLAlchemy ORM ⬆</div>
+        <div class="arch-layer" style="background:#EDE9FE;border:1px solid #CECBF6">
+          <div class="layer-title" style="color:#26215C">🗄 Capa de Datos</div>
+          <div class="layer-items">
+            <span class="layer-item" style="background:#fff;border-color:#CECBF6;color:#534AB7">PostgreSQL 16 (on-premise)</span>
+            <span class="layer-item" style="background:#fff;border-color:#CECBF6;color:#534AB7">Row Level Security (RLS)</span>
+            <span class="layer-item" style="background:#fff;border-color:#CECBF6;color:#534AB7">Alembic (migraciones)</span>
+          </div>
+        </div>
+        <div class="arch-arrow">⬇ OAuth2 / Google ⬆</div>
+        <div class="arch-layer" style="background:#FEF3CD;border:1px solid #FAC775">
+          <div class="layer-title" style="color:#7B5800">🔐 Identidad & Seguridad</div>
+          <div class="layer-items">
+            <span class="layer-item" style="background:#fff;border-color:#FAC775;color:#854F0B">Google OAuth2 (@sywork.net)</span>
+            <span class="layer-item" style="background:#fff;border-color:#FAC775;color:#854F0B">JWT sin estado</span>
+            <span class="layer-item" style="background:#fff;border-color:#FAC775;color:#854F0B">HTTPS / TLS 1.3</span>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="stack">Stack tecnológico</h2>
+      <table class="doc-table">
+        <tr><th>Capa</th><th>Tecnología</th><th>Justificación</th></tr>
+        <tr><td>Frontend</td><td><code>React 18</code> + <code>TypeScript strict</code></td><td>Tipado estricto, sin <code>any</code>. Componentes en PascalCase.</td></tr>
+        <tr><td>UI Library</td><td><code>Ant Design 5</code></td><td>Componentes empresariales listos. No reinventar la rueda.</td></tr>
+        <tr><td>Drag & Drop</td><td><code>@hello-pangea/dnd</code></td><td>Kanban con DnD accesible.</td></tr>
+        <tr><td>Estado global</td><td><code>Zustand</code></td><td>Más simple que Redux. Sin boilerplate.</td></tr>
+        <tr><td>Fechas</td><td><code>date-fns</code></td><td>Modular y liviano. <code>moment.js</code> está obsoleto y prohibido.</td></tr>
+        <tr><td>Paquetes</td><td><code>pnpm</code></td><td>Más rápido y eficiente que npm/yarn. Obligatorio.</td></tr>
+        <tr><td>Backend</td><td><code>Python 3.11</code> + <code>Flask</code></td><td>Liviano, ideal para APIs REST. Diseño API-First.</td></tr>
+        <tr><td>API Docs</td><td><code>Swagger / OpenAPI 3.0</code></td><td>Contrato API para integraciones futuras (Zendesk, Helix).</td></tr>
+        <tr><td>FSM</td><td><code>python-transitions</code></td><td>Máquina de estados finita para ciclo de vida del ticket.</td></tr>
+        <tr><td>Base de datos</td><td><code>PostgreSQL 16</code></td><td>On-premise. RLS para seguridad a nivel de fila.</td></tr>
+        <tr><td>ORM</td><td><code>SQLAlchemy</code> + <code>Alembic</code></td><td>Migraciones versionadas y seguras.</td></tr>
+        <tr><td>Auth</td><td><code>JWT</code> + <code>Google OAuth2</code></td><td>SSO restringido a <code>@sywork.net</code>.</td></tr>
+        <tr><td>Tareas async</td><td><code>Celery</code> + <code>Redis</code></td><td>Notificaciones, SLA timers, emails automáticos.</td></tr>
+      </table>
+
+      <h2 id="layers">Capas — Clean Architecture</h2>
+      <p>El sistema se divide en tres capas independientes que solo se comunican hacia adentro (dependencia unidireccional):</p>
+      <div class="arch-diagram">
+        <div style="border:2px dashed #B5D4F4;border-radius:10px;padding:16px;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:700;color:#185FA5;margin-bottom:8px">Capa 3 — Presentación / UI (más externa)</div>
+          <p style="font-size:11px;color:#555;margin:0">Componentes React, páginas, Kanban, formularios Ant Design. Solo renderiza datos — no contiene lógica de negocio.</p>
+        </div>
+        <div class="arch-arrow">↕ llama a services/</div>
+        <div style="border:2px dashed #C0DD97;border-radius:10px;padding:16px;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:700;color:#3B6D11;margin-bottom:8px">Capa 2 — Datos / Infraestructura</div>
+          <p style="font-size:11px;color:#555;margin:0">Repositorios SQLAlchemy, cliente HTTP para Flask API, módulos de reportes. Implementa las interfaces del dominio.</p>
+        </div>
+        <div class="arch-arrow">↕ solo tipos y reglas</div>
+        <div style="border:2px dashed #CECBF6;border-radius:10px;padding:16px">
+          <div style="font-size:12px;font-weight:700;color:#26215C;margin-bottom:8px">Capa 1 — Core / Dominio (más interna)</div>
+          <p style="font-size:11px;color:#555;margin:0">Lógica de negocio pura: FSM de tickets, reglas SLA, entidades (<code>Ticket</code>, <code>Comment</code>, <code>User</code>). Sin dependencias externas.</p>
+        </div>
+      </div>
+
+      <h2 id="flask">Backend — Flask & Swagger</h2>
+      <p>La API sigue el principio <strong>API-First</strong>: el contrato Swagger se define antes de implementar. Esto permite integrar futuros clientes (Zendesk, Helix BMC, portal de clientes) sin cambiar la API.</p>
+      <pre><code>GET    /api/tickets              → lista paginada con filtros
+POST   /api/tickets              → crear ticket
+GET    /api/tickets/{id}         → detalle
+PATCH  /api/tickets/{id}/status  → transición de estado (FSM)
+POST   /api/tickets/{id}/assign  → asignar resolutor
+POST   /api/tickets/{id}/comments → agregar comentario
+GET    /api/users/{id}/workload  → carga del resolutor
+POST   /api/sessions/start       → iniciar sesión de trabajo
+POST   /api/sessions/end         → cerrar sesión de trabajo</code></pre>
+      <div class="info-box">El endpoint <code>POST /api/tickets/{id}/assign</code> es intencionalmente un endpoint de backend independiente — no está atado a la pantalla del coordinador. En Fase 2, el AI Dispatcher llamará exactamente este mismo endpoint.</div>
+
+      <h2 id="fsm">FSM — python-transitions</h2>
+      <p>El ciclo de vida del ticket se gestiona con una Máquina de Estados Finita usando la librería <code>python-transitions</code>. Solo se permiten transiciones explícitamente definidas.</p>
+      <div style="overflow-x:auto;padding:16px 0">
+        <div class="fsm-diagram">
+          <div class="fsm-node"><div class="fsm-box" style="background:#EBF4FC;border-color:#378ADD;color:#0C447C">Nuevo</div><div class="fsm-sub">Estado inicial</div></div>
+          <div class="fsm-conn"><div class="fsm-line"></div><div class="fsm-label">asignar()</div></div>
+          <div class="fsm-node"><div class="fsm-box" style="background:#EAF3DE;border-color:#639922;color:#27500A">Asignado</div><div class="fsm-sub">Resolutor asignado</div></div>
+          <div class="fsm-conn"><div class="fsm-line"></div><div class="fsm-label">iniciar()</div></div>
+          <div class="fsm-node"><div class="fsm-box" style="background:#FEF3CD;border-color:#EF9F27;color:#7B5800">En progreso</div><div class="fsm-sub">SLA activo</div></div>
+          <div class="fsm-conn"><div class="fsm-line"></div><div class="fsm-label">contactar_cliente()</div></div>
+          <div class="fsm-node"><div class="fsm-box" style="background:#FAECE7;border-color:#D85A30;color:#4A1B0C">Pendiente</div><div class="fsm-sub">SLA pausado</div></div>
+          <div class="fsm-conn"><div class="fsm-line"></div><div class="fsm-label">cliente_responde()</div></div>
+          <div class="fsm-node"><div class="fsm-box" style="background:#EDE9FE;border-color:#7F77DD;color:#26215C">Resuelto</div><div class="fsm-sub">Espera aprobación</div></div>
+          <div class="fsm-conn"><div class="fsm-line"></div><div class="fsm-label">cerrar()</div></div>
+          <div class="fsm-node"><div class="fsm-box" style="background:#f0efe8;border-color:#aaa;color:#444">Cerrado</div><div class="fsm-sub">Estado final</div></div>
+        </div>
+      </div>
+      <pre><code>from transitions import Machine
+
+class Ticket:
+    states = ['nuevo','asignado','en_progreso','pendiente','resuelto','cerrado']
+    transitions = [
+        {'trigger':'asignar',  'source':'nuevo',       'dest':'asignado'},
+        {'trigger':'iniciar',  'source':'asignado',    'dest':'en_progreso'},
+        {'trigger':'pausar',   'source':'en_progreso', 'dest':'pendiente'},
+        {'trigger':'reanudar', 'source':'pendiente',   'dest':'en_progreso'},
+        {'trigger':'resolver', 'source':'en_progreso', 'dest':'resuelto'},
+        {'trigger':'cerrar',   'source':'resuelto',    'dest':'cerrado'},
+    ]
+    def __init__(self): Machine(model=self, states=self.states,
+        transitions=self.transitions, initial='nuevo')</code></pre>
+
+      <h2 id="sla">SLA Engine</h2>
+      <p>El motor SLA calcula tiempos respetando el calendario laboral del equipo. Los estados que pausan el SLA son configurables.</p>
+      <ul>
+        <li><strong>Estados que descuentan SLA:</strong> Nuevo, Asignado, En progreso, Resuelto</li>
+        <li><strong>Estados que pausan SLA:</strong> Pendiente (configurable)</li>
+        <li>Los cálculos se basan en el calendario de trabajo (horario, feriados, zona horaria)</li>
+        <li>Alertas automáticas al 50%, 75% y 90% del tiempo consumido</li>
+        <li>Los tiempos se ajustan manualmente post-diagnóstico si es necesario</li>
+      </ul>
+
+      <h2 id="react">Frontend — React & Ant Design</h2>
+      <p>Principios de desarrollo frontend según el SDD:</p>
+      <ul>
+        <li>Los componentes en <code>/components</code> son "tontos": solo renderizan props, sin lógica de negocio</li>
+        <li>La lógica y llamadas API viven en <code>/services</code> (Principio SRP)</li>
+        <li>Tipado TypeScript estricto — prohibido usar <code>any</code></li>
+        <li>Archivos de componentes en <code>PascalCase.tsx</code>, utilidades en <code>camelCase.ts</code></li>
+        <li>DB columns en <code>snake_case</code></li>
+      </ul>
+      <pre><code>src/
+├── components/      # UI "tontos" (Ant Design, Kanban cards)
+│   ├── TicketList.tsx
+│   ├── KanbanBoard.tsx
+│   └── TicketDetail.tsx
+├── services/        # Lógica + llamadas API
+│   ├── ticketService.ts
+│   └── slaService.ts
+├── store/           # Zustand stores
+│   └── ticketStore.ts
+├── types/           # Interfaces TypeScript
+│   └── ticket.ts
+└── pages/           # Vistas completas
+    ├── Dashboard.tsx
+    └── TriageDashboard.tsx</code></pre>
+
+      <h2 id="zustand">Estado global — Zustand</h2>
+      <pre><code>import { create } from 'zustand'
+
+interface TicketStore {
+  tickets: Ticket[]
+  selectedTicket: Ticket | null
+  fetchTickets: () => Promise&lt;void&gt;
+  assignTicket: (id: string, userId: string) => Promise&lt;void&gt;
+}
+
+export const useTicketStore = create&lt;TicketStore&gt;((set) => ({
+  tickets: [],
+  selectedTicket: null,
+  fetchTickets: async () => {
+    const data = await ticketService.getAll()
+    set({ tickets: data })
+  },
+  assignTicket: async (id, userId) => {
+    await ticketService.assign(id, userId)
+    // actualiza estado local
+  }
+}))</code></pre>
+
+      <h2 id="postgres">PostgreSQL & Row Level Security</h2>
+      <p>Toda consulta está protegida doblemente: a nivel de API (JWT) y a nivel de base de datos (RLS). Incluso si la API se compromete, un usuario solo puede ver sus propios tickets.</p>
+      <pre><code>-- Habilitar RLS en la tabla tickets
+ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
+
+-- Política: cada usuario solo ve sus tickets o los asignados a su cliente
+CREATE POLICY ticket_isolation ON tickets
+  USING (
+    assignee_id = current_setting('app.user_id')::uuid
+    OR client_id = current_setting('app.client_id')::uuid
+  );</code></pre>
+
+      <h2 id="schema">Modelo de datos — Jerarquía de 5 niveles</h2>
+      <p>La vista de Proyectos introduce una jerarquía completa que se superpone al módulo de tickets existente. El aislamiento de datos (RLS) se aplica a nivel de <code>clients</code>, garantizando que cada organización solo vea sus propios datos.</p>
+
+      <!-- diagrama jerarquía -->
+      <div class="arch-diagram" style="text-align:left;padding:16px">
+        <div style="display:flex;flex-direction:column;gap:0">
+          <div style="background:#EBF4FC;border:1px solid #B5D4F4;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:16px">🏢</span>
+            <div><div style="font-size:12px;font-weight:700;color:#0C447C">Nivel 1 — CLIENT (Tenant)</div><div style="font-size:11px;color:#185FA5">tabla: <code>clients</code> · RLS aplicado aquí · ej: "Aris Mining Corp."</div></div>
+          </div>
+          <div style="padding-left:24px;border-left:2px dashed #B5D4F4;margin-left:20px">
+            <div style="height:10px"></div>
+            <div style="background:#EAF3DE;border:1px solid #C0DD97;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+              <span style="font-size:16px">📁</span>
+              <div><div style="font-size:12px;font-weight:700;color:#27500A">Nivel 2 — PROJECT</div><div style="font-size:11px;color:#3B6D11">tabla: <code>projects</code> · FK: client_id · ej: "Aris – Lower Mine"</div></div>
+            </div>
+            <div style="padding-left:24px;border-left:2px dashed #C0DD97;margin-left:20px">
+              <div style="height:10px"></div>
+              <div style="background:#FEF3CD;border:1px solid #FAC775;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+                <span style="font-size:16px">📋</span>
+                <div><div style="font-size:12px;font-weight:700;color:#7B5800">Nivel 3 — TASK LIST (Fase / Sprint)</div><div style="font-size:11px;color:#854F0B">tabla: <code>task_lists</code> · FK: project_id · posición ordenable · ej: "F2: Diseño"</div></div>
+              </div>
+              <div style="padding-left:24px;border-left:2px dashed #FAC775;margin-left:20px">
+                <div style="height:10px"></div>
+                <div style="background:#FAECE7;border:1px solid #F0997B;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+                  <span style="font-size:16px">✅</span>
+                  <div><div style="font-size:12px;font-weight:700;color:#4A1B0C">Nivel 4 — TASK (Ticket ejecutable)</div><div style="font-size:11px;color:#712B13">tabla: <code>tasks</code> · FK: task_list_id, assignee_id · tiene estado, fechas, SLA, comentarios, adjuntos</div></div>
+                </div>
+                <div style="padding-left:24px;border-left:2px dashed #F0997B;margin-left:20px">
+                  <div style="height:10px"></div>
+                  <div style="background:#FCEBEB;border:1px solid #F7C1C1;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+                    <span style="font-size:16px">↳</span>
+                    <div><div style="font-size:12px;font-weight:700;color:#791F1F">Nivel 5 — SUBTASK</div><div style="font-size:11px;color:#A32D2D">tabla: <code>tasks</code> (autorreferencial) · FK: parent_task_id · mismos atributos que task, sin SLA propio</div></div>
+                  </div>
+                  <div style="height:10px"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3>Tabla <code>clients</code> — Nivel 1 (RLS root)</h3>
+      <table class="doc-table">
+        <tr><th>Columna</th><th>Tipo</th><th>Descripción</th></tr>
+        <tr><td><code>id</code></td><td>uuid PK</td><td>Identificador único del tenant</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>Nombre de la organización cliente</td></tr>
+        <tr><td><code>slug</code></td><td>text unique</td><td>Identificador URL-friendly</td></tr>
+        <tr><td><code>active</code></td><td>boolean</td><td>Cliente activo / inactivo</td></tr>
+        <tr><td><code>created_at</code></td><td>timestamptz</td><td>Fecha de alta</td></tr>
+      </table>
+
+      <h3>Tabla <code>projects</code> — Nivel 2</h3>
+      <table class="doc-table">
+        <tr><th>Columna</th><th>Tipo</th><th>Descripción</th></tr>
+        <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+        <tr><td><code>client_id</code></td><td>uuid FK → clients</td><td>Tenant propietario (RLS)</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>ej. "Aris – Lower Mine"</td></tr>
+        <tr><td><code>color</code></td><td>text</td><td>Color de identificación visual</td></tr>
+        <tr><td><code>status</code></td><td>enum</td><td>active · paused · closed</td></tr>
+        <tr><td><code>start_date</code></td><td>date</td><td></td></tr>
+        <tr><td><code>end_date</code></td><td>date</td><td></td></tr>
+        <tr><td><code>created_by</code></td><td>uuid FK → users</td><td></td></tr>
+      </table>
+
+      <h3>Tabla <code>task_lists</code> — Nivel 3</h3>
+      <table class="doc-table">
+        <tr><th>Columna</th><th>Tipo</th><th>Descripción</th></tr>
+        <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+        <tr><td><code>project_id</code></td><td>uuid FK → projects</td><td></td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>ej. "F2: Diseño"</td></tr>
+        <tr><td><code>position</code></td><td>integer</td><td>Orden en la barra lateral (drag para reordenar)</td></tr>
+        <tr><td><code>color</code></td><td>text</td><td>Color del encabezado de grupo</td></tr>
+        <tr><td><code>collapsed</code></td><td>boolean</td><td>Estado de expansión en la UI</td></tr>
+      </table>
+
+      <h3>Tabla <code>tasks</code> — Niveles 4 y 5 (autorreferencial)</h3>
+      <table class="doc-table">
+        <tr><th>Columna</th><th>Tipo</th><th>Descripción</th></tr>
+        <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+        <tr><td><code>task_list_id</code></td><td>uuid FK → task_lists</td><td>Lista (fase) a la que pertenece</td></tr>
+        <tr><td><code>parent_task_id</code></td><td>uuid FK → tasks</td><td>NULL = tarea; valor = subtarea (nivel 5)</td></tr>
+        <tr><td><code>title</code></td><td>text</td><td>Nombre de la tarea</td></tr>
+        <tr><td><code>status</code></td><td>enum FSM</td><td>pending · in_progress · in_review · done · cancelled</td></tr>
+        <tr><td><code>assignee_id</code></td><td>uuid FK → users</td><td>Encargado (avatar en la UI)</td></tr>
+        <tr><td><code>start_date</code></td><td>date</td><td>Fecha de inicio</td></tr>
+        <tr><td><code>due_date</code></td><td>date</td><td>Fecha límite — en rojo si está vencida</td></tr>
+        <tr><td><code>priority</code></td><td>enum</td><td>P1 · P2 · P3 · P4</td></tr>
+        <tr><td><code>position</code></td><td>integer</td><td>Orden dentro de la lista (drag & drop)</td></tr>
+        <tr><td><code>estimated_hours</code></td><td>numeric</td><td>Estimación de esfuerzo (Fase 2)</td></tr>
+        <tr><td><code>source_ticket_id</code></td><td>uuid FK → tickets</td><td>NULL o FK si la tarea viene de un ticket de soporte</td></tr>
+        <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+      </table>
+
+      <h3>Tabla <code>task_attachments</code> y <code>task_comments</code></h3>
+      <table class="doc-table">
+        <tr><th>Tabla</th><th>Columnas clave</th><th>Descripción</th></tr>
+        <tr><td><code>task_comments</code></td><td>id, task_id, author_id, body, type, created_at</td><td>Comentarios por tarea — mismo motor que tickets</td></tr>
+        <tr><td><code>task_attachments</code></td><td>id, task_id, filename, url, size_bytes, uploaded_by</td><td>Archivos adjuntos — contador visible en la fila (ej. 📎 4)</td></tr>
+      </table>
+
+      <h3>Política RLS — aislamiento por tenant</h3>
+      <pre><code>-- Política raíz sobre projects
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY project_isolation ON projects
+  USING (client_id = current_setting('app.client_id')::uuid);
+
+-- task_lists hereda via JOIN
+ALTER TABLE task_lists ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tasklist_isolation ON task_lists
+  USING (project_id IN (
+    SELECT id FROM projects
+    WHERE client_id = current_setting('app.client_id')::uuid
+  ));
+
+-- tasks hereda via JOIN (incluye subtareas)
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY task_isolation ON tasks
+  USING (task_list_id IN (
+    SELECT tl.id FROM task_lists tl
+    JOIN projects p ON p.id = tl.project_id
+    WHERE p.client_id = current_setting('app.client_id')::uuid
+  ));</code></pre>
+
+      <h3>Modelo de datos — Módulo de Tickets (incidentes)</h3>
+      <table class="doc-table">
+        <tr><th>Tabla</th><th>Columnas clave</th><th>Descripción</th></tr>
+        <tr><td><code>tickets</code></td><td>id, title, status, priority, severity, sla_deadline, assignee_id, client_id, source_task_id</td><td>Incidentes de soporte — relacionables con tasks</td></tr>
+        <tr><td><code>comments</code></td><td>id, ticket_id, author_id, type, body, attachments, created_at</td><td>Tipos: interno / cliente / seguimiento / diagnóstico</td></tr>
+        <tr><td><code>work_sessions</code></td><td>id, ticket_id, user_id, started_at, ended_at</td><td>Focus mode — tiempo real trabajado</td></tr>
+        <tr><td><code>sla_events</code></td><td>id, ticket_id, event_type, ts</td><td>Auditoría de pausas/reinicios SLA</td></tr>
+        <tr><td><code>sla_config</code></td><td>priority, attention_minutes, analysis_minutes, resolution_minutes</td><td>Tabla configurable por prioridad</td></tr>
+        <tr><td><code>work_calendar</code></td><td>weekday, start_time, end_time, timezone</td><td>Horario laboral para cálculo SLA</td></tr>
+        <tr><td><code>users</code></td><td>id, name, email, role, skills[], client_id</td><td>Skills como array de etiquetas</td></tr>
+      </table>
+      <div class="info-box">La columna <code>source_ticket_id</code> en <code>tasks</code> y <code>source_task_id</code> en <code>tickets</code> permiten trazar la relación bidireccional cuando un incidente de soporte genera una tarea evolutiva, o viceversa.</div>
+
+      <h2 id="auth">Seguridad — JWT & Google OAuth2</h2>
+      <ul>
+        <li>Login exclusivo por Google OAuth2 restringido al dominio <code>@sywork.net</code></li>
+        <li>El backend emite un JWT sin estado tras verificar el token de Google</li>
+        <li>El frontend solo almacena el JWT — nunca credenciales del servidor</li>
+        <li>Ningún componente <code>"use client"</code> contiene claves de API o strings de conexión</li>
+        <li>Variables de entorno: <code>.env</code> en backend (nunca comiteado); <code>VITE_API_URL</code> como única variable pública en frontend</li>
+      </ul>
+
+      <h2 id="ai">AI Dispatcher — Preparación Fase 2</h2>
+      <div class="success-box">
+        <strong>Gold Standard Dataset:</strong> Cada asignación que hace el Coordinador humano en Fase 1 se registra como dato de entrenamiento. En Fase 2, el AI Dispatcher aprenderá de estos patrones para asignar tickets automáticamente.
+      </div>
+      <p>Para que esto funcione, en Fase 1 se requiere:</p>
+      <ul>
+        <li>Skills de resolutores estrictamente parametrizadas como etiquetas: <code>JDE_GL</code>, <code>API_REST</code>, <code>Fusion</code>, etc.</li>
+        <li>El endpoint <code>POST /api/tickets/{id}/assign</code> es llamado por el humano hoy, y por la IA mañana — misma función, distinto caller</li>
+        <li>Registrar en DB: quién asignó, a quién, basado en qué skills, con qué carga previa del resolutor</li>
+        <li>El AI Dispatcher futuro será un agente que consume el historial de asignaciones para aprender el patrón óptimo</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE 3: METODOLOGÍA SDD & SPEC KIT
+═══════════════════════════════════════════════════════════ -->
+<div class="page" id="p-sdd" style="padding:0;max-width:100%">
+  <div class="docs-layout">
+    <div class="docs-sidebar">
+      <div class="docs-nav-section">SDD & Spec Kit</div>
+      <a class="docs-nav-item active" href="#sdd-what" onclick="docScroll2('sdd-what',this)">¿Qué es SDD?</a>
+      <a class="docs-nav-item" href="#sdd-flow" onclick="docScroll2('sdd-flow',this)">Flujo de trabajo</a>
+      <a class="docs-nav-item" href="#sk-what" onclick="docScroll2('sk-what',this)">Spec Kit — GitHub</a>
+      <a class="docs-nav-item" href="#sk-structure" onclick="docScroll2('sk-structure',this)">Estructura del repo</a>
+      <div class="docs-nav-section">Los 3 documentos</div>
+      <a class="docs-nav-item" href="#constitucion" onclick="docScroll2('constitucion',this)">📜 Constitución</a>
+      <a class="docs-nav-item" href="#planning" onclick="docScroll2('planning',this)">📋 Planning</a>
+      <a class="docs-nav-item" href="#specs" onclick="docScroll2('specs',this)">🔧 Specs</a>
+      <div class="docs-nav-section">Crecer con fases</div>
+      <a class="docs-nav-item" href="#nueva-func" onclick="docScroll2('nueva-func',this)">¿Cómo agregar features?</a>
+      <a class="docs-nav-item" href="#fase1" onclick="docScroll2('fase1',this)">Fase 1 — Tickets ✓</a>
+      <a class="docs-nav-item" href="#fase2" onclick="docScroll2('fase2',this)">Fase 2 — Tareas & AI</a>
+      <a class="docs-nav-item" href="#fase3" onclick="docScroll2('fase3',this)">Fase 3 — Portal & Analytics</a>
+    </div>
+    <div class="docs-content">
+      <h1>Metodología SDD & Spec Kit</h1>
+      <p>SyWork Tickets se desarrolla con <strong>SDD (Spec-Driven Development)</strong> sobre la plataforma <strong>GitHub Spec Kit</strong>. Este documento explica cómo funciona, qué va en cada archivo y cómo escalar el sistema con nuevas funcionalidades.</p>
+
+      <h2 id="sdd-what">¿Qué es SDD?</h2>
+      <p><strong>SDD (Spec-Driven Development)</strong> es una metodología donde primero se escribe la especificación completa del sistema y luego esa especificación se convierte en la fuente de verdad que guía tanto al equipo humano como a los agentes de IA en la implementación.</p>
+      <div class="info-box"><strong>Principio central:</strong> "El código sigue a la especificación, no al revés." Ningún componente se implementa sin que exista una spec aprobada que lo describa.</div>
+      <p>En SDD existen <strong>tres documentos vivos</strong> que definen todo el proyecto:</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:14px 0">
+        <div style="background:#EBF4FC;border:1px solid #B5D4F4;border-radius:8px;padding:14px">
+          <div style="font-size:13px;font-weight:700;color:#0C447C;margin-bottom:6px">📜 Constitución</div>
+          <div style="font-size:11px;color:#185FA5;line-height:1.6">Reglas inamovibles. El "ADN" del proyecto. Stack, arquitectura, convenciones, seguridad. Nunca cambia sin consenso total del equipo.</div>
+        </div>
+        <div style="background:#EAF3DE;border:1px solid #C0DD97;border-radius:8px;padding:14px">
+          <div style="font-size:13px;font-weight:700;color:#27500A;margin-bottom:6px">📋 Planning</div>
+          <div style="font-size:11px;color:#3B6D11;line-height:1.6">El roadmap. Qué se construye en cada fase, qué dependencias están aprobadas, decisiones de arquitectura con justificación.</div>
+        </div>
+        <div style="background:#FEF3CD;border:1px solid #FAC775;border-radius:8px;padding:14px">
+          <div style="font-size:13px;font-weight:700;color:#7B5800;margin-bottom:6px">🔧 Specs</div>
+          <div style="font-size:11px;color:#854F0B;line-height:1.6">Una spec por feature. Describe exactamente qué construir, cómo funciona, qué endpoints expone y cuáles son los criterios de aceptación.</div>
+        </div>
+      </div>
+
+      <h2 id="sdd-flow">Flujo de trabajo SDD</h2>
+      <div class="arch-diagram">
+        <div style="display:flex;gap:0;align-items:stretch">
+          <div style="flex:1;background:#EBF4FC;border-radius:8px 0 0 8px;padding:12px;border:1px solid #B5D4F4">
+            <div style="font-size:11px;font-weight:700;color:#0C447C;margin-bottom:5px">1. Escribir Spec</div>
+            <div style="font-size:11px;color:#185FA5;line-height:1.6">Se crea o actualiza la spec del feature en <code>docs/specs/</code> o como GitHub Issue</div>
+          </div>
+          <div style="width:28px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:16px">→</div>
+          <div style="flex:1;background:#EAF3DE;padding:12px;border:1px solid #C0DD97">
+            <div style="font-size:11px;font-weight:700;color:#27500A;margin-bottom:5px">2. Aprobar</div>
+            <div style="font-size:11px;color:#3B6D11;line-height:1.6">El equipo revisa y aprueba la spec. Solo entonces se abre un PR para implementar.</div>
+          </div>
+          <div style="width:28px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:16px">→</div>
+          <div style="flex:1;background:#FEF3CD;padding:12px;border:1px solid #FAC775">
+            <div style="font-size:11px;font-weight:700;color:#7B5800;margin-bottom:5px">3. Implementar</div>
+            <div style="font-size:11px;color:#854F0B;line-height:1.6">El agente IA o el dev lee la spec aprobada y genera código coherente con la Constitución.</div>
+          </div>
+          <div style="width:28px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:16px">→</div>
+          <div style="flex:1;background:#EDE9FE;border-radius:0 8px 8px 0;padding:12px;border:1px solid #CECBF6">
+            <div style="font-size:11px;font-weight:700;color:#26215C;margin-bottom:5px">4. Validar</div>
+            <div style="font-size:11px;color:#534AB7;line-height:1.6">Los tests verifican los criterios de aceptación. El PR cierra el Issue de la spec.</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="sk-what">Spec Kit — GitHub como plataforma de specs</h2>
+      <p><strong>Spec Kit</strong> usa GitHub nativo: Issues, Projects, Labels y Markdown para crear un sistema donde cada feature tiene su especificación versionada y trazable directamente en el repositorio. Los agentes IA como Claude Code leen directamente los Issues para saber qué construir.</p>
+      <ul>
+        <li>Cada feature → un <strong>GitHub Issue</strong> con su spec completa en el cuerpo</li>
+        <li>Labels: <code>spec</code>, <code>implementation</code>, <code>bug</code>, <code>fase-1</code>, <code>fase-2</code>, <code>ai-ready</code></li>
+        <li>Un <strong>GitHub Project (Kanban)</strong> rastrea el estado: Spec → Review → In Progress → Done</li>
+        <li>Los <strong>Milestones</strong> agrupan specs por fase de entrega</li>
+        <li>Los PRs siempre referencian el Issue-spec que implementan: <code>Closes #42</code></li>
+      </ul>
+
+      <h2 id="sk-structure">Estructura del repositorio</h2>
+      <pre><code>sywork-tickets/
+├── CLAUDE.md              ← Instrucciones para agentes IA
+├── docs/
+│   ├── CONSTITUCIONV2.md  ← Reglas inamovibles (ya existe ✓)
+│   ├── PLANNING.md        ← Roadmap y decisiones
+│   └── specs/             ← Una spec por feature
+│       ├── triage-dashboard.md
+│       ├── sla-engine.md
+│       ├── comment-system.md
+│       └── work-sessions.md
+├── frontend/              ← React app (TypeScript strict)
+│   ├── src/
+│   │   ├── components/
+│   │   ├── services/
+│   │   ├── store/
+│   │   └── types/
+│   └── package.json
+├── backend/               ← Flask API
+│   ├── app/
+│   │   ├── domain/        ← FSM, SLA (Capa 1)
+│   │   ├── services/      ← Lógica negocio (Capa 2)
+│   │   └── api/           ← Endpoints Flask (Capa 3)
+│   └── requirements.txt
+└── .github/
+    ├── ISSUE_TEMPLATE/spec.md
+    └── workflows/ci.yml</code></pre>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <h2 id="constitucion">📜 La Constitución — CONSTITUCIONV2.md</h2>
+      <p>La Constitución es el documento más importante del proyecto. Define las <strong>reglas que no cambian</strong>: stack, arquitectura, convenciones, seguridad. Todo el equipo y los agentes IA deben leerla antes de tocar código. Si algo no está en la Constitución, no se implementa.</p>
+      <div class="warn-box"><strong>Regla de oro:</strong> Antes de implementar cualquier cosa, el agente IA verifica que lo que va a hacer es compatible con la Constitución. Si hay conflicto, la Constitución gana.</div>
+
+      <h3>¿Qué va en la Constitución? (ejemplo real — SyWork)</h3>
+      <p>Nuestra Constitución (<code>CONSTITUCIONV2.md</code>) ya está definida. Estos son sus bloques:</p>
+
+      <div style="margin:14px 0">
+        <div style="border:1px solid #e0dfd8;border-radius:10px;overflow:hidden">
+          <div style="background:#f5f5f4;padding:10px 14px;font-size:12px;font-weight:700;color:#444;border-bottom:1px solid #e0dfd8">Sección 1 — Visión y alcance</div>
+          <div style="padding:12px 14px;font-size:12px;line-height:1.7;color:#555">
+            <em>"Aplicación interna de gestión de tickets e incidentes para el equipo de consultoría SyWork (Partner Oracle). Single-tenant, centrada en productividad del equipo, no orientada a SaaS."</em>
+            <br><span style="color:#888;font-size:11px;margin-top:4px;display:block">Define el propósito y qué NO es la app (no es un producto, no es multi-tenant).</span>
+          </div>
+        </div>
+        <div style="border:1px solid #e0dfd8;border-radius:10px;overflow:hidden;margin-top:8px">
+          <div style="background:#f5f5f4;padding:10px 14px;font-size:12px;font-weight:700;color:#444;border-bottom:1px solid #e0dfd8">Sección 2 — Stack tecnológico (inamovible)</div>
+          <div style="padding:12px 14px">
+            <table class="doc-table" style="margin:0">
+              <tr><th>Capa</th><th>Tecnología</th><th>Restricción</th></tr>
+              <tr><td>Frontend</td><td><code>React + TypeScript strict</code></td><td>Prohibido <code>any</code></td></tr>
+              <tr><td>UI</td><td><code>Ant Design</code></td><td>No crear componentes desde cero</td></tr>
+              <tr><td>Estado</td><td><code>Zustand</code></td><td>Prohibido Redux y Context API</td></tr>
+              <tr><td>Fechas</td><td><code>date-fns</code></td><td>Prohibido <code>moment.js</code></td></tr>
+              <tr><td>Paquetes</td><td><code>pnpm</code></td><td>Prohibido npm y yarn</td></tr>
+              <tr><td>Backend</td><td><code>Python + Flask + Swagger</code></td><td>API-First obligatorio</td></tr>
+              <tr><td>FSM</td><td><code>python-transitions</code></td><td>Único gestor de estados</td></tr>
+              <tr><td>DB</td><td><code>PostgreSQL + RLS</code></td><td>On-premise, sin excepciones</td></tr>
+              <tr><td>Auth</td><td><code>JWT + Google OAuth2</code></td><td>Solo <code>@sywork.net</code></td></tr>
+            </table>
+          </div>
+        </div>
+        <div style="border:1px solid #e0dfd8;border-radius:10px;overflow:hidden;margin-top:8px">
+          <div style="background:#f5f5f4;padding:10px 14px;font-size:12px;font-weight:700;color:#444;border-bottom:1px solid #e0dfd8">Sección 3 — Convenciones de nomenclatura</div>
+          <div style="padding:12px 14px;font-size:12px;line-height:1.7;color:#555">
+            <code>PascalCase</code> → componentes React (ej. <code>TicketList.tsx</code>)<br>
+            <code>camelCase</code> → funciones y utilidades (ej. <code>calculateSla.ts</code>)<br>
+            <code>snake_case</code> → tablas y columnas DB (ej. <code>ticket_status</code>, <code>created_at</code>)<br>
+            <code>kebab-case</code> → endpoints API (ej. <code>/api/v1/tickets</code>)<br>
+            <code>UPPER_SNAKE_CASE</code> → variables de entorno (ej. <code>DATABASE_URL</code>)
+          </div>
+        </div>
+        <div style="border:1px solid #e0dfd8;border-radius:10px;overflow:hidden;margin-top:8px">
+          <div style="background:#f5f5f4;padding:10px 14px;font-size:12px;font-weight:700;color:#444;border-bottom:1px solid #e0dfd8">Sección 4 — Arquitectura limpia (Clean Architecture)</div>
+          <div style="padding:12px 14px;font-size:12px;color:#555;line-height:1.7">
+            Capa 1 (Core/Dominio): lógica pura, FSM, SLA — sin dependencias externas<br>
+            Capa 2 (Datos/Infraestructura): repositorios, API Flask, reportes<br>
+            Capa 3 (Presentación): componentes React "tontos", Kanban, formularios<br>
+            <span style="color:#888;font-size:11px">Regla de dependencia: las capas externas dependen de las internas, nunca al revés.</span>
+          </div>
+        </div>
+        <div style="border:1px solid #e0dfd8;border-radius:10px;overflow:hidden;margin-top:8px">
+          <div style="background:#f5f5f4;padding:10px 14px;font-size:12px;font-weight:700;color:#444;border-bottom:1px solid #e0dfd8">Secciones 5–15 — Reglas de dominio</div>
+          <div style="padding:12px 14px;font-size:12px;color:#555">
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">FSM — 9 estados del ticket</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">Tabla SLA por prioridad</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">Sistema Triage push</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">Tipos de comentario</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">Work Sessions (Focus Mode)</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">Clasificación de tickets</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">Seguridad JWT + RLS</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">API-First + Swagger</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">Gobernanza de dependencias</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">Setup configurable</span>
+              <span class="badge b-new" style="font-size:11px;padding:3px 8px">Roadmap de fases</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="success-box">La <code>CONSTITUCIONV2.md</code> de SyWork ya está escrita y es la fuente de verdad. El agente IA la lee antes de implementar cualquier cosa. Si una nueva librería no está en la Sección 2, no se puede instalar sin aprobación explícita en el Planning.</div>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <h2 id="planning">📋 El Planning — PLANNING.md</h2>
+      <p>El Planning es el documento de <strong>decisiones y roadmap</strong>. A diferencia de la Constitución (que es estable), el Planning evoluciona con el proyecto. Aquí se decide qué se construye, en qué orden y con qué dependencias aprobadas.</p>
+
+      <h3>¿Qué va en el Planning? (ejemplo para SyWork)</h3>
+      <pre><code># PLANNING — SyWork Tickets
+
+## Estado actual: Fase 1 — Módulo de Incidentes
+
+### Dependencias aprobadas (Fase 1)
+Frontend:
+  - react@18, typescript@5, antd@5, zustand@4
+  - @hello-pangea/dnd@1, date-fns@3, axios@1
+  - vitest@1, @testing-library/react@14, msw@2
+
+Backend:
+  - flask@3, flask-jwt-extended@4, sqlalchemy@2
+  - transitions@0.9, celery@5, alembic@1
+  - pytest@8, factory-boy@3, freezegun@1
+
+### Decisiones de arquitectura registradas
+| Fecha      | Decisión                                    | Justificación                              |
+|------------|---------------------------------------------|--------------------------------------------|
+| 2026-06-12 | Zustand en lugar de Redux                   | Menos boilerplate, suficiente para el scope|
+| 2026-06-12 | Polling 30s en lugar de WebSocket           | Simplicidad Fase 1, WebSocket en Fase 2    |
+| 2026-06-12 | PostgreSQL on-premise en lugar de cloud     | Requisito de seguridad de datos del cliente|
+| 2026-06-15 | Endpoint /assign independiente del frontend | Preparación para AI Dispatcher en Fase 2  |
+
+### Roadmap de entregas
+Sprint 1 (semana 1-2):  Auth, CRUD tickets, FSM básico
+Sprint 2 (semana 3-4):  SLA Engine, Triage Dashboard
+Sprint 3 (semana 5-6):  Comentarios, Notificaciones, Work Sessions
+Sprint 4 (semana 7-8):  Setup/Config, Kanban, Testing E2E
+
+### Features pendientes de aprobación (Fase 2)
+- [ ] Módulo de Tareas — requiere diseño de tablas tasks independiente
+- [ ] AI Dispatcher — requiere Gold Standard Dataset de Fase 1
+- [ ] Portal cliente — requiere definición de autenticación externa</code></pre>
+
+      <h3>Regla de gobernanza de dependencias</h3>
+      <div class="warn-box">El agente IA <strong>no puede añadir</strong> ninguna dependencia al <code>package.json</code> o <code>requirements.txt</code> que no aparezca en la lista aprobada del Planning. Toda nueva librería requiere justificación documentada y aprobación antes del PR.</div>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <h2 id="specs">🔧 Las Specs — docs/specs/*.md</h2>
+      <p>Una spec por feature. Es el documento que lee el agente IA para saber exactamente qué construir. Debe ser lo suficientemente detallada para que no haya ambigüedad, pero sin dictar implementación interna.</p>
+
+      <h3>Estructura de una spec</h3>
+      <div style="background:#f5f5f4;border:1px solid #e0dfd8;border-radius:8px;padding:14px;margin:10px 0;font-size:12px;line-height:1.8">
+        <strong>Contexto</strong> — Por qué existe esta feature, qué problema resuelve<br>
+        <strong>Criterios de aceptación</strong> — Lista verificable de lo que debe hacer (checklist)<br>
+        <strong>Diseño de API</strong> — Endpoints, payloads, respuestas<br>
+        <strong>Modelo de datos</strong> — Tablas y columnas nuevas o modificadas<br>
+        <strong>Reglas de negocio</strong> — Casos borde, validaciones, comportamientos especiales<br>
+        <strong>Notas técnicas</strong> — Restricciones de implementación, dependencias de otras specs
+      </div>
+
+      <h3>Ejemplo real: Spec del Triage Dashboard (SyWork)</h3>
+      <pre><code># SPEC: Triage Dashboard
+## Feature: Panel de Asignación de Tickets
+Fase: 1 | Labels: spec, fase-1, triage | Issue: #7
+
+### Contexto
+El Coordinador de Servicio necesita una vista centralizada para analizar
+los tickets nuevos y asignarlos al resolutor más idóneo. Para decidir,
+necesita ver en tiempo real: skills de cada resolutor y su carga actual.
+
+### Criterios de aceptación
+- [ ] Panel muestra todos los resolutores Nivel 2 activos
+- [ ] Para cada resolutor: nombre, rol, skills (tags), nº tickets activos
+- [ ] Barra de carga visual (verde <30%, amarillo 30-70%, rojo >70%)
+- [ ] Resolutor recomendado = skill compatible + menor carga → borde azul
+- [ ] Botón "Asignar" ejecuta POST /api/v1/tickets/{id}/assign
+- [ ] Al asignar, el ticket transiciona automáticamente nuevo → asignado
+- [ ] Coordinador puede enviar mensaje interno al QM desde el panel
+- [ ] Los datos de carga se refrescan cada 30 segundos (polling)
+
+### Diseño de API
+POST /api/v1/tickets/{id}/assign
+Headers: Authorization: Bearer {jwt}
+Body:    { "assignee_id": "uuid", "notes": "string (opcional)" }
+200 OK:  { "ticket": Ticket, "transition": "nuevo → asignado" }
+409:     { "error": "ticket_not_in_new_state" }
+
+GET /api/v1/users/workload
+200 OK:  [{ "user_id": "uuid", "name": "Ana P.", "skills": ["JDE_AP"],
+             "active_tickets": 2, "workload_pct": 40 }]
+
+### Modelo de datos
+assignment_log (nueva tabla para Gold Standard Dataset):
+  id, ticket_id, assignee_id, assigned_by, skills_match (bool),
+  workload_at_assignment (int), created_at
+
+### Reglas de negocio
+- Solo tickets en estado `new` pueden ser asignados desde este panel
+- Un ticket solo puede tener un resolutor asignado a la vez
+- Si el coordinador reasigna, el estado vuelve a `assigned` (no `in_progress`)
+- El log de asignación se registra SIEMPRE para construir el dataset de IA
+
+### Notas técnicas
+- El endpoint /assign es independiente de la UI — mismo endpoint que
+  usará el AI Dispatcher en Fase 2 (diseño intencional)
+- No usar WebSocket en Fase 1 — polling cada 30s es suficiente
+- Skill matching: tag del ticket debe existir en el array skills del resolutor</code></pre>
+
+      <h3>Ejemplo real: Spec del SLA Engine (SyWork)</h3>
+      <pre><code># SPEC: SLA Engine
+## Feature: Motor de Control de SLA
+Fase: 1 | Labels: spec, fase-1, sla | Issue: #8
+
+### Contexto
+Los tickets tienen tiempos máximos de atención, análisis y resolución
+según su prioridad. El SLA debe respetar el calendario laboral del equipo
+y pausarse cuando el ticket está esperando respuesta del cliente.
+
+### Criterios de aceptación
+- [ ] SLA calculado según tabla configurable (prioridad → tiempos)
+- [ ] El reloj del SLA respeta el horario laboral (no cuenta fines de semana
+      ni fuera del horario configurado en Setup)
+- [ ] Los estados pending_user y pending_internal pausan el SLA
+- [ ] El sistema registra todos los eventos de pausa/reanudación en sla_events
+- [ ] Alertas automáticas al consumir 50%, 75% y 90% del tiempo de SLA
+- [ ] El SLA deadline es visible en el detalle del ticket y en el Kanban
+- [ ] Los tiempos estimados se actualizan manualmente post-diagnóstico
+
+### Diseño de API
+GET  /api/v1/tickets/{id}/sla
+200: { "deadline": "ISO8601", "pct_consumed": 74, "paused": false,
+       "time_remaining_minutes": 34, "breached": false }
+
+POST /api/v1/tickets/{id}/sla/adjust
+Body: { "new_deadline": "ISO8601", "reason": "string" }
+
+### Modelo de datos
+sla_events: id, ticket_id, event_type (start|pause|resume|breach),
+            state_from, state_to, ts, triggered_by
+work_calendar: weekday (0-6), start_time, end_time, timezone
+sla_config: priority, attention_min, analysis_min, resolution_min
+
+### Reglas de negocio
+- P1 Crítica: atención 30min, análisis 1h, resolución 4h
+- P2 Alta:    atención 1h,    análisis 2h, resolución 8h
+- P3 Media:   atención 2h,    análisis 4h, resolución 24h
+- P4 Baja:    atención 4h,    análisis 8h, resolución 72h
+- Los feriados y excepciones se configuran en el módulo Setup
+- El campo priority y severity son independientes (ver Constitución §10)</code></pre>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <h2 id="nueva-func">¿Cómo agregar nuevas funcionalidades?</h2>
+      <p>El proceso SDD para agregar cualquier nueva feature —sea pequeña o una fase completa— siempre sigue el mismo flujo. Nunca se empieza por el código.</p>
+
+      <div style="margin:16px 0">
+        <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:14px">
+          <div style="width:32px;height:32px;border-radius:50%;background:#0C447C;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">1</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">Evaluar si va en una fase nueva o en la fase actual</div>
+            <p style="font-size:12px;color:#555;line-height:1.7;margin:0">Si la feature es pequeña y compatible con la Constitución actual → va en la fase en curso. Si requiere nuevas tablas, nuevos roles, integraciones externas o cambia la arquitectura → define una nueva fase en el Planning.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:14px">
+          <div style="width:32px;height:32px;border-radius:50%;background:#3B6D11;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">2</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">Actualizar el Planning</div>
+            <p style="font-size:12px;color:#555;line-height:1.7;margin:0">Si la feature necesita nuevas dependencias, agregarlas a la lista aprobada del <code>PLANNING.md</code> con su justificación. Documentar la decisión de arquitectura si aplica.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:14px">
+          <div style="width:32px;height:32px;border-radius:50%;background:#854F0B;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">3</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">Escribir la Spec</div>
+            <p style="font-size:12px;color:#555;line-height:1.7;margin:0">Crear <code>docs/specs/nombre-feature.md</code> con el formato estándar. Abrir un GitHub Issue con label <code>spec</code> y el número de fase. El equipo revisa y aprueba antes de continuar.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:14px">
+          <div style="width:32px;height:32px;border-radius:50%;background:#534AB7;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">4</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">Implementar con el agente IA</div>
+            <p style="font-size:12px;color:#555;line-height:1.7;margin:0">El agente lee la Constitución + la Spec aprobada y genera el código. Cada PR referencia el Issue de la spec. Los criterios de aceptación se convierten en tests.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:32px;height:32px;border-radius:50%;background:#444;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">5</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">Cerrar el ciclo</div>
+            <p style="font-size:12px;color:#555;line-height:1.7;margin:0">Tests pasan → PR aprobado → Issue cerrado → feature en producción. Si algo cambia durante implementación, se actualiza la Spec primero (no el código).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-box"><strong>Regla práctica:</strong> Si el agente IA te pregunta "¿qué hago ahora?", la respuesta siempre es: "Lee la Spec #X del Issue #Y." Si no hay spec, no hay implementación.</div>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <h2 id="fase1">Fase 1 — Módulo de Tickets ✓ (en curso)</h2>
+      <p><strong>Objetivo:</strong> Gestión completa del ciclo de vida de incidentes con Triage push, SLA y comentarios. Creación manual por coordinador o vía email.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
+        <div style="background:#EAF3DE;border-radius:7px;padding:10px">
+          <div style="font-size:11px;font-weight:700;color:#27500A;margin-bottom:6px">✅ Specs definidas</div>
+          <div style="font-size:11px;color:#3B6D11;line-height:1.8">✓ Login Google OAuth2 (<code>@sywork.net</code>)<br>✓ CRUD de tickets con FSM<br>✓ SLA Engine con calendario laboral<br>✓ Triage Dashboard (Coordinador)<br>✓ Sistema de comentarios (6 tipos)<br>✓ Work Sessions / Focus Mode<br>✓ Vista Kanban drag & drop<br>✓ Setup / Configuración</div>
+        </div>
+        <div style="background:#FEF3CD;border-radius:7px;padding:10px">
+          <div style="font-size:11px;font-weight:700;color:#7B5800;margin-bottom:6px">⏳ Pendientes de implementar</div>
+          <div style="font-size:11px;color:#854F0B;line-height:1.8">⏳ Integración email → ticket automático<br>⏳ Notificaciones (Celery + email)<br>⏳ Escalamiento a Nivel 3<br>⏳ Reportes básicos de SLA<br>⏳ Base de conocimiento (búsqueda simple)<br>⏳ Assignment log (Gold Standard Dataset)</div>
+        </div>
+      </div>
+
+      <h2 id="fase2">Fase 2 — Módulo de Tareas & AI Dispatcher</h2>
+      <p><strong>Objetivo:</strong> Extender el sistema para gestionar tareas evolutivas y proyectos. Introducir el AI Dispatcher que reemplaza al coordinador en la asignación automática.</p>
+      <div class="warn-box"><strong>Prerequisito:</strong> El AI Dispatcher necesita el Gold Standard Dataset generado por las asignaciones humanas de Fase 1. No se puede implementar sin ese historial.</div>
+      <table class="doc-table">
+        <tr><th>Feature</th><th>Descripción</th><th>Nuevo en Constitución?</th></tr>
+        <tr><td>Módulo Tareas</td><td>Tabla <code>tasks</code> independiente relacionable con <code>tickets</code> via <code>source_ticket_id</code></td><td>Sí — nueva sección de tablas</td></tr>
+        <tr><td>AI Dispatcher</td><td>Agente IA que llama a <code>POST /assign</code> — mismo endpoint de Fase 1</td><td>No — endpoint ya existe</td></tr>
+        <tr><td>Portal cliente</td><td>Autenticación externa para que clientes creen tickets</td><td>Sí — nueva capa de auth</td></tr>
+        <tr><td>Zendesk / Helix</td><td>Integración bidireccional vía API</td><td>Sí — nuevas dependencias</td></tr>
+        <tr><td>Calendario devs</td><td>Horas disponibles por desarrollador para estimación de tareas</td><td>Sí — nuevo módulo</td></tr>
+        <tr><td>Analytics</td><td>Dashboards de KPIs, SLA cumplimiento, carga del equipo</td><td>Sí — nueva dependencia charts</td></tr>
+      </table>
+      <p>Para activar Fase 2: <strong>(1)</strong> actualizar <code>PLANNING.md</code> con las dependencias aprobadas, <strong>(2)</strong> actualizar <code>CONSTITUCIONV2.md</code> con las nuevas secciones, <strong>(3)</strong> escribir specs individuales para cada feature antes de implementar.</p>
+
+      <h2 id="fase3">Fase 3 — Portal de Autoservicio & Analytics Avanzado</h2>
+      <p><strong>Objetivo:</strong> Abrir el sistema a clientes externos y construir capacidades de análisis y predicción.</p>
+      <div class="pill-grid">
+        <span class="pill" style="background:#f0efe8;color:#666">🔮 Portal self-service para clientes finales</span>
+        <span class="pill" style="background:#f0efe8;color:#666">🔮 Dashboard analytics ejecutivo</span>
+        <span class="pill" style="background:#f0efe8;color:#666">🔮 Predicción de SLA con IA</span>
+        <span class="pill" style="background:#f0efe8;color:#666">🔮 Base de conocimiento con embeddings</span>
+        <span class="pill" style="background:#f0efe8;color:#666">🔮 Integración WhatsApp/Teams</span>
+        <span class="pill" style="background:#f0efe8;color:#666">🔮 Reportes automáticos para clientes</span>
+        <span class="pill" style="background:#f0efe8;color:#666">🔮 Multi-cliente (si se requiere)</span>
+      </div>
+      <div class="info-box"><strong>Cómo agregar Fase 3:</strong> Cuando Fase 2 esté estable, crear un Issue en GitHub con label <code>fase-3</code> y <code>spec</code>. Actualizar el Planning con el alcance. Escribir specs individuales. El agente IA leerá la Constitución actualizada + cada spec para implementar sin fricción.</div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE 4: PRUEBAS
+═══════════════════════════════════════════════════════════ -->
+<div class="page" id="p-testing" style="padding:0;max-width:100%">
+  <div class="docs-layout">
+    <div class="docs-sidebar">
+      <div class="docs-nav-section">Estrategia</div>
+      <a class="docs-nav-item active" href="#t-strategy" onclick="docScroll3('t-strategy',this)">Pirámide de pruebas</a>
+      <a class="docs-nav-item" href="#t-frontend" onclick="docScroll3('t-frontend',this)">Frontend — Vitest</a>
+      <a class="docs-nav-item" href="#t-backend" onclick="docScroll3('t-backend',this)">Backend — Pytest</a>
+      <a class="docs-nav-item" href="#t-integration" onclick="docScroll3('t-integration',this)">Integración — API</a>
+      <a class="docs-nav-item" href="#t-e2e" onclick="docScroll3('t-e2e',this)">E2E — Playwright</a>
+      <a class="docs-nav-item" href="#t-ci" onclick="docScroll3('t-ci',this)">CI/CD — GitHub Actions</a>
+      <div class="docs-nav-section">Librerías</div>
+      <a class="docs-nav-item" href="#t-libs" onclick="docScroll3('t-libs',this)">Tabla de librerías</a>
+      <a class="docs-nav-item" href="#t-coverage" onclick="docScroll3('t-coverage',this)">Cobertura mínima</a>
+    </div>
+    <div class="docs-content">
+      <h1>Estrategia de Pruebas</h1>
+      <p>El proyecto sigue la <strong>pirámide de pruebas</strong>: muchas pruebas unitarias rápidas en la base, pocas pruebas E2E lentas en la cúspide. Las pruebas son obligatorias antes de hacer merge a <code>main</code>.</p>
+
+      <h2 id="t-strategy">Pirámide de pruebas</h2>
+      <div class="arch-diagram">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="width:200px;background:#FCEBEB;border:1px solid #F7C1C1;border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:12px;font-weight:700;color:#791F1F">E2E (Playwright)</div>
+            <div style="font-size:10px;color:#A32D2D">Flujos críticos completos · ~10 tests</div>
+          </div>
+          <div style="width:320px;background:#FEF3CD;border:1px solid #FAC775;border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:12px;font-weight:700;color:#7B5800">Integración (Pytest + httpx)</div>
+            <div style="font-size:10px;color:#854F0B">API endpoints + base de datos real · ~50 tests</div>
+          </div>
+          <div style="width:450px;background:#EAF3DE;border:1px solid #C0DD97;border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:12px;font-weight:700;color:#27500A">Unitarias (Vitest + Pytest)</div>
+            <div style="font-size:10px;color:#3B6D11">Funciones, servicios, FSM, SLA, componentes React · ~200+ tests</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="t-frontend">Frontend — Vitest + React Testing Library</h2>
+      <p><code>Vitest</code> es el runner recomendado para proyectos Vite/React. Es hasta 10x más rápido que Jest con TypeScript y la configuración es mínima.</p>
+      <div class="info-box">
+        <strong>Por qué Vitest y no Jest:</strong> Vitest usa el mismo pipeline de Vite (esbuild), no necesita babel, y tiene compatibilidad total con la API de Jest. Para proyectos React + TypeScript estricto, es la opción estándar en 2024-2025.
+      </div>
+      <h3>Instalación</h3>
+      <pre><code>pnpm add -D vitest @vitest/ui jsdom
+pnpm add -D @testing-library/react @testing-library/user-event
+pnpm add -D @testing-library/jest-dom msw</code></pre>
+      <h3>Configuración (vite.config.ts)</h3>
+      <pre><code>import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
+  },
+})</code></pre>
+      <h3>Ejemplo — Test de TicketList</h3>
+      <pre><code>import { render, screen } from '@testing-library/react'
+import { TicketList } from '../components/TicketList'
+import { mockTickets } from '../test/fixtures'
+
+describe('TicketList', () => {
+  it('muestra todos los tickets', () => {
+    render(&lt;TicketList tickets={mockTickets} /&gt;)
+    expect(screen.getByText('#0042')).toBeInTheDocument()
+    expect(screen.getByText('En progreso')).toBeInTheDocument()
+  })
+
+  it('filtra tickets por estado', async () => {
+    const { user } = render(&lt;TicketList tickets={mockTickets} /&gt;)
+    await user.selectOptions(screen.getByRole('combobox'), 'Nuevo')
+    expect(screen.queryByText('En progreso')).not.toBeInTheDocument()
+  })
+})</code></pre>
+      <h3>Ejemplo — Test del store Zustand</h3>
+      <pre><code>import { useTicketStore } from '../store/ticketStore'
+import { renderHook, act } from '@testing-library/react'
+import { mockTicketService } from '../test/mocks'
+
+describe('ticketStore', () => {
+  it('asigna ticket y actualiza estado local', async () => {
+    const { result } = renderHook(() => useTicketStore())
+    await act(async () => {
+      await result.current.assignTicket('ticket-1', 'user-abc')
+    })
+    expect(result.current.tickets[0].assignee_id).toBe('user-abc')
+  })
+})</code></pre>
+      <h3>Mock de API con MSW (Mock Service Worker)</h3>
+      <pre><code>// src/test/handlers.ts
+import { http, HttpResponse } from 'msw'
+
+export const handlers = [
+  http.get('/api/tickets', () => {
+    return HttpResponse.json({ tickets: mockTickets, total: 2 })
+  }),
+  http.post('/api/tickets/:id/assign', async ({ params, request }) => {
+    const body = await request.json()
+    return HttpResponse.json({ success: true, assignee_id: body.assignee_id })
+  }),
+]</code></pre>
+
+      <h2 id="t-backend">Backend — Pytest</h2>
+      <p><code>pytest</code> es el framework estándar para Python. Se usa junto con <code>pytest-flask</code>, <code>factory-boy</code> para fixtures y <code>freezegun</code> para mockear tiempo (crítico para pruebas de SLA).</p>
+      <h3>Instalación</h3>
+      <pre><code>pip install pytest pytest-flask pytest-cov factory-boy freezegun</code></pre>
+      <h3>Ejemplo — Test del FSM</h3>
+      <pre><code>import pytest
+from app.domain.ticket import Ticket
+
+class TestTicketFSM:
+    def test_transicion_nuevo_a_asignado(self):
+        ticket = Ticket()
+        assert ticket.state == 'nuevo'
+        ticket.asignar()
+        assert ticket.state == 'asignado'
+
+    def test_no_puede_saltar_a_resuelto_directamente(self):
+        ticket = Ticket()
+        with pytest.raises(Exception):
+            ticket.resolver()  # Transición inválida
+
+    def test_pendiente_pausa_sla(self):
+        ticket = Ticket()
+        ticket.asignar()
+        ticket.iniciar()
+        ticket.pausar()
+        assert ticket.state == 'pendiente'
+        assert ticket.sla_paused == True</code></pre>
+      <h3>Ejemplo — Test del SLA Engine con tiempo congelado</h3>
+      <pre><code>from freezegun import freeze_time
+from app.services.sla_engine import SLAEngine, Priority
+
+class TestSLAEngine:
+    @freeze_time("2026-06-17 09:00:00")  # Martes, 9am
+    def test_critico_vence_en_4_horas_laborales(self):
+        engine = SLAEngine()
+        deadline = engine.calculate_deadline(
+            created_at=datetime.now(),
+            priority=Priority.CRITICAL
+        )
+        # 4 horas laborales = 13:00 del mismo día
+        assert deadline.hour == 13
+        assert deadline.minute == 0
+
+    @freeze_time("2026-06-17 16:00:00")  # Viernes 4pm
+    def test_sla_cruza_fin_de_semana(self):
+        engine = SLAEngine()
+        deadline = engine.calculate_deadline(
+            created_at=datetime.now(),
+            priority=Priority.HIGH  # 8h resolución
+        )
+        # 2h viernes + 6h lunes = lunes 8am + 6h = 14:00
+        assert deadline.weekday() == 0  # Lunes</code></pre>
+      <h3>Factory para fixtures</h3>
+      <pre><code>import factory
+from app.models import Ticket, User
+
+class UserFactory(factory.Factory):
+    class Meta: model = User
+    id = factory.Sequence(lambda n: f'user-{n}')
+    email = factory.Sequence(lambda n: f'user{n}@sywork.net')
+    skills = ['JDE_GL', 'JDE_AP']
+
+class TicketFactory(factory.Factory):
+    class Meta: model = Ticket
+    title = factory.Faker('sentence', nb_words=5, locale='es')
+    priority = 'alta'
+    status = 'nuevo'
+    assignee = factory.SubFactory(UserFactory)</code></pre>
+
+      <h2 id="t-integration">Pruebas de integración — API</h2>
+      <p>Las pruebas de integración usan una base de datos PostgreSQL real (en Docker durante CI). No se mockea la DB para evitar divergencias entre tests y producción.</p>
+      <pre><code>import pytest
+from httpx import AsyncClient
+from app import create_app
+
+@pytest.fixture
+def client(test_db):
+    app = create_app(testing=True, db=test_db)
+    with app.test_client() as c:
+        yield c
+
+class TestTicketAPI:
+    def test_crear_ticket(self, client, auth_headers):
+        resp = client.post('/api/tickets', json={
+            'title': 'Error en módulo AP',
+            'priority': 'alta',
+            'client_id': 'client-uuid'
+        }, headers=auth_headers)
+        assert resp.status_code == 201
+        assert resp.json['status'] == 'nuevo'
+
+    def test_asignar_ticket_cambia_estado(self, client, auth_headers, ticket):
+        resp = client.post(f'/api/tickets/{ticket.id}/assign',
+            json={'assignee_id': 'user-uuid'},
+            headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json['ticket']['status'] == 'asignado'
+
+    def test_comentario_tipo_cliente_pausa_sla(self, client, auth_headers, ticket_en_progreso):
+        resp = client.post(f'/api/tickets/{ticket_en_progreso.id}/comments', json={
+            'type': 'contacto_cliente',
+            'body': 'Necesito que confirmen el error'
+        }, headers=auth_headers)
+        assert resp.status_code == 201
+        assert resp.json['ticket']['status'] == 'pendiente'</code></pre>
+
+      <h2 id="t-e2e">E2E — Playwright</h2>
+      <p>Se cubren los flujos críticos de negocio: creación → asignación → resolución → cierre.</p>
+      <pre><code>import { test, expect } from '@playwright/test'
+
+test('flujo completo: crear → asignar → resolver ticket', async ({ page }) => {
+  // Login
+  await page.goto('/login')
+  await page.click('[data-testid="google-login"]')
+
+  // Crear ticket
+  await page.click('button:has-text("Nuevo ticket")')
+  await page.fill('[name="title"]', 'Error en módulo AP')
+  await page.selectOption('[name="priority"]', 'alta')
+  await page.click('button:has-text("Crear")')
+
+  // Verificar en lista
+  await expect(page.locator('text=Error en módulo AP')).toBeVisible()
+  await expect(page.locator('.badge:has-text("Nuevo")')).toBeVisible()
+
+  // Ir a Triage y asignar
+  await page.click('text=Triage')
+  await page.click('[data-testid="assign-btn-user-ap"]')
+  await expect(page.locator('.badge:has-text("Asignado")')).toBeVisible()
+})</code></pre>
+
+      <h2 id="t-ci">CI/CD — GitHub Actions</h2>
+      <pre><code># .github/workflows/ci.yml
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: test }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -r requirements-dev.txt
+      - run: pytest --cov=app --cov-fail-under=80
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install
+      - run: pnpm test:coverage  # vitest run --coverage
+      - run: pnpm type-check     # tsc --noEmit</code></pre>
+
+      <h2 id="t-libs">Tabla de librerías de pruebas</h2>
+      <table class="doc-table">
+        <tr><th>Capa</th><th>Librería</th><th>Versión</th><th>Propósito</th></tr>
+        <tr><td>Frontend unit</td><td><code>vitest</code></td><td>^1.x</td><td>Test runner compatible con Vite</td></tr>
+        <tr><td>Frontend unit</td><td><code>@testing-library/react</code></td><td>^14.x</td><td>Render y queries de componentes React</td></tr>
+        <tr><td>Frontend unit</td><td><code>@testing-library/user-event</code></td><td>^14.x</td><td>Simulación de interacciones de usuario</td></tr>
+        <tr><td>Frontend unit</td><td><code>@testing-library/jest-dom</code></td><td>^6.x</td><td>Matchers DOM (toBeVisible, toBeInTheDocument)</td></tr>
+        <tr><td>Frontend mocks</td><td><code>msw</code></td><td>^2.x</td><td>Mock Service Worker — intercepta fetch real</td></tr>
+        <tr><td>Backend unit</td><td><code>pytest</code></td><td>^8.x</td><td>Framework de pruebas Python</td></tr>
+        <tr><td>Backend unit</td><td><code>pytest-flask</code></td><td>^1.x</td><td>Fixtures para cliente Flask en tests</td></tr>
+        <tr><td>Backend unit</td><td><code>factory-boy</code></td><td>^3.x</td><td>Factories de objetos para fixtures</td></tr>
+        <tr><td>Backend unit</td><td><code>freezegun</code></td><td>^1.x</td><td>Congela el tiempo — crítico para SLA tests</td></tr>
+        <tr><td>Backend coverage</td><td><code>pytest-cov</code></td><td>^5.x</td><td>Reporte de cobertura de código</td></tr>
+        <tr><td>Integración</td><td><code>httpx</code></td><td>^0.27</td><td>Cliente HTTP async para tests de integración</td></tr>
+        <tr><td>E2E</td><td><code>Playwright</code></td><td>^1.x</td><td>Browser automation para flujos completos</td></tr>
+        <tr><td>Tipos</td><td><code>TypeScript</code> strict</td><td>^5.x</td><td>Type-checking como primera línea de defensa</td></tr>
+      </table>
+
+      <h2 id="t-coverage">Cobertura mínima requerida</h2>
+      <table class="doc-table">
+        <tr><th>Módulo</th><th>Cobertura mínima</th><th>Crítico</th></tr>
+        <tr><td>FSM — Máquina de estados</td><td>100%</td><td>⚠ Sí — afecta integridad de datos</td></tr>
+        <tr><td>SLA Engine</td><td>95%</td><td>⚠ Sí — afecta contratos con clientes</td></tr>
+        <tr><td>Endpoints API</td><td>85%</td><td>⚠ Sí</td></tr>
+        <tr><td>Servicios frontend</td><td>80%</td><td>Sí</td></tr>
+        <tr><td>Componentes UI</td><td>60%</td><td>No — cubrir flujos principales</td></tr>
+        <tr><td>General (mínimo CI)</td><td>80%</td><td>Bloquea merge si no se cumple</td></tr>
+      </table>
+      <div class="success-box">
+        <strong>Regla de oro:</strong> Un test que mockea la base de datos no es un test de integración — es un test de que tu mock funciona. Siempre usar PostgreSQL real en tests de integración.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const pageTitles={app:'Maqueta UI',docs:'Arquitectura',sdd:'Metodología SDD',testing:'Pruebas'};
+const screenTitles={dashboard:'Dashboard',tickets:'Tickets',kanban:'Kanban — Vista por estado',triage:'Triage — Panel de asignación',detail:'Ticket #0042 — Detalle',setup:'Configuración',users:'Usuarios y skills',proyectos:'Proyectos',lista:'Aris – Lower Mine › Lista'};
+
+function showPage(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('p-'+id).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function showScreen(id,el){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('s-'+id).classList.add('active');
+  document.getElementById('scr-title').textContent=screenTitles[id]||id;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el)el.classList.add('active');
+}
+
+function docScroll(id,el){
+  event.preventDefault();
+  document.querySelectorAll('#p-docs .docs-nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  const t=document.getElementById(id);
+  if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function docScroll2(id,el){
+  event.preventDefault();
+  document.querySelectorAll('#p-sdd .docs-nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  const t=document.getElementById(id);
+  if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function docScroll3(id,el){
+  event.preventDefault();
+  document.querySelectorAll('#p-testing .docs-nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  const t=document.getElementById(id);
+  if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* ── Vista Lista de tareas ── */
+function toggleGrupo(id){
+  const toggle=document.getElementById('toggle-'+id);
+  const body=document.getElementById('body-'+id);
+  // grupos f1 y f2 no tienen body separado — toggle filas internas
+  if(body){
+    const open=body.style.display!=='none';
+    body.style.display=open?'none':'block';
+    toggle.textContent=open?'▶':'▼';
+  } else {
+    // f1, f2: toggle todas las tarea-row dentro del grupo
+    const grupo=toggle.closest('.lista-grupo');
+    const rows=grupo.querySelectorAll('.tarea-row,.subtarea-row,.tarea-header-row');
+    const addLinks=grupo.querySelectorAll('div[style*="Añadir una tarea"], div[style*="Añadir una subtarea"]');
+    const open=toggle.textContent==='▼';
+    rows.forEach(r=>r.style.display=open?'none':'grid');
+    addLinks.forEach(r=>r.style.display=open?'none':'block');
+    toggle.textContent=open?'▶':'▼';
+  }
+}
+
+function filtrarLista(grupo, el){
+  document.querySelectorAll('.lista-nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.lista-grupo').forEach(g=>{
+    if(grupo==='todas' || g.dataset.grupo===grupo){
+      g.style.display='block';
+    } else {
+      g.style.display='none';
+    }
+  });
+}
+
+function toggleCheck(btn){
+  event.stopPropagation();
+  const done=btn.classList.toggle('done');
+  btn.textContent=done?'✓':'○';
+  const row=btn.closest('.tarea-row');
+  if(row){
+    const nombre=row.querySelector('.tarea-nombre');
+    if(nombre){
+      nombre.style.textDecoration=done?'line-through':'none';
+      nombre.style.color=done?'#aaa':'#1a1a18';
+    }
+    const badge=row.querySelector('.badge');
+    if(badge && done){badge.className='badge b-closed';badge.style.fontSize='10px';badge.textContent='Completado';}
+    if(badge && !done){badge.className='badge b-progress';badge.style.fontSize='10px';badge.textContent='En curso';}
+  }
+}
+</script>
+</body>
+</html>

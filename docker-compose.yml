@@ -14,13 +14,15 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   backend:
-    build: ./backend
+    build:
+      context: .          # repo root — needed so /repo structure is available
+      dockerfile: backend/Dockerfile
     container_name: sywork_backend
     restart: unless-stopped
     depends_on:
@@ -29,14 +31,15 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      FLASK_ENV: ${FLASK_ENV}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-not-set}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-not-set}
+      FLASK_ENV: ${FLASK_ENV:-development}
+      DEV_SKIP_AUTH: ${DEV_SKIP_AUTH:-false}
     ports:
       - "5000:5000"
     volumes:
-      - ./backend:/app
-      - /app/__pycache__
+      - .:/repo                      # mount entire repo so "from backend.x" resolves
+      - /repo/backend/__pycache__    # exclude pycache from bind mount
 
   frontend:
     build: ./frontend
