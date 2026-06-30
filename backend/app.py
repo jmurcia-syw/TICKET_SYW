@@ -20,24 +20,39 @@ def create_app() -> Flask:
         app,
         version="1.0",
         title="SYWork Tickets API",
-        description="API para el sistema de tickets de soporte SYWork",
+        description=(
+            "API para el sistema de tickets de soporte SYWork.\n\n"
+            "**Nota de desarrollo**: autenticación desactivada (`DEV_SKIP_AUTH=true`). "
+            "Todos los endpoints son accesibles sin token JWT durante el desarrollo de Fase 0."
+        ),
         doc="/swagger",
     )
 
+    # ── Auth blueprint (OAuth2 + JWT — mantiene blueprint puro) ──────────────
     from backend.api.routes.auth import auth_bp
-    from backend.api.routes.clients import clients_bp
-    from backend.api.routes.projects import projects_bp
-    from backend.api.routes.resources import resources_bp
-    from backend.api.routes.users import users_bp
+    app.register_blueprint(auth_bp)
 
-    for bp in (auth_bp, clients_bp, projects_bp, resources_bp, users_bp):
-        app.register_blueprint(bp)
+    # ── Maestros — namespaces con Swagger completo ────────────────────────────
+    from backend.api.routes.clients import ns as ns_clients
+    from backend.api.routes.projects import ns as ns_projects
+    from backend.api.routes.resources import ns as ns_resources
+    from backend.api.routes.users import ns as ns_users
 
-    ns_health = api.namespace("health", description="Health check")
+    api.add_namespace(ns_clients)
+    api.add_namespace(ns_projects)
+    api.add_namespace(ns_resources)
+    api.add_namespace(ns_users)
+
+    # ── Health ────────────────────────────────────────────────────────────────
+    ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")
 
     @ns_health.route("/")
     class Health(Resource):
+        @ns_health.doc("health_check")
+        @ns_health.response(200, "Servicio operativo")
+        @ns_health.response(503, "Servicio degradado (DB no disponible)")
         def get(self):
+            """Verificar estado del backend y conexión a PostgreSQL"""
             from backend.infra.database import get_db
             from sqlalchemy import text
             try:
