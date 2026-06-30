@@ -1,16 +1,18 @@
 FROM python:3.12-slim
 
-WORKDIR /app
+WORKDIR /repo/backend
 
-COPY requirements.txt .
+# Copy only requirements first for layer caching
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy backend source
+COPY backend/ .
 
 ENV FLASK_APP=app.py
-ENV PYTHONPATH=/app
+# /repo is mounted at runtime (volume); PYTHONPATH lets "from backend.x" resolve
+ENV PYTHONPATH=/repo
 
 EXPOSE 5000
 
-# Corre migraciones y luego levanta Flask
 CMD ["sh", "-c", "alembic upgrade head && flask run --host=0.0.0.0 --port=5000 --reload"]
