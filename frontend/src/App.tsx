@@ -1,41 +1,63 @@
-import { ConfigProvider, Layout, Typography, Tag, Space } from 'antd'
-import { CheckCircleOutlined } from '@ant-design/icons'
-
-const { Header, Content } = Layout
-const { Title, Text } = Typography
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { ConfigProvider } from 'antd'
+import esES from 'antd/locale/es_ES'
+import ProtectedRoute from './components/common/ProtectedRoute'
+import LoginPage from './pages/LoginPage'
+import DashboardPage from './pages/DashboardPage'
+import ClientsPage from './pages/ClientsPage'
+import ProjectsPage from './pages/ProjectsPage'
+import ResourcesPage from './pages/ResourcesPage'
+import UsersPage from './pages/UsersPage'
 
 export default function App() {
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: '#1677ff' } }}>
-      <Layout style={{ minHeight: '100vh' }}>
-        <Header style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Title level={4} style={{ color: '#fff', margin: 0 }}>
-            SYWork Tickets
-          </Title>
-          <Tag color="green">v0.1.0</Tag>
-        </Header>
-        <Content style={{ padding: 40 }}>
-          <Space direction="vertical" size="large">
-            <Title level={2}>Stack inicializado correctamente</Title>
-            <Space>
-              <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 18 }} />
-              <Text>React + TypeScript strict</Text>
-            </Space>
-            <Space>
-              <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 18 }} />
-              <Text>Ant Design</Text>
-            </Space>
-            <Space>
-              <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 18 }} />
-              <Text>Zustand · date-fns · @hello-pangea/dnd</Text>
-            </Space>
-            <Space>
-              <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 18 }} />
-              <Text>Vite · pnpm</Text>
-            </Space>
-          </Space>
-        </Content>
-      </Layout>
+    <ConfigProvider locale={esES} theme={{ token: { colorPrimary: '#1677ff' } }}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clients/*"
+            element={
+              <ProtectedRoute roles={['admin', 'coordinator']}>
+                <ClientsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/projects/*"
+            element={
+              <ProtectedRoute roles={['admin', 'coordinator']}>
+                <ProjectsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/resources/*"
+            element={
+              <ProtectedRoute roles={['admin', 'coordinator', 'qm', 'resolver']}>
+                <ResourcesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users/*"
+            element={
+              <ProtectedRoute roles={['admin']}>
+                <UsersPage />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
     </ConfigProvider>
   )
 }

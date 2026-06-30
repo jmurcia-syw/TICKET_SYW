@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDD_AI — Propuesta Visual | SyWork Tickets</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --primary: #1677ff;
+    --success: #52c41a;
+    --warning: #faad14;
+    --danger: #ff4d4f;
+    --purple: #722ed1;
+    --gray: #8c8c8c;
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --border: #d9d9d9;
+    --text: #262626;
+    --text-secondary: #595959;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+
+  .page-header {
+    background: linear-gradient(135deg, #001529 0%, #002244 60%, #003366 100%);
+    color: white;
+    padding: 36px 48px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .page-header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  .page-header p { font-size: 13px; color: #8bb8e0; margin-top: 4px; }
+  .logo { width: 48px; height: 48px; background: var(--primary); border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: white; }
+
+  .nav-tabs {
+    background: white; border-bottom: 1px solid var(--border);
+    display: flex; padding: 0 48px; gap: 0;
+  }
+  .nav-tab {
+    padding: 14px 20px; cursor: pointer; font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .nav-tab:hover:not(.active) { color: var(--text); }
+
+  .content { padding: 32px 48px; max-width: 1400px; margin: 0 auto; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  h2 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .subtitle { color: var(--text-secondary); font-size: 13px; margin-bottom: 24px; }
+
+  .cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card {
+    background: var(--card); border-radius: 10px; padding: 20px 24px;
+    border: 1px solid var(--border); box-shadow: 0 1px 4px rgba(0,0,0,.04);
+  }
+  .stat-card .label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; }
+  .stat-card .sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .stat-card.blue .value { color: var(--primary); }
+  .stat-card.green .value { color: var(--success); }
+  .stat-card.orange .value { color: var(--warning); }
+  .stat-card.red .value { color: var(--danger); }
+
+  /* Ticket table mockup */
+  .mock-table { background: var(--card); border-radius: 10px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 32px; }
+  .mock-table-header {
+    display: grid; grid-template-columns: 80px 1fr 120px 100px 110px 100px 130px;
+    background: #fafafa; padding: 10px 16px; font-size: 12px; font-weight: 600;
+    color: var(--text-secondary); border-bottom: 1px solid var(--border); gap: 8px;
+  }
+  .mock-row {
+    display: grid; grid-template-columns: 80px 1fr 120px 100px 110px 100px 130px;
+    padding: 12px 16px; font-size: 13px; border-bottom: 1px solid #f0f0f0; gap: 8px;
+    align-items: center;
+  }
+  .mock-row:last-child { border-bottom: none; }
+  .mock-row:hover { background: #fafafe; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; letter-spacing: .3px;
+  }
+  .badge-new { background: #e6f4ff; color: #0958d9; }
+  .badge-assigned { background: #fff7e6; color: #d48806; }
+  .badge-inprogress { background: #f9f0ff; color: #531dab; }
+  .badge-pending { background: #fff1f0; color: #cf1322; }
+  .badge-resolved { background: #f6ffed; color: #389e0d; }
+  .badge-closed { background: #f5f5f5; color: #595959; }
+
+  .prio-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 700; }
+  .p1 { background: #ff4d4f; color: white; }
+  .p2 { background: #fa8c16; color: white; }
+  .p3 { background: #fadb14; color: #262626; }
+  .p4 { background: #d9d9d9; color: #595959; }
+
+  .sla-ok { color: var(--success); font-size: 12px; font-weight: 600; }
+  .sla-warn { color: var(--warning); font-size: 12px; font-weight: 600; }
+  .sla-crit { color: var(--danger); font-size: 12px; font-weight: 600; }
+
+  /* Triage Dashboard */
+  .triage-layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; margin-bottom: 32px; }
+  .triage-queue { background: var(--card); border-radius: 10px; border: 1px solid var(--border); overflow: hidden; }
+  .triage-queue-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px;
+    display: flex; align-items: center; justify-content: space-between; }
+  .count-badge { background: var(--primary); color: white; border-radius: 10px; padding: 1px 8px; font-size: 11px; }
+  .triage-ticket { padding: 12px 16px; border-bottom: 1px solid #f5f5f5; cursor: pointer; }
+  .triage-ticket:hover { background: #f6f9ff; }
+  .triage-ticket.selected { background: #e6f4ff; border-left: 3px solid var(--primary); }
+  .triage-ticket .tid { font-size: 11px; color: var(--text-secondary); }
+  .triage-ticket .ttitle { font-size: 13px; font-weight: 500; margin: 3px 0; }
+  .triage-ticket .tmeta { display: flex; gap: 8px; align-items: center; }
+
+  .resolvers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .resolver-card {
+    background: var(--card); border-radius: 10px; border: 1px solid var(--border);
+    padding: 16px; cursor: pointer; transition: all 0.2s;
+  }
+  .resolver-card:hover { border-color: var(--primary); box-shadow: 0 0 0 2px #1677ff22; }
+  .resolver-card.best { border-color: var(--success); box-shadow: 0 0 0 2px #52c41a22; }
+  .resolver-avatar {
+    width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; font-size: 15px; margin-bottom: 10px;
+  }
+  .resolver-name { font-size: 14px; font-weight: 600; }
+  .resolver-role { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; }
+  .skills-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+  .skill-tag { background: #f0f5ff; color: #2f54eb; font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+  .workload-bar { background: #f0f0f0; border-radius: 3px; height: 4px; margin-top: 6px; }
+  .workload-fill { height: 4px; border-radius: 3px; }
+  .workload-label { font-size: 11px; color: var(--text-secondary); display: flex; justify-content: space-between; margin-top: 3px; }
+  .best-label { font-size: 10px; color: var(--success); font-weight: 700; float: right; margin-top: 2px; }
+
+  /* Kanban */
+  .kanban-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 32px; overflow-x: auto; }
+  .kanban-col { background: #f5f5f5; border-radius: 10px; padding: 12px; min-width: 200px; }
+  .kanban-col-header { font-size: 12px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between; }
+  .kanban-card {
+    background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;
+    border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,.05); cursor: grab;
+  }
+  .kanban-card .kid { font-size: 10px; color: var(--text-secondary); }
+  .kanban-card .ktitle { font-size: 12px; font-weight: 500; margin: 4px 0; line-height: 1.4; }
+  .kanban-card .kmeta { display: flex; gap: 6px; align-items: center; }
+  .kanban-card .ktime { font-size: 10px; margin-left: auto; }
+
+  /* Ticket detail */
+  .ticket-detail { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+  .ticket-main { background: var(--card); border-radius: 10px; border: 1px solid var(--border); padding: 24px; }
+  .ticket-sidebar { display: flex; flex-direction: column; gap: 16px; }
+  .sidebar-card { background: var(--card); border-radius: 10px; border: 1px solid var(--border); padding: 16px; }
+  .sidebar-card h4 { font-size: 12px; color: var(--text-secondary); text-transform: uppercase;
+    letter-spacing: .5px; margin-bottom: 12px; }
+  .detail-row { display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row .key { color: var(--text-secondary); }
+
+  .comment-thread { margin-top: 20px; }
+  .comment { display: flex; gap: 12px; margin-bottom: 16px; }
+  .comment-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .comment-bubble { flex: 1; }
+  .comment-meta { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+  .comment-meta strong { color: var(--text); }
+  .comment-body { background: #f5f5f5; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.5; }
+  .comment-body.client { background: #e6f4ff; }
+  .comment-body.internal { background: #fff7e6; }
+  .comment-body.resolution { background: #f6ffed; }
+
+  .sla-gauge { text-align: center; padding: 8px 0; }
+  .sla-gauge .big { font-size: 32px; font-weight: 800; }
+  .sla-gauge .label { font-size: 12px; color: var(--text-secondary); }
+  .progress-ring { margin: 0 auto 4px; }
+
+  /* Session timer */
+  .session-box {
+    background: linear-gradient(135deg, #001529, #003a8c);
+    color: white; border-radius: 10px; padding: 16px; text-align: center;
+  }
+  .session-box .timer { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 2px; }
+  .session-box .slabel { font-size: 11px; color: #8bb8e0; margin-bottom: 6px; }
+  .session-btn {
+    background: #52c41a; border: none; border-radius: 6px; color: white;
+    padding: 6px 16px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 8px;
+  }
+
+  /* Diagram section */
+  .diagram-card { background: var(--card); border-radius: 10px; border: 1px solid var(--border); padding: 28px; margin-bottom: 24px; }
+  .diagram-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .diagram-card .desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+  .mermaid { overflow-x: auto; }
+
+  /* Architecture */
+  .arch-stack { display: flex; flex-direction: column; gap: 0; margin-bottom: 24px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .arch-layer {
+    padding: 18px 24px; display: flex; align-items: center; gap: 16px;
+  }
+  .arch-layer .layer-num { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+  .arch-layer h4 { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+  .arch-layer p { font-size: 12px; }
+  .arch-layer .tech-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .tech-pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .layer-ui { background: #e6f4ff; }
+  .layer-ui .layer-num { background: var(--primary); color: white; }
+  .layer-ui .tech-pill { background: #bae0ff; color: #0958d9; }
+  .layer-svc { background: #fff7e6; }
+  .layer-svc .layer-num { background: var(--warning); color: white; }
+  .layer-svc .tech-pill { background: #ffe7ba; color: #d48806; }
+  .layer-core { background: #f9f0ff; }
+  .layer-core .layer-num { background: var(--purple); color: white; }
+  .layer-core .tech-pill { background: #efdbff; color: #531dab; }
+  .layer-db { background: #f6ffed; }
+  .layer-db .layer-num { background: var(--success); color: white; }
+  .layer-db .tech-pill { background: #d9f7be; color: #237804; }
+
+  .fsm-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .fsm-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .fsm-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+  .toolbar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border);
+    background: white; font-size: 13px; cursor: pointer; font-weight: 500; color: var(--text); }
+  .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+  .btn-success { background: var(--success); color: white; border-color: var(--success); }
+  .search-input { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; width: 220px; }
+
+  .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+
+  @media (max-width: 900px) {
+    .triage-layout { grid-template-columns: 1fr; }
+    .kanban-board { grid-template-columns: repeat(3, minmax(180px,1fr)); }
+    .ticket-detail { grid-template-columns: 1fr; }
+    .mock-table-header, .mock-row { grid-template-columns: 80px 1fr 100px 90px 90px; }
+    .mock-table-header span:nth-child(6), .mock-table-header span:nth-child(7),
+    .mock-row span:nth-child(6), .mock-row span:nth-child(7) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="logo">SW</div>
+  <div>
+    <h1>SyWork — Sistema de Tickets & Incidentes</h1>
+    <p>Propuesta visual | Fase 1 — Módulo de Incidentes | Stack: React + Ant Design · Flask · PostgreSQL</p>
+  </div>
+</div>
+
+<nav class="nav-tabs">
+  <div class="nav-tab active" onclick="showSection('dashboard')">Dashboard</div>
+  <div class="nav-tab" onclick="showSection('triage')">Triage / Asignación</div>
+  <div class="nav-tab" onclick="showSection('kanban')">Kanban</div>
+  <div class="nav-tab" onclick="showSection('ticket')">Detalle de Ticket</div>
+  <div class="nav-tab" onclick="showSection('architecture')">Arquitectura</div>
+  <div class="nav-tab" onclick="showSection('flow')">Flujo FSM</div>
+  <div class="nav-tab" onclick="showSection('calendar')">Calendario SLA</div>
+  <div class="nav-tab" onclick="showSection('availability')">Disponibilidad Resolutores</div>
+</nav>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div id="dashboard" class="section active">
+<div class="content">
+  <div class="section-title-row">
+    <div>
+      <h2>Dashboard General</h2>
+      <p class="subtitle">Vista operativa del día — tickets activos, SLA y carga del equipo</p>
+    </div>
+    <div class="toolbar">
+      <input class="search-input" type="text" placeholder="Buscar ticket, cliente...">
+      <button class="btn btn-primary">+ Nuevo Ticket</button>
+    </div>
+  </div>
+
+  <div class="cards-row">
+    <div class="stat-card blue"><div class="label">Tickets Nuevos</div><div class="value">7</div><div class="sub">+2 desde ayer</div></div>
+    <div class="stat-card orange"><div class="label">En Progreso</div><div class="value">18</div><div class="sub">4 con SLA en riesgo</div></div>
+    <div class="stat-card red"><div class="label">Vencen hoy</div><div class="value">3</div><div class="sub">Acción inmediata</div></div>
+    <div class="stat-card green"><div class="label">Resueltos (semana)</div><div class="value">24</div><div class="sub">↑ 12% vs semana ant.</div></div>
+    <div class="stat-card"><div class="label">Pendiente Usuario</div><div class="value">5</div><div class="sub">SLA pausado</div></div>
+  </div>
+
+  <div class="mock-table">
+    <div class="mock-table-header">
+      <span>ID</span><span>Descripción</span><span>Cliente</span><span>Prioridad</span>
+      <span>Estado</span><span>Asignado a</span><span>SLA restante</span>
+    </div>
+    <div class="mock-row">
+      <span style="color:var(--primary);font-weight:600">INC-0042</span>
+      <span>Error en cierre de período GL — Oracle JDE</span>
+      <span>Grupo Andino</span>
+      <span><span class="prio-badge p1">P1</span></span>
+      <span><span class="badge badge-inprogress">En Progreso</span></span>
+      <span>C. Ramírez</span>
+      <span class="sla-crit">⚠ 0h 45min</span>
+    </div>
+    <div class="mock-row">
+      <span style="color:var(--primary);font-weight:600">INC-0041</span>
+      <span>Consulta sobre configuración de aprobaciones PO</span>
+      <span>Inversiones CMR</span>
+      <span><span class="prio-badge p3">P3</span></span>
+      <span><span class="badge badge-pending">Pend. Usuario</span></span>
+      <span>M. Torres</span>
+      <span class="sla-ok">✓ Pausado</span>
+    </div>
+    <div class="mock-row">
+      <span style="color:var(--primary);font-weight:600">INC-0040</span>
+      <span>Falla en integración API REST con sistema de nómina</span>
+      <span>Constructora Alta</span>
+      <span><span class="prio-badge p2">P2</span></span>
+      <span><span class="badge badge-inprogress">En Progreso</span></span>
+      <span>R. Gómez</span>
+      <span class="sla-warn">⏱ 3h 20min</span>
+    </div>
+    <div class="mock-row">
+      <span style="color:var(--primary);font-weight:600">INC-0039</span>
+      <span>Reporte de Aging no cuadra con contabilidad</span>
+      <span>TechParts SAS</span>
+      <span><span class="prio-badge p2">P2</span></span>
+      <span><span class="badge badge-assigned">Asignado</span></span>
+      <span>C. Ramírez</span>
+      <span class="sla-ok">✓ 5h 10min</span>
+    </div>
+    <div class="mock-row">
+      <span style="color:var(--primary);font-weight:600">INC-0038</span>
+      <span>Solicitud de nuevo usuario con acceso a módulo AR</span>
+      <span>Grupo Andino</span>
+      <span><span class="prio-badge p4">P4</span></span>
+      <span><span class="badge badge-new">Nuevo</span></span>
+      <span style="color:var(--text-secondary)">Sin asignar</span>
+      <span class="sla-ok">✓ 68h 00min</span>
+    </div>
+    <div class="mock-row">
+      <span style="color:var(--primary);font-weight:600">INC-0037</span>
+      <span>Error de conversión de moneda en transacciones FX</span>
+      <span>Aceros del Norte</span>
+      <span><span class="prio-badge p1">P1</span></span>
+      <span><span class="badge badge-resolved">Resuelto</span></span>
+      <span>M. Torres</span>
+      <span class="sla-ok">✓ Resuelto</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===================== TRIAGE ===================== -->
+<div id="triage" class="section">
+<div class="content">
+  <div class="section-title-row">
+    <div>
+      <h2>Panel de Triage — Asignación</h2>
+      <p class="subtitle">Coordinador asigna tickets nuevos al resolutor más idóneo según skills y carga de trabajo</p>
+    </div>
+    <button class="btn">Consultar al QM ↗</button>
+  </div>
+  <div class="triage-layout">
+    <div class="triage-queue">
+      <div class="triage-queue-header">Cola de Tickets Nuevos <span class="count-badge">7</span></div>
+      <div class="triage-ticket selected">
+        <div class="tid">INC-0038 · P4 · Grupo Andino</div>
+        <div class="ttitle">Solicitud de nuevo usuario con acceso a módulo AR</div>
+        <div class="tmeta"><span class="badge badge-new">Nuevo</span><span style="font-size:11px;color:var(--text-secondary)">hace 45 min</span></div>
+      </div>
+      <div class="triage-ticket">
+        <div class="tid">INC-0043 · P2 · TechParts SAS</div>
+        <div class="ttitle">No se generan asientos contables automáticos en cierre</div>
+        <div class="tmeta"><span class="badge badge-new">Nuevo</span><span style="font-size:11px;color:var(--text-secondary)">hace 1h 20min</span></div>
+      </div>
+      <div class="triage-ticket">
+        <div class="tid">INC-0044 · P1 · Constructora Alta</div>
+        <div class="ttitle">Sistema no permite crear OC — error crítico producción</div>
+        <div class="tmeta"><span class="badge badge-new">Nuevo</span><span style="font-size:11px;color:var(--danger);font-weight:600">⚠ Crítico</span></div>
+      </div>
+      <div class="triage-ticket">
+        <div class="tid">INC-0045 · P3 · Inversiones CMR</div>
+        <div class="ttitle">Discrepancia en reporte de inventario valorizado</div>
+        <div class="tmeta"><span class="badge badge-new">Nuevo</span><span style="font-size:11px;color:var(--text-secondary)">hace 2h</span></div>
+      </div>
+    </div>
+    <div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">
+        Selecciona el resolutor óptimo para <strong>INC-0038</strong> (Acceso AR · Skills: <em>JDE_AR, Seguridad</em>)
+      </p>
+      <div class="resolvers-grid">
+        <div class="resolver-card best">
+          <div class="best-label">✓ Recomendado</div>
+          <div class="resolver-avatar" style="background:#d9f7be;color:#237804">CR</div>
+          <div class="resolver-name">C. Ramírez</div>
+          <div class="resolver-role">Consultor Sr. — JDE Finance</div>
+          <div class="skills-row">
+            <span class="skill-tag">JDE_GL</span>
+            <span class="skill-tag">JDE_AR</span>
+            <span class="skill-tag">JDE_AP</span>
+          </div>
+          <div class="workload-label"><span>Carga de trabajo</span><span>2/8</span></div>
+          <div class="workload-bar"><div class="workload-fill" style="width:25%;background:var(--success)"></div></div>
+        </div>
+        <div class="resolver-card">
+          <div class="resolver-avatar" style="background:#bae0ff;color:#0958d9">MT</div>
+          <div class="resolver-name">M. Torres</div>
+          <div class="resolver-role">Consultor — Oracle Cloud</div>
+          <div class="skills-row">
+            <span class="skill-tag">Fusion_GL</span>
+            <span class="skill-tag">Fusion_AR</span>
+            <span class="skill-tag">API_REST</span>
+          </div>
+          <div class="workload-label"><span>Carga de trabajo</span><span>5/8</span></div>
+          <div class="workload-bar"><div class="workload-fill" style="width:62%;background:var(--warning)"></div></div>
+        </div>
+        <div class="resolver-card">
+          <div class="resolver-avatar" style="background:#efdbff;color:#531dab">RG</div>
+          <div class="resolver-name">R. Gómez</div>
+          <div class="resolver-role">Consultor Técnico</div>
+          <div class="skills-row">
+            <span class="skill-tag">API_REST</span>
+            <span class="skill-tag">Integraciones</span>
+            <span class="skill-tag">JDE_Tech</span>
+          </div>
+          <div class="workload-label"><span>Carga de trabajo</span><span>6/8</span></div>
+          <div class="workload-bar"><div class="workload-fill" style="width:75%;background:var(--danger)"></div></div>
+        </div>
+        <div class="resolver-card">
+          <div class="resolver-avatar" style="background:#fff1f0;color:#a8071a">LP</div>
+          <div class="resolver-name">L. Pineda</div>
+          <div class="resolver-role">Consultor Jr. — JDE</div>
+          <div class="skills-row">
+            <span class="skill-tag">JDE_GL</span>
+            <span class="skill-tag">JDE_AR</span>
+          </div>
+          <div class="workload-label"><span>Carga de trabajo</span><span>1/8</span></div>
+          <div class="workload-bar"><div class="workload-fill" style="width:12%;background:var(--success)"></div></div>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;">
+        <button class="btn btn-success">Asignar a C. Ramírez →</button>
+        <button class="btn">Asignación manual</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===================== KANBAN ===================== -->
+<div id="kanban" class="section">
+<div class="content">
+  <h2>Vista Kanban</h2>
+  <p class="subtitle">Drag & drop con @hello-pangea/dnd — estados activos del ciclo de vida del ticket</p>
+  <div class="kanban-board">
+    <div class="kanban-col">
+      <div class="kanban-col-header">Nuevo <span class="count-badge">3</span></div>
+      <div class="kanban-card">
+        <div class="kid">INC-0038</div>
+        <div class="ktitle">Solicitud nuevo usuario acceso AR</div>
+        <div class="kmeta"><span class="prio-badge p4">P4</span><span style="font-size:10px;color:var(--text-secondary)">Grupo Andino</span></div>
+      </div>
+      <div class="kanban-card">
+        <div class="kid">INC-0044</div>
+        <div class="ktitle">Sistema no permite crear OC — producción</div>
+        <div class="kmeta"><span class="prio-badge p1">P1</span><span style="font-size:10px;color:var(--danger)">⚠ Crítico</span></div>
+      </div>
+      <div class="kanban-card">
+        <div class="kid">INC-0045</div>
+        <div class="ktitle">Discrepancia inventario valorizado</div>
+        <div class="kmeta"><span class="prio-badge p3">P3</span><span style="font-size:10px;color:var(--text-secondary)">Inv. CMR</span></div>
+      </div>
+    </div>
+    <div class="kanban-col">
+      <div class="kanban-col-header">Asignado <span class="count-badge">4</span></div>
+      <div class="kanban-card">
+        <div class="kid">INC-0039</div>
+        <div class="ktitle">Reporte Aging no cuadra con contabilidad</div>
+        <div class="kmeta"><span class="prio-badge p2">P2</span><span class="ktime sla-ok">5h 10m</span></div>
+      </div>
+      <div class="kanban-card">
+        <div class="kid">INC-0043</div>
+        <div class="ktitle">Asientos contables no generados en cierre</div>
+        <div class="kmeta"><span class="prio-badge p2">P2</span><span class="ktime sla-warn">3h 00m</span></div>
+      </div>
+    </div>
+    <div class="kanban-col">
+      <div class="kanban-col-header">En Progreso <span class="count-badge" style="background:var(--purple)">7</span></div>
+      <div class="kanban-card">
+        <div class="kid">INC-0042</div>
+        <div class="ktitle">Error cierre período GL — Oracle JDE</div>
+        <div class="kmeta"><span class="prio-badge p1">P1</span><span class="ktime sla-crit">⚠ 45m</span></div>
+      </div>
+      <div class="kanban-card">
+        <div class="kid">INC-0040</div>
+        <div class="ktitle">Falla integración API REST nómina</div>
+        <div class="kmeta"><span class="prio-badge p2">P2</span><span class="ktime sla-warn">3h 20m</span></div>
+      </div>
+      <div class="kanban-card">
+        <div class="kid">INC-0036</div>
+        <div class="ktitle">Error en conversion FX reportes consolidados</div>
+        <div class="kmeta"><span class="prio-badge p2">P2</span><span class="ktime sla-ok">8h 00m</span></div>
+      </div>
+    </div>
+    <div class="kanban-col">
+      <div class="kanban-col-header">Pend. Usuario <span class="count-badge" style="background:var(--warning)">5</span></div>
+      <div class="kanban-card">
+        <div class="kid">INC-0041</div>
+        <div class="ktitle">Config aprobaciones PO — pendiente info cliente</div>
+        <div class="kmeta"><span class="prio-badge p3">P3</span><span style="font-size:10px;color:var(--success)">⏸ SLA pausado</span></div>
+      </div>
+      <div class="kanban-card">
+        <div class="kid">INC-0033</div>
+        <div class="ktitle">Revisión de roles y permisos módulo HR</div>
+        <div class="kmeta"><span class="prio-badge p4">P4</span><span style="font-size:10px;color:var(--success)">⏸ SLA pausado</span></div>
+      </div>
+    </div>
+    <div class="kanban-col">
+      <div class="kanban-col-header">Resuelto <span class="count-badge" style="background:var(--success)">3</span></div>
+      <div class="kanban-card">
+        <div class="kid">INC-0037</div>
+        <div class="ktitle">Error de conversión moneda transacciones FX</div>
+        <div class="kmeta"><span class="prio-badge p1">P1</span><span style="font-size:10px;color:var(--success)">✓ Res. en 3h</span></div>
+      </div>
+      <div class="kanban-card">
+        <div class="kid">INC-0035</div>
+        <div class="ktitle">Configuración workflow de pagos</div>
+        <div class="kmeta"><span class="prio-badge p3">P3</span><span style="font-size:10px;color:var(--text-secondary)">Esp. aprobación</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===================== DETALLE TICKET ===================== -->
+<div id="ticket" class="section">
+<div class="content">
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;">
+    <button class="btn">← Volver</button>
+    <h2 style="margin:0">INC-0042 — Error en cierre de período GL</h2>
+    <span class="badge badge-inprogress" style="font-size:13px;padding:4px 12px">En Progreso</span>
+    <span class="prio-badge p1" style="font-size:12px;padding:3px 10px">P1 · Crítica</span>
+  </div>
+  <div class="ticket-detail">
+    <div class="ticket-main">
+      <p style="font-size:14px;line-height:1.6;color:var(--text-secondary);margin-bottom:20px;">
+        El sistema no permite ejecutar el cierre del período GL para junio 2026. Al intentar el proceso, arroja error:
+        <code style="background:#f5f5f5;padding:2px 6px;border-radius:4px;">JDE-GL-0019: Period end date mismatch in F0010</code>.
+        El cliente necesita el cierre antes del mediodía para presentar estados financieros.
+      </p>
+      <div style="display:flex;gap:8px;margin-bottom:20px;">
+        <span class="skill-tag" style="font-size:12px;padding:3px 10px">JDE_GL</span>
+        <span class="skill-tag" style="font-size:12px;padding:3px 10px">Oracle_JDE</span>
+        <span class="skill-tag" style="font-size:12px;padding:3px 10px">Financiero</span>
+      </div>
+
+      <h4 style="font-size:13px;font-weight:600;margin-bottom:12px;">Sesión de Trabajo Activa</h4>
+      <div class="session-box" style="max-width:260px;margin-bottom:20px;">
+        <div class="slabel">Tiempo trabajado en este ticket</div>
+        <div class="timer">01:23:44</div>
+        <button class="session-btn">⏹ Pausar Sesión</button>
+      </div>
+
+      <h4 style="font-size:13px;font-weight:600;margin-bottom:12px;">Hilo de Comentarios</h4>
+      <div class="comment-thread">
+        <div class="comment">
+          <div class="comment-avatar" style="background:#bae0ff;color:#0958d9">CO</div>
+          <div class="comment-bubble">
+            <div class="comment-meta"><strong>Coordinador (Juan P.)</strong> · hace 2h · <span style="color:#595959">Asignación</span></div>
+            <div class="comment-body">Ticket recibido de Grupo Andino vía email. Asignado a C. Ramírez por skills JDE_GL. Prioridad P1 — SLA 4h.</div>
+          </div>
+        </div>
+        <div class="comment">
+          <div class="comment-avatar" style="background:#d9f7be;color:#237804">CR</div>
+          <div class="comment-bubble">
+            <div class="comment-meta"><strong>C. Ramírez</strong> · hace 1h 45min · <span style="color:#1677ff">Contacto Cliente</span></div>
+            <div class="comment-body client">Estimado Carlos, ya recibí su caso y lo estoy gestionando. Por favor confirme si realizaron algún cambio en la configuración de períodos fiscales recientemente.</div>
+          </div>
+        </div>
+        <div class="comment">
+          <div class="comment-avatar" style="background:#efdbff;color:#531dab">GA</div>
+          <div class="comment-bubble">
+            <div class="comment-meta"><strong>Carlos Méndez (Grupo Andino)</strong> · hace 1h 20min · <span style="color:#531dab">Respuesta Cliente</span></div>
+            <div class="comment-body client">Sí, ayer actualizamos el año fiscal en la tabla F0010 para ajustar el calendario. ¿Eso puede haber causado el problema?</div>
+          </div>
+        </div>
+        <div class="comment">
+          <div class="comment-avatar" style="background:#d9f7be;color:#237804">CR</div>
+          <div class="comment-bubble">
+            <div class="comment-meta"><strong>C. Ramírez</strong> · hace 45min · <span style="color:#fa8c16">Comentario Interno</span></div>
+            <div class="comment-body internal">Diagnóstico: el cambio en F0010 desincronizó el campo GLPERD con el período activo. Solución: corregir fecha de fin de período en Company Constants. Procedo a aplicar fix.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;background:#fafafa;border:1px solid var(--border);border-radius:8px;padding:14px;">
+        <select style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;margin-bottom:10px;width:200px;">
+          <option>Comentario Interno</option>
+          <option>Contacto Cliente</option>
+          <option>Seguimiento</option>
+          <option>Resolución</option>
+        </select>
+        <textarea style="width:100%;height:80px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;resize:vertical;" placeholder="Escribe tu comentario..."></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-primary">Publicar</button>
+          <button class="btn">📎 Adjuntar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ticket-sidebar">
+      <div class="sidebar-card">
+        <h4>SLA</h4>
+        <div class="sla-gauge">
+          <div class="big sla-crit">0h 45m</div>
+          <div class="label">Tiempo restante de resolución</div>
+          <div style="height:6px;background:#f0f0f0;border-radius:3px;margin:10px 0">
+            <div style="height:6px;border-radius:3px;background:var(--danger);width:81%"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-secondary)">81% consumido · 4h objetivo</div>
+        </div>
+        <div class="detail-row"><span class="key">Atención</span><span class="sla-ok">✓ 15min</span></div>
+        <div class="detail-row"><span class="key">Análisis</span><span class="sla-ok">✓ 45min</span></div>
+      </div>
+      <div class="sidebar-card">
+        <h4>Información del Ticket</h4>
+        <div class="detail-row"><span class="key">Cliente</span><span>Grupo Andino</span></div>
+        <div class="detail-row"><span class="key">Reportado por</span><span>Carlos Méndez</span></div>
+        <div class="detail-row"><span class="key">Canal</span><span>Email</span></div>
+        <div class="detail-row"><span class="key">Asignado a</span><span>C. Ramírez</span></div>
+        <div class="detail-row"><span class="key">Nivel</span><span>N2</span></div>
+        <div class="detail-row"><span class="key">Creado</span><span>12/06 09:15</span></div>
+        <div class="detail-row"><span class="key">Func. Tipo</span><span>Contabilidad GL</span></div>
+      </div>
+      <div class="sidebar-card">
+        <h4>Acciones</h4>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button class="btn btn-success" style="width:100%">✓ Marcar Resuelto</button>
+          <button class="btn" style="width:100%">↑ Escalar a N3</button>
+          <button class="btn" style="width:100%">🔄 Reasignar</button>
+          <button class="btn" style="width:100%;color:var(--danger)">✕ Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===================== ARQUITECTURA ===================== -->
+<div id="architecture" class="section">
+<div class="content">
+  <h2>Arquitectura del Sistema</h2>
+  <p class="subtitle">Clean Architecture en 3 capas · API First · Single Tenant · On-Premise</p>
+
+  <div class="arch-stack">
+    <div class="arch-layer layer-ui">
+      <div class="layer-num">3</div>
+      <div>
+        <h4>Presentación / UI</h4>
+        <p style="font-size:12px;color:var(--text-secondary)">/components · /views · /pages — componentes "tontos", solo renderizan datos</p>
+        <div class="tech-pills">
+          <span class="tech-pill">React</span>
+          <span class="tech-pill">TypeScript strict</span>
+          <span class="tech-pill">Ant Design</span>
+          <span class="tech-pill">@hello-pangea/dnd</span>
+          <span class="tech-pill">Zustand</span>
+        </div>
+      </div>
+    </div>
+    <div class="arch-layer layer-svc">
+      <div class="layer-num">2</div>
+      <div>
+        <h4>Datos / Infraestructura</h4>
+        <p style="font-size:12px;color:var(--text-secondary)">/services · /repositories · /api — llamadas a Flask REST API, reportes, integraciones</p>
+        <div class="tech-pills">
+          <span class="tech-pill">Flask + Swagger</span>
+          <span class="tech-pill">JWT + OAuth2 Google</span>
+          <span class="tech-pill">Email Inbound</span>
+          <span class="tech-pill">API First Design</span>
+        </div>
+      </div>
+    </div>
+    <div class="arch-layer layer-core">
+      <div class="layer-num">1</div>
+      <div>
+        <h4>Core / Dominio</h4>
+        <p style="font-size:12px;color:var(--text-secondary)">/domain · /actions · /types — lógica de negocio pura, FSM, SLA, reglas de negocio</p>
+        <div class="tech-pills">
+          <span class="tech-pill">Python Transitions (FSM)</span>
+          <span class="tech-pill">SLA Engine</span>
+          <span class="tech-pill">Triage Logic</span>
+          <span class="tech-pill">Work Sessions</span>
+        </div>
+      </div>
+    </div>
+    <div class="arch-layer layer-db">
+      <div class="layer-num">DB</div>
+      <div>
+        <h4>Persistencia</h4>
+        <p style="font-size:12px;color:var(--text-secondary)">PostgreSQL On-Premise con Row Level Security (RLS) activo en todas las tablas</p>
+        <div class="tech-pills">
+          <span class="tech-pill">PostgreSQL</span>
+          <span class="tech-pill">RLS (Row Level Security)</span>
+          <span class="tech-pill">snake_case naming</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="diagram-card">
+    <h3>Diagrama de Componentes</h3>
+    <p class="desc">Relación entre frontend, backend y base de datos. El AI Dispatcher de Fase 2 se conecta al mismo endpoint /assign.</p>
+    <div class="mermaid">
+graph LR
+    subgraph FE["Frontend — React + TS"]
+        UI[Ant Design UI]
+        DND[@hello-pangea/dnd]
+        ST[Zustand Store]
+    end
+    subgraph BE["Backend — Flask + Swagger"]
+        API[REST API]
+        FSM[FSM Engine\nPython Transitions]
+        SLA[SLA Calculator]
+        EMAIL[Email Inbound]
+    end
+    subgraph DB["PostgreSQL + RLS"]
+        TBL[(tickets\ncomments\nwork_sessions\nassignment_log)]
+    end
+    subgraph AUTH["Auth"]
+        GOOGLE[Google OAuth2\n@sywork.net]
+        JWT[JWT Token]
+    end
+    subgraph AI["Fase 2 — AI"]
+        DISP[AI Dispatcher\nTriage Agent]
+        KB[Knowledge Base\nAssistant]
+    end
+
+    UI --> ST
+    ST --> API
+    DND --> API
+    GOOGLE --> JWT
+    JWT --> API
+    API --> FSM
+    API --> SLA
+    EMAIL --> API
+    FSM --> TBL
+    SLA --> TBL
+    DISP -.->|mismo endpoint /assign| API
+    KB -.-> TBL
+
+    style FE fill:#e6f4ff,stroke:#1677ff
+    style BE fill:#fff7e6,stroke:#faad14
+    style DB fill:#f6ffed,stroke:#52c41a
+    style AUTH fill:#f9f0ff,stroke:#722ed1
+    style AI fill:#fff1f0,stroke:#ff4d4f,stroke-dasharray:5
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===================== FLUJO FSM ===================== -->
+<div id="flow" class="section">
+<div class="content">
+  <h2>Flujo del Proceso — Finite State Machine</h2>
+  <p class="subtitle">Ciclo de vida completo de un ticket · implementado con Python Transitions · SLA se pausa en estados naranja</p>
+
+  <div class="diagram-card">
+    <h3>Diagrama de Estados del Ticket</h3>
+    <p class="desc">Verde = afecta SLA · Naranja = SLA pausado · Gris = estados terminales</p>
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> Nuevo : Ticket creado\n(manual o email)
+
+    Nuevo --> Asignado : Coordinador asigna\nresolutor
+    Nuevo --> Cancelado : Ticket inválido
+
+    Asignado --> EnProgreso : Resolutor inicia\nsesión de trabajo
+    Asignado --> Cancelado : Ticket duplicado
+
+    EnProgreso --> PendienteUsuario : Comentario\n"Contacto Cliente"
+    EnProgreso --> PendienteInterno : Bloqueo interno\ndeclarado
+    EnProgreso --> Escalado : Escalamiento\na N3/Fabricante
+    EnProgreso --> Resuelto : Resolutor marca\ncomo resuelto
+    EnProgreso --> Cancelado : Cancelación manual
+
+    PendienteUsuario --> EnProgreso : Cliente responde\n(automático)
+    PendienteInterno --> EnProgreso : Bloqueo levantado
+    Escalado --> EnProgreso : Fabricante devuelve\nrespuesta
+
+    Resuelto --> Cerrado : Cliente aprueba\nO timeout configurable
+    Resuelto --> EnProgreso : Cliente rechaza\nresolución
+
+    Cerrado --> [*]
+    Cancelado --> [*]
+
+    note right of PendienteUsuario : SLA PAUSADO
+    note right of PendienteInterno : SLA PAUSADO
+    </div>
+  </div>
+
+  <div class="diagram-card">
+    <h3>Flujo Operativo — Rol del Coordinador y Resolutor</h3>
+    <p class="desc">Secuencia de acciones desde la llegada del ticket hasta el cierre</p>
+    <div class="mermaid">
+sequenceDiagram
+    participant C as Cliente / L1
+    participant CO as Coordinador
+    participant QM as QM (Quality Mgr)
+    participant RES as Resolutor N2
+    participant SYS as Sistema (FSM + SLA)
+    participant FAB as Fabricante N3
+
+    C->>SYS: Ticket ingresa (email / manual)
+    SYS->>CO: Notificación ticket NUEVO
+    CO->>SYS: Abre Triage Dashboard
+    SYS-->>CO: Muestra skills y carga de resolutores
+
+    opt Necesita apoyo técnico
+        CO->>QM: Consulta por mensaje interno
+        QM-->>CO: Recomendación técnica
+    end
+
+    CO->>SYS: Asigna ticket a Resolutor
+    SYS->>RES: Notificación ASIGNADO
+    SYS->>SYS: Registra en assignment_log (Gold Dataset)
+
+    RES->>SYS: Inicia sesión de trabajo
+    SYS->>SYS: Estado → EN PROGRESO, inicia SLA atención
+
+    RES->>C: Comentario "Contacto Cliente"\n"Recibí tu caso, lo estoy gestionando"
+    SYS->>SYS: Registra tiempo de ATENCIÓN
+
+    alt Necesita info del cliente
+        RES->>C: Comentario "Contacto Cliente" (pregunta)
+        SYS->>SYS: Estado → PENDIENTE USUARIO, SLA pausado
+        C-->>RES: Respuesta del cliente
+        SYS->>SYS: Estado → EN PROGRESO, SLA reanuda
+    end
+
+    alt Requiere escalamiento
+        RES->>SYS: Escala a N3/Fabricante
+        SYS->>FAB: Notificación escalamiento
+        FAB-->>RES: Respuesta técnica
+        SYS->>SYS: Estado → EN PROGRESO
+    end
+
+    RES->>SYS: Marca como RESUELTO + comentario resolución
+    SYS->>C: Email automático "¿Confirmas la resolución?"
+
+    alt Cliente aprueba
+        C-->>SYS: Confirma resolución
+        SYS->>SYS: Estado → CERRADO
+    else Cliente no responde
+        SYS->>SYS: Timeout configurable → CERRADO automático
+    else Cliente rechaza
+        C-->>SYS: Rechaza resolución
+        SYS->>SYS: Estado → EN PROGRESO (configurable)
+    end
+    </div>
+  </div>
+
+  <div class="diagram-card">
+    <h3>Estructura de Tablas Principales</h3>
+    <p class="desc">Modelo de datos simplificado — Phase 1</p>
+    <div class="mermaid">
+erDiagram
+    tickets {
+        int id PK
+        string ticket_number
+        string title
+        text description
+        enum state
+        enum priority
+        enum severity
+        enum ticket_type
+        enum source_channel
+        int client_id FK
+        int assignee_id FK
+        int coordinator_id FK
+        timestamp created_at
+        timestamp sla_due_at
+        timestamp sla_paused_at
+        float sla_elapsed_seconds
+    }
+
+    comments {
+        int id PK
+        int ticket_id FK
+        int author_id FK
+        enum comment_type
+        text body
+        bool visible_to_client
+        timestamp created_at
+    }
+
+    work_sessions {
+        int id PK
+        int ticket_id FK
+        int resolver_id FK
+        timestamp start_time
+        timestamp end_time
+        text notes
+    }
+
+    assignment_log {
+        int id PK
+        int ticket_id FK
+        int resolver_id FK
+        json skills_match
+        int workload_at_moment
+        string decision_reason
+        timestamp assigned_at
+    }
+
+    users {
+        int id PK
+        string email
+        string name
+        enum role
+        json skills
+    }
+
+    tickets ||--o{ comments : "tiene"
+    tickets ||--o{ work_sessions : "tiene"
+    tickets ||--o{ assignment_log : "registra"
+    users ||--o{ tickets : "asignado a"
+    users ||--o{ work_sessions : "realiza"
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===================== CALENDARIO SLA ===================== -->
+<div id="calendar" class="section">
+<div class="content">
+  <div class="section-title-row">
+    <div>
+      <h2>Calendario Laboral — Configuración SLA</h2>
+      <p class="subtitle">Define los horarios hábiles, festivos y excepciones. El motor de SLA solo cuenta tiempo dentro de estas franjas.</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn">Cancelar</button>
+      <button class="btn btn-primary">Guardar cambios</button>
+    </div>
+  </div>
+
+  <!-- Cómo se usa en el SLA -->
+  <div style="background:#e6f4ff;border:1px solid #91caff;border-radius:10px;padding:16px 20px;margin-bottom:28px;display:flex;gap:14px;align-items:flex-start;">
+    <span style="font-size:20px;flex-shrink:0;">ℹ️</span>
+    <div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px;">Cómo usa el SLA este calendario</div>
+      <div style="font-size:13px;color:#0958d9;line-height:1.6;">
+        Un ticket P2 tiene <strong>8 horas hábiles</strong> de resolución. Si llega el viernes a las 17:00 y el equipo trabaja hasta las 18:00,
+        solo cuenta <strong>1 hora ese día</strong>. El reloj se pausa a las 18:00 y reanuda el lunes a las 08:00.
+        Los sábados, domingos y festivos <strong>no se descuentan</strong> del SLA.
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+    <!-- COLUMNA IZQUIERDA: Horario semanal -->
+    <div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px;">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;font-size:14px;">Franjas horarias semanales</span>
+          <span style="font-size:12px;color:var(--text-secondary)">Zona horaria: America/Bogota (UTC-5)</span>
+        </div>
+
+        <div style="padding:8px 0;">
+          <!-- Lunes -->
+          <div style="display:grid;grid-template-columns:110px 40px 1fr;gap:12px;padding:10px 20px;align-items:center;border-bottom:1px solid #f5f5f5;">
+            <span style="font-size:13px;font-weight:500;">Lunes</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <div style="width:32px;height:18px;background:var(--primary);border-radius:9px;position:relative;">
+                <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;right:2px;"></div>
+              </div>
+            </label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">08:00</div>
+              <span style="color:var(--text-secondary);font-size:12px;">hasta</span>
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">18:00</div>
+              <span style="font-size:12px;color:var(--success);margin-left:4px;">10h hábiles</span>
+            </div>
+          </div>
+          <!-- Martes -->
+          <div style="display:grid;grid-template-columns:110px 40px 1fr;gap:12px;padding:10px 20px;align-items:center;border-bottom:1px solid #f5f5f5;">
+            <span style="font-size:13px;font-weight:500;">Martes</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <div style="width:32px;height:18px;background:var(--primary);border-radius:9px;position:relative;">
+                <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;right:2px;"></div>
+              </div>
+            </label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">08:00</div>
+              <span style="color:var(--text-secondary);font-size:12px;">hasta</span>
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">18:00</div>
+              <span style="font-size:12px;color:var(--success);margin-left:4px;">10h hábiles</span>
+            </div>
+          </div>
+          <!-- Miércoles -->
+          <div style="display:grid;grid-template-columns:110px 40px 1fr;gap:12px;padding:10px 20px;align-items:center;border-bottom:1px solid #f5f5f5;">
+            <span style="font-size:13px;font-weight:500;">Miércoles</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <div style="width:32px;height:18px;background:var(--primary);border-radius:9px;position:relative;">
+                <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;right:2px;"></div>
+              </div>
+            </label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">08:00</div>
+              <span style="color:var(--text-secondary);font-size:12px;">hasta</span>
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">18:00</div>
+              <span style="font-size:12px;color:var(--success);margin-left:4px;">10h hábiles</span>
+            </div>
+          </div>
+          <!-- Jueves -->
+          <div style="display:grid;grid-template-columns:110px 40px 1fr;gap:12px;padding:10px 20px;align-items:center;border-bottom:1px solid #f5f5f5;">
+            <span style="font-size:13px;font-weight:500;">Jueves</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <div style="width:32px;height:18px;background:var(--primary);border-radius:9px;position:relative;">
+                <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;right:2px;"></div>
+              </div>
+            </label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">08:00</div>
+              <span style="color:var(--text-secondary);font-size:12px;">hasta</span>
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">18:00</div>
+              <span style="font-size:12px;color:var(--success);margin-left:4px;">10h hábiles</span>
+            </div>
+          </div>
+          <!-- Viernes -->
+          <div style="display:grid;grid-template-columns:110px 40px 1fr;gap:12px;padding:10px 20px;align-items:center;border-bottom:1px solid #f5f5f5;">
+            <span style="font-size:13px;font-weight:500;">Viernes</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <div style="width:32px;height:18px;background:var(--primary);border-radius:9px;position:relative;">
+                <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;right:2px;"></div>
+              </div>
+            </label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">08:00</div>
+              <span style="color:var(--text-secondary);font-size:12px;">hasta</span>
+              <div style="background:#f5f5f5;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:600;">16:00</div>
+              <span style="font-size:12px;color:var(--warning);margin-left:4px;">8h hábiles</span>
+            </div>
+          </div>
+          <!-- Sábado -->
+          <div style="display:grid;grid-template-columns:110px 40px 1fr;gap:12px;padding:10px 20px;align-items:center;border-bottom:1px solid #f5f5f5;opacity:0.5;">
+            <span style="font-size:13px;font-weight:500;">Sábado</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <div style="width:32px;height:18px;background:#d9d9d9;border-radius:9px;position:relative;">
+                <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;left:2px;"></div>
+              </div>
+            </label>
+            <span style="font-size:12px;color:var(--text-secondary);">No laborable</span>
+          </div>
+          <!-- Domingo -->
+          <div style="display:grid;grid-template-columns:110px 40px 1fr;gap:12px;padding:10px 20px;align-items:center;opacity:0.5;">
+            <span style="font-size:13px;font-weight:500;">Domingo</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <div style="width:32px;height:18px;background:#d9d9d9;border-radius:9px;position:relative;">
+                <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;left:2px;"></div>
+              </div>
+            </label>
+            <span style="font-size:12px;color:var(--text-secondary);">No laborable</span>
+          </div>
+        </div>
+
+        <div style="padding:12px 20px;border-top:1px solid var(--border);background:#fafafa;font-size:12px;color:var(--text-secondary);">
+          Total horas hábiles semanales: <strong style="color:var(--text)">48h</strong>
+        </div>
+      </div>
+
+      <!-- Tabla SLA por prioridad -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);">
+          <span style="font-weight:600;font-size:14px;">Tiempos SLA por prioridad</span>
+          <span style="font-size:12px;color:var(--text-secondary);margin-left:8px;">(horas hábiles)</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:#fafafa;">
+              <th style="padding:10px 16px;text-align:left;font-weight:600;color:var(--text-secondary);font-size:12px;border-bottom:1px solid var(--border);">Prioridad</th>
+              <th style="padding:10px 16px;text-align:center;font-weight:600;color:var(--text-secondary);font-size:12px;border-bottom:1px solid var(--border);">Atención</th>
+              <th style="padding:10px 16px;text-align:center;font-weight:600;color:var(--text-secondary);font-size:12px;border-bottom:1px solid var(--border);">Análisis</th>
+              <th style="padding:10px 16px;text-align:center;font-weight:600;color:var(--text-secondary);font-size:12px;border-bottom:1px solid var(--border);">Resolución</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid #f5f5f5;">
+              <td style="padding:10px 16px;"><span class="prio-badge p1">P1 Crítica</span></td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="0.5" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="1" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="4" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f5f5f5;">
+              <td style="padding:10px 16px;"><span class="prio-badge p2">P2 Alta</span></td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="1" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="2" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="8" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f5f5f5;">
+              <td style="padding:10px 16px;"><span class="prio-badge p3">P3 Media</span></td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="2" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="4" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="24" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 16px;"><span class="prio-badge p4">P4 Baja</span></td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="4" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="8" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+              <td style="padding:10px 16px;text-align:center;"><input type="number" value="72" style="width:60px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px;font-size:13px;"> h</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COLUMNA DERECHA: festivos + simulador + comportamiento -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Festivos y excepciones -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;font-size:14px;">Festivos y excepciones 2026</span>
+          <button class="btn" style="font-size:12px;padding:4px 12px;">+ Agregar</button>
+        </div>
+        <div style="padding:8px 0;max-height:260px;overflow-y:auto;">
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:8px 16px;align-items:center;border-bottom:1px solid #f5f5f5;font-size:13px;">
+            <span>🇨🇴 Año Nuevo</span>
+            <span style="color:var(--text-secondary);font-size:12px;">01 Ene 2026</span>
+            <span style="background:#fff1f0;color:var(--danger);font-size:11px;padding:2px 8px;border-radius:4px;">No laborable</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:8px 16px;align-items:center;border-bottom:1px solid #f5f5f5;font-size:13px;">
+            <span>🇨🇴 Reyes Magos</span>
+            <span style="color:var(--text-secondary);font-size:12px;">12 Ene 2026</span>
+            <span style="background:#fff1f0;color:var(--danger);font-size:11px;padding:2px 8px;border-radius:4px;">No laborable</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:8px 16px;align-items:center;border-bottom:1px solid #f5f5f5;font-size:13px;">
+            <span>🇨🇴 San José</span>
+            <span style="color:var(--text-secondary);font-size:12px;">23 Mar 2026</span>
+            <span style="background:#fff1f0;color:var(--danger);font-size:11px;padding:2px 8px;border-radius:4px;">No laborable</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:8px 16px;align-items:center;border-bottom:1px solid #f5f5f5;font-size:13px;">
+            <span>🇨🇴 Semana Santa (Jueves)</span>
+            <span style="color:var(--text-secondary);font-size:12px;">02 Abr 2026</span>
+            <span style="background:#fff1f0;color:var(--danger);font-size:11px;padding:2px 8px;border-radius:4px;">No laborable</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:8px 16px;align-items:center;border-bottom:1px solid #f5f5f5;font-size:13px;">
+            <span>🇨🇴 Semana Santa (Viernes)</span>
+            <span style="color:var(--text-secondary);font-size:12px;">03 Abr 2026</span>
+            <span style="background:#fff1f0;color:var(--danger);font-size:11px;padding:2px 8px;border-radius:4px;">No laborable</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:8px 16px;align-items:center;border-bottom:1px solid #f5f5f5;font-size:13px;">
+            <span>📅 Capacitación interna</span>
+            <span style="color:var(--text-secondary);font-size:12px;">15 May 2026</span>
+            <span style="background:#fff7e6;color:var(--warning);font-size:11px;padding:2px 8px;border-radius:4px;">Media jornada</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:8px 16px;align-items:center;font-size:13px;">
+            <span>🇨🇴 Día del Trabajo</span>
+            <span style="color:var(--text-secondary);font-size:12px;">01 May 2026</span>
+            <span style="background:#fff1f0;color:var(--danger);font-size:11px;padding:2px 8px;border-radius:4px;">No laborable</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comportamiento de estados -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);">
+          <span style="font-weight:600;font-size:14px;">Comportamiento del reloj SLA por estado</span>
+        </div>
+        <div style="padding:8px 0;">
+          <div style="display:grid;grid-template-columns:1fr auto;gap:12px;padding:10px 16px;border-bottom:1px solid #f5f5f5;align-items:center;">
+            <div>
+              <div style="font-size:13px;font-weight:500;">Nuevo</div>
+              <div style="font-size:11px;color:var(--text-secondary);">Ticket recién creado</div>
+            </div>
+            <span style="background:#fff7e6;color:var(--warning);font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;">⏱ CORRE</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:12px;padding:10px 16px;border-bottom:1px solid #f5f5f5;align-items:center;">
+            <div>
+              <div style="font-size:13px;font-weight:500;">Asignado / En Progreso</div>
+              <div style="font-size:11px;color:var(--text-secondary);">Resolutor activo en el ticket</div>
+            </div>
+            <span style="background:#fff7e6;color:var(--warning);font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;">⏱ CORRE</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:12px;padding:10px 16px;border-bottom:1px solid #f5f5f5;align-items:center;">
+            <div>
+              <div style="font-size:13px;font-weight:500;">Pendiente Usuario</div>
+              <div style="font-size:11px;color:var(--text-secondary);">Esperando respuesta del cliente</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <div style="width:28px;height:16px;background:var(--primary);border-radius:8px;position:relative;">
+                  <div style="width:12px;height:12px;background:white;border-radius:50%;position:absolute;top:2px;right:2px;"></div>
+                </div>
+              </label>
+              <span style="background:#f6ffed;color:var(--success);font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;">⏸ PAUSA</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:12px;padding:10px 16px;border-bottom:1px solid #f5f5f5;align-items:center;">
+            <div>
+              <div style="font-size:13px;font-weight:500;">Pendiente Interno</div>
+              <div style="font-size:11px;color:var(--text-secondary);">Bloqueado por dependencia interna</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <div style="width:28px;height:16px;background:var(--primary);border-radius:8px;position:relative;">
+                  <div style="width:12px;height:12px;background:white;border-radius:50%;position:absolute;top:2px;right:2px;"></div>
+                </div>
+              </label>
+              <span style="background:#f6ffed;color:var(--success);font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;">⏸ PAUSA</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:12px;padding:10px 16px;align-items:center;">
+            <div>
+              <div style="font-size:13px;font-weight:500;">Resuelto / Cerrado</div>
+              <div style="font-size:11px;color:var(--text-secondary);">Ticket finalizado</div>
+            </div>
+            <span style="background:#f5f5f5;color:var(--text-secondary);font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;">⏹ DETIENE</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simulador -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);">
+          <span style="font-weight:600;font-size:14px;">Simulador de SLA</span>
+          <span style="font-size:12px;color:var(--text-secondary);margin-left:8px;">Calcula el vencimiento real de un ticket</span>
+        </div>
+        <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Prioridad</label>
+              <select style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                <option>P1 — Crítica (4h)</option>
+                <option selected>P2 — Alta (8h)</option>
+                <option>P3 — Media (24h)</option>
+                <option>P4 — Baja (72h)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Fecha y hora de creación</label>
+              <input type="datetime-local" value="2026-06-12T17:00" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            </div>
+          </div>
+          <button class="btn btn-primary" style="align-self:flex-start;" onclick="runSimulator()">Calcular vencimiento</button>
+          <div id="sim-result" style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;padding:14px;display:none;">
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Resultado del cálculo</div>
+            <div style="font-size:15px;font-weight:700;color:#237804;" id="sim-due">Lun 15 Jun 2026 · 09:00</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:6px;" id="sim-detail">
+              Vie 17:00 → 18:00 = 1h · Lun 08:00 → 09:00 = 1h restante · Sáb y Dom no cuentan
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cómo se implementa en código -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;margin-top:24px;">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:4px;">Cómo lo consume el motor de SLA</h3>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">
+      El calendario se guarda en PostgreSQL. El <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px;">SLAService</code>
+      lo lee al crear cada ticket y calcula la fecha de vencimiento adelantando solo dentro de las franjas hábiles.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Tablas en PostgreSQL</div>
+        <pre style="background:#001529;color:#a6e22e;padding:16px;border-radius:8px;font-size:12px;line-height:1.7;overflow-x:auto;">-- Franjas horarias recurrentes
+work_schedule (
+  id, day_of_week,   -- 0=Lun .. 4=Vie
+  start_time,        -- 08:00
+  end_time,          -- 18:00
+  is_active          -- toggle por día
+)
+
+-- Días bloqueados (festivos + excepciones)
+calendar_exceptions (
+  id, exception_date,
+  description,
+  type               -- 'holiday' | 'half_day'
+  half_day_end       -- null si día completo
+)</pre>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">SLAService — lógica central</div>
+        <pre style="background:#001529;color:#a6e22e;padding:16px;border-radius:8px;font-size:12px;line-height:1.7;overflow-x:auto;">def calculate_due_date(
+  start: datetime,
+  hours_sla: float
+) -> datetime:
+
+  remaining = hours_sla
+  cursor = start
+
+  while remaining > 0:
+    if is_working_moment(cursor):
+      slot_end = next_slot_end(cursor)
+      slot_h = hours_until(cursor, slot_end)
+      if slot_h >= remaining:
+        return cursor + timedelta(
+               hours=remaining)
+      remaining -= slot_h
+      cursor = slot_end
+    else:
+      cursor = next_slot_start(cursor)</pre>
+      </div>
+    </div>
+    <div style="margin-top:16px;background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;padding:12px 16px;font-size:13px;">
+      <strong>Ejemplo real:</strong> Ticket P2 (8h) creado el viernes a las 17:00 →
+      <strong>1h el viernes</strong> (17:00–18:00) +
+      <strong>7h el lunes</strong> (08:00–15:00) =
+      vence el <strong>lunes a las 15:00</strong>. Sábado y domingo no se cuentan.
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===================== DISPONIBILIDAD RESOLUTORES ===================== -->
+<div id="availability" class="section">
+<div class="content">
+
+  <!-- Separación de responsabilidades -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px;">
+    <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:10px;padding:16px 20px;display:flex;gap:12px;align-items:flex-start;">
+      <span style="font-size:22px;flex-shrink:0;">🏢</span>
+      <div>
+        <div style="font-weight:700;font-size:13px;color:#237804;margin-bottom:3px;">Calendario empresa → controla el SLA</div>
+        <div style="font-size:12px;color:#389e0d;line-height:1.5;">El reloj del SLA corre sobre el horario de la empresa. La ausencia de un resolutor <strong>no pausa el SLA</strong> — es responsabilidad del coordinador reasignar.</div>
+      </div>
+    </div>
+    <div style="background:#f9f0ff;border:1px solid #d3adf7;border-radius:10px;padding:16px 20px;display:flex;gap:12px;align-items:flex-start;">
+      <span style="font-size:22px;flex-shrink:0;">👤</span>
+      <div>
+        <div style="font-weight:700;font-size:13px;color:#531dab;margin-bottom:3px;">Calendario resolutor → controla la asignación</div>
+        <div style="font-size:12px;color:#722ed1;line-height:1.5;">El triage usa este calendario para filtrar quién puede recibir tickets <strong>ahora mismo</strong>. Si está de vacaciones, no aparece como opción disponible.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:260px 1fr;gap:24px;">
+
+    <!-- Lista de resolutores -->
+    <div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Equipo</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+
+        <div class="resolver-selector active-resolver" onclick="selectResolver(this,'cr')" style="background:white;border:2px solid var(--primary);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:50%;background:#d9f7be;color:#237804;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">CR</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;">C. Ramírez</div>
+            <div style="font-size:11px;color:var(--danger);font-weight:600;">✗ Vacaciones hasta 16 jun</div>
+          </div>
+        </div>
+
+        <div class="resolver-selector" onclick="selectResolver(this,'mt')" style="background:white;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:50%;background:#bae0ff;color:#0958d9;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">MT</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;">M. Torres</div>
+            <div style="font-size:11px;color:var(--success);font-weight:600;">✓ Disponible ahora</div>
+          </div>
+        </div>
+
+        <div class="resolver-selector" onclick="selectResolver(this,'rg')" style="background:white;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:50%;background:#efdbff;color:#531dab;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">RG</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;">R. Gómez</div>
+            <div style="font-size:11px;color:var(--success);font-weight:600;">✓ Disponible ahora</div>
+          </div>
+        </div>
+
+        <div class="resolver-selector" onclick="selectResolver(this,'lp')" style="background:white;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:50%;background:#fff1f0;color:#a8071a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">LP</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;">L. Pineda</div>
+            <div style="font-size:11px;color:var(--warning);font-weight:600;">◐ Media jornada hoy</div>
+          </div>
+        </div>
+
+        <div class="resolver-selector" onclick="selectResolver(this,'jp')" style="background:white;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:50%;background:#e6f4ff;color:#0958d9;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">JP</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;">J. Pérez</div>
+            <div style="font-size:11px;color:var(--success);font-weight:600;">✓ Disponible ahora</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel derecho: detalle del resolutor seleccionado -->
+    <div id="resolver-panel">
+
+      <!-- Alerta de tickets en riesgo -->
+      <div style="background:#fff1f0;border:1px solid #ffccc7;border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start;">
+        <span style="font-size:18px;flex-shrink:0;">⚠️</span>
+        <div style="flex:1;">
+          <div style="font-weight:600;font-size:13px;color:#a8071a;margin-bottom:4px;">C. Ramírez tiene 2 tickets asignados y entra en vacaciones el lunes 13 jun</div>
+          <div style="font-size:12px;color:#cf1322;margin-bottom:10px;">INC-0039 (P2 · 5h restantes) · INC-0042 (P1 · 45min restantes — urgente)</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" style="font-size:12px;padding:4px 14px;">Reasignar ambos tickets</button>
+            <button class="btn" style="font-size:12px;padding:4px 14px;">Ver tickets</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+
+        <!-- Horario personal -->
+        <div style="background:white;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:600;font-size:13px;">Horario personal</span>
+            <span style="font-size:11px;color:var(--primary);cursor:pointer;">Editar</span>
+          </div>
+          <div style="padding:4px 0;">
+            <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;padding:8px 14px;border-bottom:1px solid #f5f5f5;font-size:12px;align-items:center;">
+              <span style="font-weight:500;">Lunes</span>
+              <span style="color:var(--text-secondary);">08:00 – 18:00 <span style="color:var(--success);font-weight:600;">(empresa)</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;padding:8px 14px;border-bottom:1px solid #f5f5f5;font-size:12px;align-items:center;">
+              <span style="font-weight:500;">Martes</span>
+              <span style="color:var(--text-secondary);">08:00 – 18:00 <span style="color:var(--success);font-weight:600;">(empresa)</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;padding:8px 14px;border-bottom:1px solid #f5f5f5;font-size:12px;align-items:center;">
+              <span style="font-weight:500;">Miércoles</span>
+              <span style="color:var(--text-secondary);">08:00 – 18:00 <span style="color:var(--success);font-weight:600;">(empresa)</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;padding:8px 14px;border-bottom:1px solid #f5f5f5;font-size:12px;align-items:center;">
+              <span style="font-weight:500;">Jueves</span>
+              <span style="color:var(--text-secondary);">08:00 – 18:00 <span style="color:var(--success);font-weight:600;">(empresa)</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;padding:8px 14px;font-size:12px;align-items:center;">
+              <span style="font-weight:500;">Viernes</span>
+              <span style="color:#722ed1;font-weight:600;">08:00 – 14:00 <span style="background:#efdbff;padding:1px 5px;border-radius:3px;">(personalizado)</span></span>
+            </div>
+          </div>
+          <div style="padding:10px 14px;background:#fafafa;border-top:1px solid var(--border);font-size:11px;color:var(--text-secondary);">
+            Sáb / Dom: no laborable (empresa) · Zona: America/Bogota
+          </div>
+        </div>
+
+        <!-- Ausencias registradas -->
+        <div style="background:white;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:600;font-size:13px;">Ausencias 2026</span>
+            <button class="btn" style="font-size:11px;padding:3px 10px;" onclick="openAbsenceModal()">+ Registrar</button>
+          </div>
+          <div style="padding:4px 0;">
+            <div style="padding:10px 14px;border-bottom:1px solid #f5f5f5;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;">
+                <span style="font-size:13px;font-weight:500;">Vacaciones</span>
+                <span style="background:#fff1f0;color:var(--danger);font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;">ACTIVA</span>
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary);">13 jun → 16 jun 2026 · 4 días</div>
+              <div style="font-size:11px;color:var(--danger);margin-top:2px;">2 tickets asignados sin reasignar</div>
+            </div>
+            <div style="padding:10px 14px;border-bottom:1px solid #f5f5f5;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;">
+                <span style="font-size:13px;font-weight:500;">Capacitación Oracle</span>
+                <span style="background:#fff7e6;color:var(--warning);font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;">PRÓXIMA</span>
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary);">24 jul 2026 · Media jornada (AM)</div>
+              <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">Disponible desde las 13:00</div>
+            </div>
+            <div style="padding:10px 14px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;">
+                <span style="font-size:13px;font-weight:500;">Vacaciones</span>
+                <span style="background:#f5f5f5;color:var(--text-secondary);font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;">FUTURA</span>
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary);">03 ago → 14 ago 2026 · 10 días hábiles</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vista de disponibilidad semanal (mini calendario) -->
+      <div style="background:white;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:18px;">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;font-size:13px;">Vista semanal — Semana del 8 al 14 jun 2026</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn" style="font-size:11px;padding:3px 10px;">← Anterior</button>
+            <button class="btn" style="font-size:11px;padding:3px 10px;">Siguiente →</button>
+          </div>
+        </div>
+        <div style="padding:16px;overflow-x:auto;">
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:560px;">
+
+            <div style="text-align:center;">
+              <div style="font-size:11px;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">LUN 8</div>
+              <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;padding:10px 4px;font-size:11px;text-align:center;">
+                <div style="color:#237804;font-weight:700;">✓</div>
+                <div style="color:#389e0d;margin-top:2px;">08–18h</div>
+                <div style="color:var(--text-secondary);font-size:10px;margin-top:4px;">3 tickets</div>
+              </div>
+            </div>
+
+            <div style="text-align:center;">
+              <div style="font-size:11px;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">MAR 9</div>
+              <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;padding:10px 4px;font-size:11px;text-align:center;">
+                <div style="color:#237804;font-weight:700;">✓</div>
+                <div style="color:#389e0d;margin-top:2px;">08–18h</div>
+                <div style="color:var(--text-secondary);font-size:10px;margin-top:4px;">2 tickets</div>
+              </div>
+            </div>
+
+            <div style="text-align:center;">
+              <div style="font-size:11px;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">MIÉ 10</div>
+              <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;padding:10px 4px;font-size:11px;text-align:center;">
+                <div style="color:#237804;font-weight:700;">✓</div>
+                <div style="color:#389e0d;margin-top:2px;">08–18h</div>
+                <div style="color:var(--text-secondary);font-size:10px;margin-top:4px;">2 tickets</div>
+              </div>
+            </div>
+
+            <div style="text-align:center;">
+              <div style="font-size:11px;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">JUE 11</div>
+              <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;padding:10px 4px;font-size:11px;text-align:center;">
+                <div style="color:#237804;font-weight:700;">✓</div>
+                <div style="color:#389e0d;margin-top:2px;">08–18h</div>
+                <div style="color:var(--text-secondary);font-size:10px;margin-top:4px;">2 tickets</div>
+              </div>
+            </div>
+
+            <div style="text-align:center;">
+              <div style="font-size:11px;color:var(--warning);font-weight:700;margin-bottom:6px;">VIE 12 ← hoy</div>
+              <div style="background:#fff7e6;border:1px solid #ffd591;border-radius:8px;padding:10px 4px;font-size:11px;text-align:center;">
+                <div style="color:#d48806;font-weight:700;">◐</div>
+                <div style="color:#d48806;margin-top:2px;">08–14h</div>
+                <div style="color:var(--text-secondary);font-size:10px;margin-top:4px;">personalizado</div>
+              </div>
+            </div>
+
+            <div style="text-align:center;">
+              <div style="font-size:11px;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">SÁB 13</div>
+              <div style="background:#fff1f0;border:1px solid #ffccc7;border-radius:8px;padding:10px 4px;font-size:11px;text-align:center;">
+                <div style="color:var(--danger);font-weight:700;">✗</div>
+                <div style="color:#cf1322;margin-top:2px;">Vacaciones</div>
+                <div style="color:var(--text-secondary);font-size:10px;margin-top:4px;">no laborable</div>
+              </div>
+            </div>
+
+            <div style="text-align:center;">
+              <div style="font-size:11px;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">DOM 14</div>
+              <div style="background:#fff1f0;border:1px solid #ffccc7;border-radius:8px;padding:10px 4px;font-size:11px;text-align:center;">
+                <div style="color:var(--danger);font-weight:700;">✗</div>
+                <div style="color:#cf1322;margin-top:2px;">Vacaciones</div>
+                <div style="color:var(--text-secondary);font-size:10px;margin-top:4px;">no laborable</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Modelo de datos y función is_resolver_available -->
+      <div style="background:white;border:1px solid var(--border);border-radius:10px;padding:20px;margin-top:18px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Cómo lo evalúa el sistema en tiempo real</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+          Cuando el coordinador abre el Triage, el backend llama a <code style="background:#f5f5f5;padding:1px 6px;border-radius:4px;">is_resolver_available(resolver_id, now)</code> para cada resolutor y devuelve el resultado al panel.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Tablas nuevas en PostgreSQL</div>
+            <pre style="background:#001529;color:#a6e22e;padding:14px;border-radius:8px;font-size:11px;line-height:1.8;overflow-x:auto;">-- Horario personal (NULL = usa empresa)
+resolver_schedule (
+  resolver_id,
+  day_of_week,   -- 0=Lun..4=Vie
+  start_time,
+  end_time,
+  is_active
+)
+
+-- Ausencias y excepciones
+resolver_absences (
+  resolver_id,
+  start_date, end_date,
+  absence_type,  -- vacation|sick
+                 -- training|partial
+  partial_from,  -- solo tipo partial
+  partial_until,
+  notes
+)</pre>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">is_resolver_available() — lógica</div>
+            <pre style="background:#001529;color:#a6e22e;padding:14px;border-radius:8px;font-size:11px;line-height:1.8;overflow-x:auto;">def is_resolver_available(rid, at):
+
+  # 1. Hora hábil de empresa?
+  if not sla.is_working_moment(at):
+    return False
+
+  # 2. Tiene ausencia ese día?
+  absence = Absences.get(rid, at.date())
+  if absence:
+    if absence.type in (
+      'vacation','sick','training'):
+      return False
+    if absence.type == 'partial':
+      if (absence.partial_from
+          <= at.time()
+          <= absence.partial_until):
+        return False
+
+  # 3. Horario personal diferente?
+  personal = Schedule.get(rid, at.weekday())
+  if personal:
+    return (personal.is_active and
+      personal.start <= at.time()
+               < personal.end)
+
+  return True  # usa empresa por defecto</pre>
+          </div>
+        </div>
+
+        <!-- Tabla separación de responsabilidades -->
+        <div style="margin-top:16px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Separación de responsabilidades</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr style="background:#fafafa;">
+                <th style="padding:8px 12px;text-align:left;border:1px solid var(--border);color:var(--text-secondary);">Pregunta</th>
+                <th style="padding:8px 12px;text-align:left;border:1px solid var(--border);color:var(--text-secondary);">Usa</th>
+                <th style="padding:8px 12px;text-align:left;border:1px solid var(--border);color:var(--text-secondary);">No usa</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding:8px 12px;border:1px solid var(--border);">¿Vence el SLA?</td>
+                <td style="padding:8px 12px;border:1px solid var(--border);color:#237804;font-weight:600;">Calendario empresa</td>
+                <td style="padding:8px 12px;border:1px solid var(--border);color:var(--text-secondary);">Calendario resolutor</td>
+              </tr>
+              <tr style="background:#fafafa;">
+                <td style="padding:8px 12px;border:1px solid var(--border);">¿A quién asigno?</td>
+                <td style="padding:8px 12px;border:1px solid var(--border);color:#237804;font-weight:600;">Empresa + resolutor</td>
+                <td style="padding:8px 12px;border:1px solid var(--border);color:var(--text-secondary);">—</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 12px;border:1px solid var(--border);">¿Alerto al coordinador?</td>
+                <td style="padding:8px 12px;border:1px solid var(--border);color:#237804;font-weight:600;">Ausencias del resolutor</td>
+                <td style="padding:8px 12px;border:1px solid var(--border);color:var(--text-secondary);">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    const tabs = ['dashboard','triage','kanban','ticket','architecture','flow','calendar','availability'];
+    document.querySelectorAll('.nav-tab')[tabs.indexOf(id)].classList.add('active');
+  }
+
+  function runSimulator() {
+    document.getElementById('sim-result').style.display = 'block';
+    document.getElementById('sim-due').textContent = 'Lun 15 Jun 2026 · 09:00';
+    document.getElementById('sim-detail').textContent =
+      'Vie 12 Jun 17:00 → 18:00 = 1h hábil · Sáb 13 y Dom 14 no cuentan · Lun 15 Jun 08:00 → 09:00 = 7h restantes · Total: 8h hábiles';
+  }
+
+  function selectResolver(el, id) {
+    document.querySelectorAll('.resolver-selector').forEach(r => {
+      r.style.border = '1px solid var(--border)';
+    });
+    el.style.border = '2px solid var(--primary)';
+  }
+
+  function openAbsenceModal() {
+    document.getElementById('absence-modal-overlay').style.display = 'flex';
+    updateAbsenceType();
+  }
+  function closeAbsenceModal() {
+    document.getElementById('absence-modal-overlay').style.display = 'none';
+  }
+  function updateAbsenceType() {
+    const type = document.getElementById('absence-type').value;
+    document.getElementById('partial-fields').style.display = type === 'partial' ? 'grid' : 'none';
+    document.getElementById('date-end-row').style.display = type === 'partial' ? 'none' : 'flex';
+    if (type === 'sick') {
+      document.getElementById('absence-warning').style.display = 'flex';
+      document.getElementById('absence-warning-text').textContent = 'Al guardar, el sistema notificará al coordinador para reasignar los 2 tickets activos de C. Ramírez.';
+    } else if (type === 'vacation') {
+      document.getElementById('absence-warning').style.display = 'flex';
+      document.getElementById('absence-warning-text').textContent = 'Se detectaron 2 tickets asignados a C. Ramírez que se solapan con estas fechas. El coordinador recibirá una alerta de reasignación.';
+    } else {
+      document.getElementById('absence-warning').style.display = 'none';
+    }
+  }
+  function saveAbsence() {
+    document.getElementById('absence-modal-overlay').style.display = 'none';
+    alert('Ausencia registrada. Se notificó al coordinador sobre INC-0039 e INC-0042.');
+  }
+</script>
+
+<!-- MODAL REGISTRO DE AUSENCIA -->
+<div id="absence-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;width:520px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden;">
+
+    <!-- Header -->
+    <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:15px;font-weight:700;">Registrar Ausencia</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">C. Ramírez · Consultor Sr. JDE Finance</div>
+      </div>
+      <button onclick="closeAbsenceModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-secondary);line-height:1;">×</button>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Tipo de ausencia -->
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">TIPO DE AUSENCIA</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <label style="border:2px solid var(--primary);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;background:#e6f4ff;">
+            <input type="radio" name="abs-type" value="vacation" checked style="accent-color:var(--primary);">
+            <div><div style="font-size:13px;font-weight:600;">🏖 Vacaciones</div><div style="font-size:11px;color:var(--text-secondary);">Días completos</div></div>
+          </label>
+          <label style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="this.parentNode.querySelectorAll('label').forEach(l=>l.style.border='1px solid var(--border)');this.style.border='2px solid var(--primary)';this.style.background='#e6f4ff';">
+            <input type="radio" name="abs-type" value="sick" style="accent-color:var(--primary);">
+            <div><div style="font-size:13px;font-weight:600;">🤒 Incapacidad</div><div style="font-size:11px;color:var(--text-secondary);">Enfermedad / médica</div></div>
+          </label>
+          <label style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="this.parentNode.querySelectorAll('label').forEach(l=>l.style.border='1px solid var(--border)');this.style.border='2px solid var(--primary)';this.style.background='#e6f4ff';">
+            <input type="radio" name="abs-type" value="training" style="accent-color:var(--primary);">
+            <div><div style="font-size:13px;font-weight:600;">📚 Capacitación</div><div style="font-size:11px;color:var(--text-secondary);">Curso / certificación</div></div>
+          </label>
+          <label id="partial-label" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="this.parentNode.querySelectorAll('label').forEach(l=>l.style.border='1px solid var(--border)');this.style.border='2px solid var(--primary)';this.style.background='#e6f4ff';document.getElementById('partial-time-block').style.display='grid';document.getElementById('date-end-row').style.display='none';document.getElementById('absence-warning').style.display='none';">
+            <input type="radio" name="abs-type" value="partial" style="accent-color:var(--primary);">
+            <div><div style="font-size:13px;font-weight:600;">◐ Media jornada</div><div style="font-size:11px;color:var(--text-secondary);">Solo parte del día</div></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Fechas -->
+      <div style="display:flex;gap:12px;align-items:flex-end;" id="date-end-row">
+        <div style="flex:1;">
+          <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">FECHA INICIO</label>
+          <input type="date" value="2026-06-13" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">FECHA FIN</label>
+          <input type="date" value="2026-06-16" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        </div>
+        <div style="padding-bottom:8px;font-size:12px;color:var(--success);white-space:nowrap;">4 días hábiles</div>
+      </div>
+
+      <!-- Campos solo para media jornada -->
+      <div id="partial-time-block" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:flex-end;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">FECHA</label>
+          <input type="date" value="2026-06-15" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">AUSENTE DESDE</label>
+          <input type="time" value="08:00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">HASTA</label>
+          <input type="time" value="13:00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        </div>
+      </div>
+
+      <!-- Notas -->
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">NOTAS (opcional)</label>
+        <textarea style="width:100%;height:62px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;resize:none;" placeholder="Ej: vacaciones aprobadas por gerencia, autorización adjunta..."></textarea>
+      </div>
+
+      <!-- Tickets afectados -->
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">TICKETS QUE SE SOLAPAN CON ESTAS FECHAS</label>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:90px 1fr 90px 100px;background:#fafafa;padding:7px 12px;font-size:11px;font-weight:600;color:var(--text-secondary);gap:8px;border-bottom:1px solid var(--border);">
+            <span>ID</span><span>Descripción</span><span>Prioridad</span><span>Acción</span>
+          </div>
+          <div style="display:grid;grid-template-columns:90px 1fr 90px 100px;padding:9px 12px;font-size:12px;gap:8px;align-items:center;border-bottom:1px solid #f5f5f5;">
+            <span style="color:var(--primary);font-weight:600;">INC-0042</span>
+            <span style="color:var(--text);">Error cierre período GL</span>
+            <span><span class="prio-badge p1">P1</span></span>
+            <select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text);">
+              <option>Reasignar</option>
+              <option>Dejar asignado</option>
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:90px 1fr 90px 100px;padding:9px 12px;font-size:12px;gap:8px;align-items:center;">
+            <span style="color:var(--primary);font-weight:600;">INC-0039</span>
+            <span style="color:var(--text);">Reporte Aging contabilidad</span>
+            <span><span class="prio-badge p2">P2</span></span>
+            <select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text);">
+              <option>Reasignar</option>
+              <option>Dejar asignado</option>
+            </select>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:5px;">Si seleccionas "Reasignar", el coordinador recibirá una notificación para asignarlos manualmente.</div>
+      </div>
+
+      <!-- Warning -->
+      <div id="absence-warning" style="background:#fff7e6;border:1px solid #ffd591;border-radius:8px;padding:11px 14px;display:flex;gap:10px;align-items:flex-start;">
+        <span style="flex-shrink:0;">⚠️</span>
+        <span id="absence-warning-text" style="font-size:12px;color:#d48806;line-height:1.5;">Se detectaron 2 tickets asignados a C. Ramírez que se solapan con estas fechas. El coordinador recibirá una alerta de reasignación.</span>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;background:#fafafa;">
+      <button class="btn" onclick="closeAbsenceModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAbsence()">Guardar ausencia</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

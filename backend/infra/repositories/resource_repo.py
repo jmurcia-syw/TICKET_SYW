@@ -1,0 +1,119 @@
+from typing import Optional
+from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from backend.infra.models.resource_model import ResourceModel, SkillModel, resource_skills_table
+from backend.domain.entities.resource import Resource, Skill
+import uuid
+
+
+class SkillRepository:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def list_all(self, active: bool | None = True) -> list[Skill]:
+        q = self._db.query(SkillModel)
+        if active is not None:
+            q = q.filter(SkillModel.active == active)
+        return [m.to_entity() for m in q.order_by(SkillModel.code).all()]
+
+    def get_by_id(self, skill_id: uuid.UUID) -> Optional[Skill]:
+        model = self._db.get(SkillModel, skill_id)
+        return model.to_entity() if model else None
+
+    def get_by_code(self, code: str) -> Optional[Skill]:
+        model = self._db.query(SkillModel).filter(SkillModel.code == code).first()
+        return model.to_entity() if model else None
+
+    def create(self, skill: Skill) -> Skill:
+        model = SkillModel(id=skill.id, code=skill.code, label=skill.label, active=skill.active)
+        self._db.add(model)
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def delete(self, skill_id: uuid.UUID) -> bool:
+        model = self._db.get(SkillModel, skill_id)
+        if not model:
+            return False
+        self._db.delete(model)
+        self._db.commit()
+        return True
+
+    def count_active_resources_with_skill(self, skill_id: uuid.UUID) -> int:
+        return (
+            self._db.query(ResourceModel)
+            .join(resource_skills_table, ResourceModel.id == resource_skills_table.c.resource_id)
+            .filter(resource_skills_table.c.skill_id == skill_id, ResourceModel.active == True)
+            .count()
+        )
+
+
+class ResourceRepository:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get_by_id(self, resource_id: uuid.UUID) -> Optional[Resource]:
+        model = self._db.get(ResourceModel, resource_id)
+        return model.to_entity() if model else None
+
+    def get_by_user_id(self, user_id: uuid.UUID) -> Optional[Resource]:
+        model = self._db.query(ResourceModel).filter(ResourceModel.user_id == user_id).first()
+        return model.to_entity() if model else None
+
+    def get_by_email(self, email: str) -> Optional[Resource]:
+        model = self._db.query(ResourceModel).filter(ResourceModel.email == email).first()
+        return model.to_entity() if model else None
+
+    def list_paginated(self, page: int = 1, page_size: int = 20, search: str | None = None, skill_code: str | None = None, active: bool | None = None) -> tuple[list[Resource], int]:
+        q = self._db.query(ResourceModel)
+        if skill_code:
+            q = q.join(resource_skills_table, ResourceModel.id == resource_skills_table.c.resource_id)\
+                 .join(SkillModel, resource_skills_table.c.skill_id == SkillModel.id)\
+                 .filter(SkillModel.code == skill_code)
+        if search:
+            q = q.filter(ResourceModel.full_name.ilike(f"%{search}%"))
+        if active is not None:
+            q = q.filter(ResourceModel.active == active)
+        total = q.count()
+        models = q.order_by(ResourceModel.full_name).offset((page - 1) * page_size).limit(page_size).all()
+        return [m.to_entity() for m in models], total
+
+    def create(self, resource: Resource) -> Resource:
+        model = ResourceModel(
+            id=resource.id,
+            user_id=resource.user_id,
+            full_name=resource.full_name,
+            email=resource.email,
+            active=resource.active,
+            notes=resource.notes,
+        )
+        if resource.skills:
+            skill_models = [self._db.get(SkillModel, s.id) for s in resource.skills]
+            model.skills = [s for s in skill_models if s]
+        self._db.add(model)
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def update_skills(self, resource_id: uuid.UUID, skill_ids: list[uuid.UUID]) -> Optional[Resource]:
+        model = self._db.get(ResourceModel, resource_id)
+        if not model:
+            return None
+        model.skills = [self._db.get(SkillModel, sid) for sid in skill_ids if self._db.get(SkillModel, sid)]
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def update(self, resource_id: uuid.UUID, **fields) -> Optional[Resource]:
+        model = self._db.get(ResourceModel, resource_id)
+        if not model:
+            return None
+        for k, v in fields.items():
+            if hasattr(model, k):
+                setattr(model, k, v)
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def deactivate(self, resource_id: uuid.UUID) -> Optional[Resource]:
+        return self.update(resource_id, active=False)

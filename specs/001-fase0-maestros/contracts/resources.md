@@ -1,0 +1,148 @@
+# API Contract: Resources & Skills
+
+---
+
+## Resources — Base path: `/api/resources`
+
+**Auth**: JWT Bearer requerido
+**Roles**:
+- Admin: CRUD completo
+- Coordinator: GET lista y detalle
+- QM: GET lista y detalle (solo lectura)
+- Resolver: GET y PATCH solo de su propio recurso (verificado por user_id en JWT)
+
+---
+
+### GET /api/resources
+
+**Query params**: `page`, `page_size`, `search` (nombre), `skill_code` (filtrar por skill), `active`
+
+**Response 200**:
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "full_name": "Carlos Rodriguez",
+      "email": "carlos.rodriguez@sywork.net",
+      "active": true,
+      "skills": [
+        { "id": "uuid", "code": "JDE_GL", "label": "JDE General Ledger" },
+        { "id": "uuid", "code": "API_REST", "label": "API REST Integration" }
+      ],
+      "role": "resolver",
+      "created_at": "2026-06-29T00:00:00Z"
+    }
+  ],
+  "total": 8,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+---
+
+### GET /api/resources/{id}
+
+**Response 200**: objeto recurso completo con skills.
+**Errors**: 401, 403 (Resolver intentando ver otro recurso), 404
+
+---
+
+### POST /api/resources
+
+Solo Admin.
+
+**Body**:
+```json
+{
+  "full_name": "Carlos Rodriguez",
+  "email": "carlos.rodriguez@sywork.net",
+  "user_id": "uuid",
+  "skill_ids": ["uuid-jde-gl", "uuid-api-rest"],
+  "notes": "Senior JDE consultant"
+}
+```
+
+**Response 201**: objeto recurso creado.
+
+**Errors**:
+- 400 `{ "error": "email_duplicate", "message": "Ya existe un recurso con ese email" }`
+- 400 `{ "error": "invalid_email_domain", "message": "El email debe ser @sywork.net" }`
+- 401, 403
+
+---
+
+### PATCH /api/resources/{id}
+
+Admin: cualquier campo. Resolver: solo `notes` de su propio recurso.
+
+**Response 200**: objeto recurso actualizado.
+**Errors**: 400, 401, 403, 404
+
+---
+
+### PATCH /api/resources/{id}/skills
+
+Reemplaza lista completa de skills del recurso. Solo Admin.
+
+**Body**: `{ "skill_ids": ["uuid1", "uuid2"] }`
+
+**Response 200**: objeto recurso con skills actualizados.
+**Errors**: 400, 401, 403, 404
+
+---
+
+### PATCH /api/resources/{id}/deactivate
+
+Solo Admin.
+**Response 200**: `{ "id": "uuid", "active": false }`
+**Errors**: 401, 403, 404
+
+---
+
+## Skills — Base path: `/api/skills`
+
+**Auth**: JWT Bearer requerido
+**Roles**: Admin (CRUD) — todos los roles (GET lista)
+
+---
+
+### GET /api/skills
+
+**Query params**: `active` (bool, default true)
+
+**Response 200**:
+```json
+{
+  "items": [
+    { "id": "uuid", "code": "JDE_GL", "label": "JDE General Ledger", "active": true },
+    { "id": "uuid", "code": "API_REST", "label": "API REST Integration", "active": true }
+  ],
+  "total": 12
+}
+```
+
+---
+
+### POST /api/skills
+
+Solo Admin.
+
+**Body**: `{ "code": "ORACLE_FUSION", "label": "Oracle Fusion" }`
+
+**Response 201**: skill creado.
+**Errors**: 400 `{ "error": "code_duplicate" }`, 401, 403
+
+---
+
+### DELETE /api/skills/{id}
+
+Solo Admin. Falla si el skill esta asignado a recursos activos.
+
+**Response 204**: eliminado.
+
+**Errors**:
+- 409 `{ "error": "skill_in_use", "message": "El skill esta asignado a 3 recursos activos", "resource_count": 3 }`
+- 401, 403, 404
