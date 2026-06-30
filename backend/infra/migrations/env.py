@@ -10,7 +10,10 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
 
-from backend.infra.models import Base  # noqa: E402
+try:
+    from backend.infra.models import Base  # when running from repo root
+except ImportError:
+    from infra.models import Base  # when running inside container (WORKDIR=/app/backend)
 target_metadata = Base.metadata
 
 
