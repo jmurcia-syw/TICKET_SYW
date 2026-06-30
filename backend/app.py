@@ -38,7 +38,27 @@ def create_app() -> Flask:
     @ns_health.route("/")
     class Health(Resource):
         def get(self):
-            return {"status": "ok", "service": "sywork-backend"}
+            from backend.infra.database import get_db
+            from sqlalchemy import text
+            try:
+                db = next(get_db())
+                result = db.execute(text("SELECT version(), current_database(), now()")).fetchone()
+                return {
+                    "status": "ok",
+                    "service": "sywork-backend",
+                    "database": {
+                        "connected": True,
+                        "name": result[1],
+                        "server_time": str(result[2]),
+                        "version": result[0].split(",")[0],
+                    },
+                }
+            except Exception as exc:
+                return {
+                    "status": "degraded",
+                    "service": "sywork-backend",
+                    "database": {"connected": False, "error": str(exc)},
+                }, 503
 
     return app
 
