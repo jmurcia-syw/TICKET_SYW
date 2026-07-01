@@ -2022,14 +2022,15 @@ git commit -m "feat(api): add roles CRUD + permission assignment endpoint"
 
 ### Task 10: Permissions API routes
 
+> **Plan amendment (post-Task-9 fix):** Task 9's own test needed `GET /api/permissions` to exist before this task ran, so that endpoint (and its own `backend/api/routes/permissions.py` file, `ns_permissions` namespace, and `app.py` registration) was pulled forward and already exists on `HEAD` before this task starts. This task now **extends** that existing file — it does not create it or re-register its namespace. Do not recreate `_error`, `_permission_out`, `_permission_list_out`, `_permission_to_dict`, or `PermissionList.get` — they already exist; adding them again would duplicate a Swagger model name and break `create_app()`.
+
 **Files:**
-- Create: `backend/api/routes/permissions.py`
-- Modify: `backend/app.py`
+- Modify: `backend/api/routes/permissions.py` (already exists — add `_permission_input` model, `PermissionList.post`, and a new `PermissionDetail` class)
 - Test: `backend/tests/api/test_permissions_api.py`
 
 **Interfaces:**
-- Consumes: `PermissionRepository`, `RoleRepository` (Task 6), `RoleAdminService.validate_permission_delete` (Task 3).
-- Produces: `GET/POST /api/permissions`, `DELETE /api/permissions/{id}`.
+- Consumes: `PermissionRepository`, `RoleRepository` (Task 6), `RoleAdminService.validate_permission_delete` (Task 3) — all already imported in the existing file.
+- Produces: `POST /api/permissions`, `DELETE /api/permissions/{id}` (the file's `GET /api/permissions` already exists from Task 9's fix).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2080,23 +2081,20 @@ def test_delete_permission_assigned_to_a_role_returns_409(client, unique_name):
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `docker exec sywork_backend python -m pytest tests/api/test_permissions_api.py -v`
-Expected: FAIL — no `/api/permissions` route registered yet.
+Run: `docker exec wt_sywork_backend python -m pytest tests/api/test_permissions_api.py -v`
+Expected: `test_list_permissions_includes_the_24_seed_permissions` already PASSES (the GET endpoint exists from Task 9's fix). The other four tests (`test_create_permission_returns_201_with_location`, `test_duplicate_module_action_returns_409`, `test_delete_unused_permission`, `test_delete_permission_assigned_to_a_role_returns_409`) FAIL — `POST`/`DELETE` don't exist yet. This mixed result (1 pass, 4 fail) is the correct starting point for this task, not a red flag.
 
-- [ ] **Step 3: Implement the permissions route**
+- [ ] **Step 3: Extend the permissions route with create/delete**
 
-Create `backend/api/routes/permissions.py`:
+Open the existing `backend/api/routes/permissions.py` (created by Task 9's fix — do not overwrite the file; add to it). Its current contents are:
 
 ```python
 from flask_restx import Namespace, Resource, fields
-from backend.infra.repositories.role_repo import RoleRepository, PermissionRepository
+from backend.infra.repositories.role_repo import PermissionRepository
 from backend.infra.database import get_db
-from backend.domain.entities.role import Permission
-from backend.domain.services.role_admin_service import RoleAdminService, RoleAdminError
-from backend.api.routes._shared import parse_uuid, error_model, server_error
+from backend.api.routes._shared import error_model, server_error
 
 ns = Namespace("permissions", description="Catálogo de permisos (módulo + acción)", path="/api/permissions")
-_svc = RoleAdminService()
 
 _error = error_model(ns, "PermissionError")
 
@@ -2110,12 +2108,6 @@ _permission_out = ns.model("Permission", {
 _permission_list_out = ns.model("PermissionList", {
     "items": fields.List(fields.Nested(_permission_out)),
     "total": fields.Integer(description="Total de permisos"),
-})
-
-_permission_input = ns.model("PermissionInput", {
-    "module": fields.String(required=True, description="Módulo", example="clients"),
-    "action": fields.String(required=True, description="Acción", example="view"),
-    "description": fields.String(description="Descripción"),
 })
 
 
@@ -2139,7 +2131,36 @@ class PermissionList(Resource):
             return {"items": [_permission_to_dict(p) for p in items], "total": len(items)}, 200
         except Exception:
             return server_error()
+```
 
+(If what you find on disk differs meaningfully from this, stop and report NEEDS_CONTEXT rather than guessing — the fix commit message is `fix(api): extract permissions namespace from roles.py into its own file, unblocking Task 10`, `git log --oneline -- backend/api/routes/permissions.py` will show it.)
+
+Make these changes to this file:
+
+1. Add two imports: `RoleRepository` (alongside the existing `PermissionRepository` import) and `Permission` from `backend.domain.entities.role`, and `RoleAdminService, RoleAdminError` from `backend.domain.services.role_admin_service`, and `parse_uuid` from `backend.api.routes._shared` (alongside the existing `error_model, server_error`):
+
+```python
+from backend.infra.repositories.role_repo import RoleRepository, PermissionRepository
+from backend.domain.entities.role import Permission
+from backend.domain.services.role_admin_service import RoleAdminService, RoleAdminError
+from backend.api.routes._shared import parse_uuid, error_model, server_error
+```
+
+2. Add `_svc = RoleAdminService()` near the top, after the `ns = Namespace(...)` line.
+
+3. Add the `_permission_input` model after `_permission_list_out`:
+
+```python
+_permission_input = ns.model("PermissionInput", {
+    "module": fields.String(required=True, description="Módulo", example="clients"),
+    "action": fields.String(required=True, description="Acción", example="view"),
+    "description": fields.String(description="Descripción"),
+})
+```
+
+4. Add a `post` method to the existing `PermissionList` class (alongside its existing `get`):
+
+```python
     @ns.doc("create_permission")
     @ns.expect(_permission_input, validate=False)
     @ns.response(201, "Permiso creado", _permission_out)
@@ -2168,8 +2189,11 @@ class PermissionList(Resource):
             return _permission_to_dict(created), 201, {"Location": f"/api/permissions/{created.id}"}
         except Exception:
             return server_error()
+```
 
+5. Add a new `PermissionDetail` class at the end of the file:
 
+```python
 @ns.route("/<string:permission_id>")
 @ns.param("permission_id", "UUID del permiso")
 class PermissionDetail(Resource):
@@ -2196,15 +2220,13 @@ class PermissionDetail(Resource):
             return server_error()
 ```
 
-- [ ] **Step 4: Register the namespace**
+- [ ] **Step 4: Confirm the namespace registration (no change needed)**
 
-In `backend/app.py`, add alongside the roles namespace from Task 9:
+`backend/app.py` already imports and registers `ns_permissions` (from Task 9's fix). Open it and confirm these two lines are present — do not add them again, and do not touch `app.py` at all in this task unless they are somehow missing:
 
 ```python
-    from backend.api.routes.roles import ns as ns_roles
     from backend.api.routes.permissions import ns as ns_permissions
-
-    api.add_namespace(ns_roles)
+    ...
     api.add_namespace(ns_permissions)
 ```
 
