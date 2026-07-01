@@ -25,8 +25,9 @@ def create_app() -> Flask:
         title="SYWork Tickets API",
         description=(
             "API para el sistema de tickets de soporte SYWork.\n\n"
-            "**Nota de desarrollo**: autenticación desactivada (`DEV_SKIP_AUTH=true`). "
-            "Todos los endpoints son accesibles sin token JWT durante el desarrollo de Fase 0."
+            "**Nota de desarrollo**: las rutas de maestros (clients/projects/resources/skills/users/roles/permissions) "
+            "no exigen JWT en esta fase. `/api/auth/login` (usuario/contraseña provisional) y `/api/auth/google` "
+            "emiten un token real; `/api/auth/me` sí lo exige."
         ),
         doc="/swagger",
     )
