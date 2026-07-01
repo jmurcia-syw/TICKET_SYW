@@ -1,12 +1,9 @@
 import uuid
+from backend.domain.errors import DomainError
 
 
-class SkillBusinessError(Exception):
-    def __init__(self, code: str, message: str, **extra) -> None:
-        self.code = code
-        self.message = message
-        self.extra = extra
-        super().__init__(message)
+class SkillBusinessError(DomainError):
+    pass
 
 
 class SkillService:

@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Button, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, message } from 'antd'
-import { PlusOutlined, EditOutlined, StopOutlined } from '@ant-design/icons'
+import { Button, Form, Input, Modal, Select, Space, Table, Tooltip, message } from 'antd'
+import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { projectService } from '../services/projectService'
 import { clientService } from '../services/clientService'
 import type { ProjectListItem, ProjectFormData } from '../types/project'
 import type { ClientListItem } from '../types/client'
 import ConfirmationModal from '../components/common/ConfirmationModal'
+import StatusTag from '../components/common/StatusTag'
+import PageToolbar from '../components/common/PageToolbar'
+import { palette } from '../theme'
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectListItem[]>([])
@@ -69,18 +72,26 @@ export default function ProjectsPage() {
     load()
   }
 
+  const handleActivate = async (id: string) => {
+    await projectService.activate(id)
+    message.success('Proyecto activado')
+    load()
+  }
+
   const columns: ColumnsType<ProjectListItem> = [
     { title: 'Nombre', dataIndex: 'name', sorter: true },
     { title: 'Cliente', dataIndex: 'client_name' },
-    { title: 'Inicio', dataIndex: 'start_date' },
-    { title: 'Fin estimado', dataIndex: 'end_date_estimated', render: (v: string | null) => v ?? '—' },
-    { title: 'Estado', dataIndex: 'active', render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? 'Activo' : 'Inactivo'}</Tag> },
+    { title: 'Inicio', dataIndex: 'start_date', render: (v: string) => <span className="tabular-nums">{v}</span> },
+    { title: 'Fin estimado', dataIndex: 'end_date_estimated', render: (v: string | null) => <span className="tabular-nums">{v ?? '—'}</span> },
+    { title: 'Estado', dataIndex: 'active', render: (v: boolean) => <StatusTag active={v} /> },
     {
       title: 'Acciones', key: 'actions',
       render: (_: unknown, r: ProjectListItem) => (
         <Space>
           <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} /></Tooltip>
-          {r.active && <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => setConfirmDeactivate(r.id)} /></Tooltip>}
+          {r.active
+            ? <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => setConfirmDeactivate(r.id)} /></Tooltip>
+            : <Tooltip title="Activar"><Button size="small" icon={<PlayCircleOutlined style={{ color: palette.green600 }} />} onClick={() => handleActivate(r.id)} /></Tooltip>}
         </Space>
       ),
     },
@@ -88,14 +99,14 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, gap: 8 }}>
-        <Space>
+      <PageToolbar
+        filters={<>
           <Input.Search placeholder="Buscar proyecto..." onSearch={setSearch} allowClear style={{ width: 220 }} />
           <Select placeholder="Filtrar por cliente" allowClear style={{ width: 200 }} onChange={setClientFilter}
             options={clients.map(c => ({ value: c.id, label: c.name }))} />
-        </Space>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo proyecto</Button>
-      </div>
+        </>}
+        action={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo proyecto</Button>}
+      />
 
       <Table rowKey="id" columns={columns} dataSource={projects} loading={loading}
         pagination={{ current: page, total, pageSize: 20, onChange: setPage }} />

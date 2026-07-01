@@ -5,17 +5,14 @@ from backend.infra.repositories.project_repo import ProjectRepository
 from backend.infra.database import get_db
 from backend.domain.entities.client import Client
 from backend.domain.services.client_service import ClientService, ClientBusinessError
-import uuid
+from backend.api.routes._shared import parse_uuid, error_model, server_error
 
 ns = Namespace("clients", description="Gestión de clientes", path="/api/clients")
 _svc = ClientService()
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
-_error = ns.model("Error", {
-    "error": fields.String(description="Código de error", example="not_found"),
-    "message": fields.String(description="Descripción del error"),
-})
+_error = error_model(ns, "ClientError")
 
 _client_out = ns.model("Client", {
     "id": fields.String(description="UUID del cliente"),
@@ -70,13 +67,6 @@ _status_result = ns.model("StatusResult", {
 })
 
 
-def _parse_uuid(value: str):
-    try:
-        return uuid.UUID(value)
-    except (ValueError, AttributeError):
-        return None
-
-
 def _client_to_dict(client, include_sensitive: bool = False) -> dict:
     d = {
         "id": str(client.id),
@@ -127,8 +117,8 @@ class ClientList(Resource):
             db = next(get_db())
             items, total = ClientRepository(db).list_paginated(page=page, page_size=page_size, search=search, active=active)
             return {"items": [_client_to_dict(c) for c in items], "total": total, "page": page, "page_size": page_size}, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
     @ns.doc("create_client")
     @ns.expect(_client_input, validate=False)
@@ -159,11 +149,11 @@ class ClientList(Resource):
                 notes=data.get("notes"),
             )
             created = repo.create(client)
-            return _client_to_dict(created, include_sensitive=True), 201
+            return _client_to_dict(created, include_sensitive=True), 201, {"Location": f"/api/clients/{created.id}"}
         except ClientBusinessError as e:
-            return {"error": e.code, "message": e.message}, 409
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:client_id>")
@@ -176,7 +166,7 @@ class ClientDetail(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def get(self, client_id: str):
         """Obtener detalle de un cliente (incluye campos VPN sensibles)"""
-        uid = _parse_uuid(client_id)
+        uid = parse_uuid(client_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de cliente invalido"}, 400
         try:
@@ -185,8 +175,8 @@ class ClientDetail(Resource):
             if not client:
                 return {"error": "not_found", "message": "Cliente no encontrado"}, 404
             return _client_to_dict(client, include_sensitive=True), 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
     @ns.doc("update_client")
     @ns.expect(_client_update, validate=False)
@@ -198,7 +188,7 @@ class ClientDetail(Resource):
     def patch(self, client_id: str):
         """Actualizar campos de un cliente (PATCH parcial)"""
         from flask import request
-        uid = _parse_uuid(client_id)
+        uid = parse_uuid(client_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de cliente invalido"}, 400
         data = request.get_json(silent=True)
@@ -222,9 +212,9 @@ class ClientDetail(Resource):
             updated = repo.update(client)
             return _client_to_dict(updated, include_sensitive=True), 200
         except ClientBusinessError as e:
-            return {"error": e.code, "message": e.message}, 409
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:client_id>/deactivate")
@@ -238,7 +228,7 @@ class ClientDeactivate(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, client_id: str):
         """Desactivar un cliente. Incluye conteo de proyectos activos afectados."""
-        uid = _parse_uuid(client_id)
+        uid = parse_uuid(client_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de cliente invalido"}, 400
         try:
@@ -256,8 +246,8 @@ class ClientDeactivate(Resource):
             if impact.get("active_projects_count", 0) > 0:
                 result["warning"] = f"Cliente desactivado. Tenia {impact['active_projects_count']} proyecto(s) activo(s)."
             return result, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:client_id>/activate")
@@ -271,7 +261,7 @@ class ClientActivate(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, client_id: str):
         """Activar un cliente previamente desactivado"""
-        uid = _parse_uuid(client_id)
+        uid = parse_uuid(client_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de cliente invalido"}, 400
         try:
@@ -284,5 +274,5 @@ class ClientActivate(Resource):
                 return {"error": "already_active", "message": "El cliente ya esta activo"}, 409
             repo.set_active(uid, True)
             return {"id": client_id, "active": True}, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()

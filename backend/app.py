@@ -1,3 +1,4 @@
+import logging
 import os
 from flask import Flask
 from flask_restx import Api, Resource
@@ -6,6 +7,8 @@ from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> Flask:
@@ -68,11 +71,12 @@ def create_app() -> Flask:
                         "version": result[0].split(",")[0],
                     },
                 }
-            except Exception as exc:
+            except Exception:
+                logger.exception("Health check failed: database unreachable")
                 return {
                     "status": "degraded",
                     "service": "sywork-backend",
-                    "database": {"connected": False, "error": str(exc)},
+                    "database": {"connected": False, "error": "No se pudo conectar a la base de datos"},
                 }, 503
 
     return app

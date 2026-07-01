@@ -3,17 +3,14 @@ from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.database import get_db
 from backend.domain.entities.user import Role
 from backend.domain.services.role_service import RoleService, RoleBusinessError
-import uuid
+from backend.api.routes._shared import parse_uuid, error_model, server_error
 
 ns = Namespace("users", description="Gestión de usuarios y roles del sistema", path="/api/users")
 _svc = RoleService()
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
-_error = ns.model("UserError", {
-    "error": fields.String(description="Código de error", example="not_found"),
-    "message": fields.String(description="Descripción del error"),
-})
+_error = error_model(ns, "UserError")
 
 _user_out = ns.model("User", {
     "id": fields.String(description="UUID del usuario"),
@@ -48,13 +45,6 @@ _status_result = ns.model("UserStatusResult", {
     "id": fields.String(description="UUID del usuario"),
     "active": fields.Boolean(description="Nuevo estado activo"),
 })
-
-
-def _parse_uuid(value: str):
-    try:
-        return uuid.UUID(value)
-    except (ValueError, AttributeError):
-        return None
 
 
 def _user_to_dict(user) -> dict:
@@ -103,8 +93,8 @@ class UserList(Resource):
             db = next(get_db())
             users, total = UserRepository(db).list_paginated(page=page, page_size=page_size, role=role_filter, active=active)
             return {"items": [_user_to_dict(u) for u in users], "total": total, "page": page, "page_size": page_size}, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:user_id>")
@@ -117,7 +107,7 @@ class UserDetail(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def get(self, user_id: str):
         """Obtener detalle de un usuario por ID"""
-        uid = _parse_uuid(user_id)
+        uid = parse_uuid(user_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de usuario invalido"}, 400
         try:
@@ -126,8 +116,8 @@ class UserDetail(Resource):
             if not user:
                 return {"error": "not_found", "message": "Usuario no encontrado"}, 404
             return _user_to_dict(user), 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:user_id>/role")
@@ -143,7 +133,7 @@ class UserRole(Resource):
     def patch(self, user_id: str):
         """Cambiar el rol de un usuario. No se puede degradar al ultimo administrador activo."""
         from flask import request
-        uid = _parse_uuid(user_id)
+        uid = parse_uuid(user_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de usuario invalido"}, 400
         data = request.get_json(silent=True)
@@ -166,9 +156,9 @@ class UserRole(Resource):
                 return {"error": "not_found", "message": "Usuario no encontrado"}, 404
             return _user_to_dict(updated), 200
         except RoleBusinessError as e:
-            return {"error": e.code, "message": e.message}, 409
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:user_id>/deactivate")
@@ -182,7 +172,7 @@ class UserDeactivate(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, user_id: str):
         """Desactivar un usuario. No se puede desactivar al ultimo administrador activo."""
-        uid = _parse_uuid(user_id)
+        uid = parse_uuid(user_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de usuario invalido"}, 400
         try:
@@ -194,9 +184,9 @@ class UserDeactivate(Resource):
                 return {"error": "not_found", "message": "Usuario no encontrado"}, 404
             return {"id": user_id, "active": False}, 200
         except RoleBusinessError as e:
-            return {"error": e.code, "message": e.message}, 409
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:user_id>/activate")
@@ -210,7 +200,7 @@ class UserActivate(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, user_id: str):
         """Activar un usuario previamente desactivado"""
-        uid = _parse_uuid(user_id)
+        uid = parse_uuid(user_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de usuario invalido"}, 400
         try:
@@ -221,7 +211,7 @@ class UserActivate(Resource):
                 return {"error": "not_found", "message": "Usuario no encontrado"}, 404
             if user.active:
                 return {"error": "already_active", "message": "El usuario ya esta activo"}, 409
-            updated = repo.set_active(uid, True)
-            return _user_to_dict(updated), 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+            repo.set_active(uid, True)
+            return {"id": user_id, "active": True}, 200
+        except Exception:
+            return server_error()

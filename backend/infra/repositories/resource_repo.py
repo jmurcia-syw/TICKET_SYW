@@ -116,4 +116,7 @@ class ResourceRepository:
         return model.to_entity()
 
     def deactivate(self, resource_id: uuid.UUID) -> Optional[Resource]:
-        return self.update(resource_id, active=False)
+        return self.set_active(resource_id, False)
+
+    def set_active(self, resource_id: uuid.UUID, active: bool) -> Optional[Resource]:
+        return self.update(resource_id, active=active)

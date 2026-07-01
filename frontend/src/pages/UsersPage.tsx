@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Button, Form, Modal, Select, Space, Table, Tag, Tooltip, message } from 'antd'
-import { EditOutlined, StopOutlined } from '@ant-design/icons'
+import { EditOutlined, StopOutlined, PlayCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { userService } from '../services/userService'
 import type { UserAdmin } from '../types/user'
 import type { Role } from '../types/api'
 import ConfirmationModal from '../components/common/ConfirmationModal'
+import StatusTag from '../components/common/StatusTag'
+import { ROLE_COLORS, palette } from '../theme'
 
 const ROLES: Role[] = ['admin', 'coordinator', 'qm', 'resolver']
 const ROLE_LABELS: Record<Role, string> = { admin: 'Admin', coordinator: 'Coordinador', qm: 'QM', resolver: 'Resolutor' }
-const ROLE_COLORS: Record<Role, string> = { admin: 'red', coordinator: 'blue', qm: 'purple', resolver: 'default' }
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserAdmin[]>([])
@@ -65,20 +66,33 @@ export default function UsersPage() {
     }
   }
 
+  const handleActivate = async (id: string) => {
+    try {
+      await userService.activate(id)
+      message.success('Usuario activado')
+      load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al activar'
+      message.error(msg)
+    }
+  }
+
   const columns: ColumnsType<UserAdmin> = [
     { title: 'Email', dataIndex: 'email' },
     {
       title: 'Rol', dataIndex: 'role',
       render: (r: Role) => <Tag color={ROLE_COLORS[r]}>{ROLE_LABELS[r]}</Tag>,
     },
-    { title: 'Estado', dataIndex: 'active', render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? 'Activo' : 'Inactivo'}</Tag> },
-    { title: 'Último acceso', dataIndex: 'last_login_at', render: (v: string | null) => v ? new Date(v).toLocaleDateString('es-CO') : '—' },
+    { title: 'Estado', dataIndex: 'active', render: (v: boolean) => <StatusTag active={v} /> },
+    { title: 'Último acceso', dataIndex: 'last_login_at', render: (v: string | null) => <span className="tabular-nums">{v ? new Date(v).toLocaleDateString('es-CO') : '—'}</span> },
     {
       title: 'Acciones', key: 'actions',
       render: (_: unknown, u: UserAdmin) => (
         <Space>
           <Tooltip title="Cambiar rol"><Button size="small" icon={<EditOutlined />} onClick={() => openRoleChange(u)} /></Tooltip>
-          {u.active && <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => setConfirmDeactivate(u.id)} /></Tooltip>}
+          {u.active
+            ? <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => setConfirmDeactivate(u.id)} /></Tooltip>
+            : <Tooltip title="Activar"><Button size="small" icon={<PlayCircleOutlined style={{ color: palette.green600 }} />} onClick={() => handleActivate(u.id)} /></Tooltip>}
         </Space>
       ),
     },

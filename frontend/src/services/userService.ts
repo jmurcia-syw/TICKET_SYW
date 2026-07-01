@@ -14,4 +14,7 @@ export const userService = {
 
   deactivate: (id: string) =>
     apiClient.patch<{ id: string; active: boolean }>(`/api/users/${id}/deactivate`).then(r => r.data),
+
+  activate: (id: string) =>
+    apiClient.patch<{ id: string; active: boolean }>(`/api/users/${id}/activate`).then(r => r.data),
 }

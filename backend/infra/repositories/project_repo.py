@@ -50,10 +50,13 @@ class ProjectRepository:
         return model.to_entity()
 
     def deactivate(self, project_id: uuid.UUID) -> Optional[Project]:
+        return self.set_active(project_id, False)
+
+    def set_active(self, project_id: uuid.UUID, active: bool) -> Optional[Project]:
         model = self._db.get(ProjectModel, project_id)
         if not model:
             return None
-        model.active = False
+        model.active = active
         self._db.commit()
         self._db.refresh(model)
         return model.to_entity()

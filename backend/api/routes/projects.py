@@ -4,18 +4,15 @@ from backend.infra.repositories.client_repo import ClientRepository
 from backend.infra.database import get_db
 from backend.domain.entities.project import Project
 from backend.domain.services.project_service import ProjectService, ProjectBusinessError
+from backend.api.routes._shared import parse_uuid, error_model, server_error
 from datetime import date
-import uuid
 
 ns = Namespace("projects", description="Gestión de proyectos", path="/api/projects")
 _svc = ProjectService()
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
-_error = ns.model("ProjectError", {
-    "error": fields.String(description="Código de error", example="not_found"),
-    "message": fields.String(description="Descripción del error"),
-})
+_error = error_model(ns, "ProjectError")
 
 _project_out = ns.model("Project", {
     "id": fields.String(description="UUID del proyecto"),
@@ -55,13 +52,6 @@ _status_result = ns.model("ProjectStatusResult", {
     "id": fields.String(description="UUID del proyecto"),
     "active": fields.Boolean(description="Nuevo estado activo"),
 })
-
-
-def _parse_uuid(value: str):
-    try:
-        return uuid.UUID(value)
-    except (ValueError, AttributeError):
-        return None
 
 
 def _project_to_dict(project, client_name=None) -> dict:
@@ -109,7 +99,7 @@ class ProjectList(Resource):
         search = request.args.get("search", "").strip() or None
         active_param = request.args.get("active")
         active = None if active_param is None else active_param.lower() == "true"
-        client_id = _parse_uuid(client_id_str) if client_id_str else None
+        client_id = parse_uuid(client_id_str) if client_id_str else None
         try:
             db = next(get_db())
             repo = ProjectRepository(db)
@@ -120,14 +110,15 @@ class ProjectList(Resource):
                 c = client_repo.get_by_id(p.client_id)
                 results.append(_project_to_dict(p, client_name=c.name if c else None))
             return {"items": results, "total": total, "page": page, "page_size": page_size}, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
     @ns.doc("create_project")
     @ns.expect(_project_input, validate=False)
     @ns.response(201, "Proyecto creado", _project_out)
-    @ns.response(400, "Datos inválidos o fechas mal formateadas", _error)
-    @ns.response(409, "Conflicto de negocio (cliente inactivo, nombre duplicado, etc.)", _error)
+    @ns.response(400, "Datos inválidos, fechas mal formateadas o fecha de fin anterior a inicio", _error)
+    @ns.response(404, "Cliente no encontrado", _error)
+    @ns.response(409, "Conflicto de negocio (cliente inactivo, nombre duplicado)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     def post(self):
         """Crear un nuevo proyecto. Requiere client_id, name y start_date (YYYY-MM-DD)."""
@@ -138,7 +129,7 @@ class ProjectList(Resource):
         for field in ("client_id", "name", "start_date"):
             if not data.get(field):
                 return {"error": "validation_error", "message": f"El campo {field} es requerido"}, 400
-        client_id = _parse_uuid(data["client_id"])
+        client_id = parse_uuid(data["client_id"])
         if not client_id:
             return {"error": "validation_error", "message": "client_id invalido"}, 400
         try:
@@ -162,11 +153,11 @@ class ProjectList(Resource):
                 description=data.get("description"), end_date_estimated=end_date,
             )
             created = ProjectRepository(db).create(project)
-            return _project_to_dict(created), 201
+            return _project_to_dict(created), 201, {"Location": f"/api/projects/{created.id}"}
         except ProjectBusinessError as e:
-            return {"error": e.code, "message": e.message}, 409
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:project_id>")
@@ -179,7 +170,7 @@ class ProjectDetail(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def get(self, project_id: str):
         """Obtener detalle de un proyecto"""
-        uid = _parse_uuid(project_id)
+        uid = parse_uuid(project_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de proyecto invalido"}, 400
         try:
@@ -189,8 +180,8 @@ class ProjectDetail(Resource):
                 return {"error": "not_found", "message": "Proyecto no encontrado"}, 404
             c = ClientRepository(db).get_by_id(project.client_id)
             return _project_to_dict(project, client_name=c.name if c else None), 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
     @ns.doc("update_project")
     @ns.expect(_project_update, validate=False)
@@ -201,7 +192,7 @@ class ProjectDetail(Resource):
     def patch(self, project_id: str):
         """Actualizar campos de un proyecto (PATCH parcial)"""
         from flask import request
-        uid = _parse_uuid(project_id)
+        uid = parse_uuid(project_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de proyecto invalido"}, 400
         data = request.get_json(silent=True)
@@ -224,8 +215,8 @@ class ProjectDetail(Resource):
             return _project_to_dict(updated), 200
         except ValueError as exc:
             return {"error": "validation_error", "message": str(exc)}, 400
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:project_id>/deactivate")
@@ -239,7 +230,7 @@ class ProjectDeactivate(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, project_id: str):
         """Desactivar un proyecto"""
-        uid = _parse_uuid(project_id)
+        uid = parse_uuid(project_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de proyecto invalido"}, 400
         try:
@@ -252,8 +243,8 @@ class ProjectDeactivate(Resource):
                 return {"error": "already_inactive", "message": "El proyecto ya esta inactivo"}, 409
             repo.deactivate(uid)
             return {"id": project_id, "active": False}, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
 
 @ns.route("/<string:project_id>/activate")
@@ -267,7 +258,7 @@ class ProjectActivate(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, project_id: str):
         """Activar un proyecto previamente desactivado"""
-        uid = _parse_uuid(project_id)
+        uid = parse_uuid(project_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de proyecto invalido"}, 400
         try:
@@ -280,5 +271,5 @@ class ProjectActivate(Resource):
                 return {"error": "already_active", "message": "El proyecto ya esta activo"}, 409
             repo.set_active(uid, True)
             return {"id": project_id, "active": True}, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()

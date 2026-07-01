@@ -55,10 +55,13 @@ class ClientRepository:
         return model.to_entity(include_sensitive=self._include_sensitive)
 
     def deactivate(self, client_id: uuid.UUID) -> Optional[Client]:
+        return self.set_active(client_id, False)
+
+    def set_active(self, client_id: uuid.UUID, active: bool) -> Optional[Client]:
         model = self._db.get(ClientModel, client_id)
         if not model:
             return None
-        model.active = False
+        model.active = active
         self._db.commit()
         self._db.refresh(model)
         return model.to_entity()
