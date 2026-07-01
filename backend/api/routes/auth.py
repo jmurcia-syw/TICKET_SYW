@@ -42,9 +42,7 @@ def login():
 
     repo.update_last_login(user.id)
     token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.name})
-    payload = _user_payload(user, db)
-    payload["access_token"] = token
-    return jsonify(payload), 200
+    return jsonify({"access_token": token, "user": _user_payload(user, db)}), 200
 
 
 @auth_bp.route("/google", methods=["POST"])
@@ -81,9 +79,7 @@ def google_login():
 
     repo.update_last_login(user.id)
     token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.name})
-    payload = _user_payload(user, db)
-    payload["access_token"] = token
-    return jsonify(payload), 200
+    return jsonify({"access_token": token, "user": _user_payload(user, db)}), 200
 
 
 @auth_bp.route("/me", methods=["GET"])
@@ -94,6 +90,6 @@ def me():
     @jwt_required_active
     def _inner():
         db = next(get_db())
-        return jsonify(_user_payload(g.current_user, db)), 200
+        return jsonify({"user": _user_payload(g.current_user, db)}), 200
 
     return _inner()

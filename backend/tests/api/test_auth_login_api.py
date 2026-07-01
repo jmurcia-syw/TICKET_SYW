@@ -27,11 +27,11 @@ def test_login_with_email_succeeds(client, db_session, unique_name):
     assert resp.status_code == 200
     body = resp.get_json()
     assert "access_token" in body
-    assert body["email"] == user.email
-    assert body["username"] == user.username
-    assert body["role"]["name"] == "Resolutor"
-    assert isinstance(body["permissions"], list)
-    assert {"module": "clients", "action": "view"} in body["permissions"]
+    assert body["user"]["email"] == user.email
+    assert body["user"]["username"] == user.username
+    assert body["user"]["role"]["name"] == "Resolutor"
+    assert isinstance(body["user"]["permissions"], list)
+    assert {"module": "clients", "action": "view"} in body["user"]["permissions"]
 
 
 def test_login_with_username_succeeds(client, db_session, unique_name):
@@ -69,5 +69,5 @@ def test_me_returns_role_and_permissions_for_logged_in_user(client, db_session, 
     resp = client.get("/api/auth/me", headers={"Authorization": f"Bearer {login['access_token']}"})
     assert resp.status_code == 200
     body = resp.get_json()
-    assert body["email"] == user.email
-    assert body["role"]["name"] == "Resolutor"
+    assert body["user"]["email"] == user.email
+    assert body["user"]["role"]["name"] == "Resolutor"
