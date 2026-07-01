@@ -1,33 +1,19 @@
 from flask_restx import Namespace, Resource, fields
-from backend.infra.repositories.role_repo import RoleRepository, PermissionRepository
+from backend.infra.repositories.role_repo import RoleRepository
 from backend.infra.database import get_db
 from backend.domain.entities.role import Role
 from backend.domain.services.role_admin_service import RoleAdminService, RoleAdminError
 from backend.api.routes._shared import parse_uuid, error_model, server_error
 
 ns = Namespace("roles", description="Gestión de roles y sus permisos", path="/api/roles")
-ns_permissions = Namespace("permissions", description="Gestión de permisos del sistema", path="/api/permissions")
 _svc = RoleAdminService()
 
 _error = error_model(ns, "RoleError")
-_perm_error = error_model(ns_permissions, "PermissionError")
 
 _permission_ref = ns.model("RolePermissionRef", {
     "id": fields.String(description="UUID del permiso"),
     "module": fields.String(description="Módulo"),
     "action": fields.String(description="Acción"),
-})
-
-_permission_out = ns_permissions.model("Permission", {
-    "id": fields.String(description="UUID del permiso"),
-    "module": fields.String(description="Módulo"),
-    "action": fields.String(description="Acción"),
-    "description": fields.String(description="Descripción"),
-})
-
-_permission_list_out = ns_permissions.model("PermissionList", {
-    "items": fields.List(fields.Nested(_permission_out)),
-    "total": fields.Integer(description="Total de permisos"),
 })
 
 _role_out = ns.model("Role", {
@@ -76,31 +62,6 @@ def _role_to_dict(role, repo: RoleRepository) -> dict:
         "permissions": [{"id": str(p.id), "module": p.module, "action": p.action} for p in perms],
         "created_at": role.created_at.isoformat() if role.created_at else None,
     }
-
-
-def _permission_to_dict(permission) -> dict:
-    return {
-        "id": str(permission.id),
-        "module": permission.module,
-        "action": permission.action,
-        "description": permission.description,
-    }
-
-
-@ns_permissions.route("")
-class PermissionList(Resource):
-    @ns_permissions.doc("list_permissions")
-    @ns_permissions.response(200, "Listado de permisos del sistema", _permission_list_out)
-    @ns_permissions.response(500, "Error interno del servidor", _perm_error)
-    def get(self):
-        """Listar todos los permisos disponibles del sistema"""
-        try:
-            db = next(get_db())
-            repo = PermissionRepository(db)
-            items = repo.list_all()
-            return {"items": [_permission_to_dict(p) for p in items], "total": len(items)}, 200
-        except Exception:
-            return server_error()
 
 
 @ns.route("")

@@ -40,7 +40,8 @@ def create_app() -> Flask:
     from backend.api.routes.projects import ns as ns_projects
     from backend.api.routes.resources import ns as ns_resources
     from backend.api.routes.users import ns as ns_users
-    from backend.api.routes.roles import ns as ns_roles, ns_permissions
+    from backend.api.routes.roles import ns as ns_roles
+    from backend.api.routes.permissions import ns as ns_permissions
 
     api.add_namespace(ns_clients)
     api.add_namespace(ns_projects)
