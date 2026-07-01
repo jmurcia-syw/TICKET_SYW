@@ -40,11 +40,14 @@ def create_app() -> Flask:
     from backend.api.routes.projects import ns as ns_projects
     from backend.api.routes.resources import ns as ns_resources
     from backend.api.routes.users import ns as ns_users
+    from backend.api.routes.roles import ns as ns_roles, ns_permissions
 
     api.add_namespace(ns_clients)
     api.add_namespace(ns_projects)
     api.add_namespace(ns_resources)
     api.add_namespace(ns_users)
+    api.add_namespace(ns_roles)
+    api.add_namespace(ns_permissions)
 
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")
