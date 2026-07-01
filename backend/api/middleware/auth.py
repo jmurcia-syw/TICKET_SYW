@@ -4,7 +4,7 @@ from flask import g, jsonify
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.database import get_db
-from backend.domain.entities.user import User, Role
+from backend.domain.entities.user import User
 import uuid
 
 # DEV MODE: set DEV_SKIP_AUTH=true in .env to bypass JWT on all endpoints
@@ -15,13 +15,14 @@ def _set_dev_user():
     """Injects a fake admin user into g so endpoint code works normally."""
     import uuid as _uuid
     from datetime import datetime
-    from dataclasses import dataclass, field
+    from backend.domain.entities.role import Role
 
     if not hasattr(g, "current_user"):
         g.current_user = User(
             id=_uuid.UUID("00000000-0000-0000-0000-000000000001"),
             email="dev@sywork.net",
-            role=Role.ADMIN,
+            username="dev",
+            role=Role(id=_uuid.UUID("00000000-0000-0000-0000-000000000002"), name="Admin"),
             active=True,
             created_at=datetime.utcnow(),
         )

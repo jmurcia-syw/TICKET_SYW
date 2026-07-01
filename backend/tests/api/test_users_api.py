@@ -13,19 +13,28 @@ def test_get_unknown_user_returns_404(client):
 def test_get_resolver_user(client, resolver_user):
     resp = client.get(f"/api/users/{resolver_user.id}")
     assert resp.status_code == 200
-    assert resp.get_json()["role"] == "resolver"
+    assert resp.get_json()["role"]["name"] == "Resolutor"
 
 
 def test_change_role(client, resolver_user):
-    resp = client.patch(f"/api/users/{resolver_user.id}/role", json={"role": "coordinator"})
+    coordinador_role = next(
+        r for r in client.get("/api/roles?page_size=100").get_json()["items"] if r["name"] == "Coordinador"
+    )
+    resp = client.patch(f"/api/users/{resolver_user.id}/role", json={"role_id": coordinador_role["id"]})
     assert resp.status_code == 200
-    assert resp.get_json()["role"] == "coordinator"
+    assert resp.get_json()["role"]["name"] == "Coordinador"
 
 
-def test_change_role_invalid_value_returns_400(client, resolver_user):
-    resp = client.patch(f"/api/users/{resolver_user.id}/role", json={"role": "not-a-role"})
+def test_change_role_invalid_uuid_returns_400(client, resolver_user):
+    resp = client.patch(f"/api/users/{resolver_user.id}/role", json={"role_id": "not-a-uuid"})
     assert resp.status_code == 400
-    assert resp.get_json()["error"] == "invalid_role"
+    assert resp.get_json()["error"] == "validation_error"
+
+
+def test_change_role_unknown_role_returns_404(client, resolver_user):
+    resp = client.patch(f"/api/users/{resolver_user.id}/role", json={"role_id": "00000000-0000-0000-0000-000000000099"})
+    assert resp.status_code == 404
+    assert resp.get_json()["error"] == "role_not_found"
 
 
 def test_deactivate_then_activate_user_returns_minimal_shape(client, resolver_user):

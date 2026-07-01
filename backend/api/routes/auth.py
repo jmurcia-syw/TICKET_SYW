@@ -4,13 +4,47 @@ from flask_jwt_extended import create_access_token
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from backend.infra.repositories.user_repo import UserRepository
+from backend.infra.repositories.role_repo import RoleRepository
 from backend.infra.database import get_db
-from backend.domain.entities.user import User, Role
-import uuid
+from backend.domain.services.auth_service import AuthService
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 ALLOWED_DOMAIN = "sywork.net"
+_auth_svc = AuthService()
+
+
+def _user_payload(user, db) -> dict:
+    permissions = RoleRepository(db).list_permissions_for_role(user.role.id)
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "username": user.username,
+        "role": {"id": str(user.role.id), "name": user.role.name},
+        "permissions": [{"module": p.module, "action": p.action} for p in permissions],
+    }
+
+
+@auth_bp.route("/login", methods=["POST"])
+def login():
+    """Login provisional por usuario/contraseña. Coexiste con /google, no lo reemplaza."""
+    data = request.get_json(silent=True) or {}
+    identifier = (data.get("username_or_email") or "").strip()
+    password = data.get("password") or ""
+    if not identifier or not password:
+        return jsonify({"error": "validation_error", "message": "username_or_email y password son requeridos"}), 400
+
+    db = next(get_db())
+    repo = UserRepository(db)
+    user = repo.get_by_username_or_email(identifier)
+    if not user or not user.active or not _auth_svc.verify_password(password, user.password_hash):
+        return jsonify({"error": "unauthorized", "message": "Usuario o contraseña incorrectos"}), 401
+
+    repo.update_last_login(user.id)
+    token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.name})
+    payload = _user_payload(user, db)
+    payload["access_token"] = token
+    return jsonify(payload), 200
 
 
 @auth_bp.route("/google", methods=["POST"])
@@ -46,8 +80,10 @@ def google_login():
         return jsonify({"error": "unauthorized", "message": "Acceso denegado"}), 401
 
     repo.update_last_login(user.id)
-    token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.value})
-    return jsonify({"access_token": token, "role": user.role.value, "email": user.email}), 200
+    token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.name})
+    payload = _user_payload(user, db)
+    payload["access_token"] = token
+    return jsonify(payload), 200
 
 
 @auth_bp.route("/me", methods=["GET"])
@@ -57,7 +93,7 @@ def me():
 
     @jwt_required_active
     def _inner():
-        u = g.current_user
-        return jsonify({"id": str(u.id), "email": u.email, "role": u.role.value, "active": u.active}), 200
+        db = next(get_db())
+        return jsonify(_user_payload(g.current_user, db)), 200
 
     return _inner()

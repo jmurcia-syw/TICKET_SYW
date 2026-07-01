@@ -1,25 +1,25 @@
 from flask_restx import Namespace, Resource, fields
 from backend.infra.repositories.user_repo import UserRepository
+from backend.infra.repositories.role_repo import RoleRepository
 from backend.infra.database import get_db
-from backend.domain.entities.user import Role
 from backend.domain.services.role_service import RoleService, RoleBusinessError
 from backend.api.routes._shared import parse_uuid, error_model, server_error
 
 ns = Namespace("users", description="Gestión de usuarios y roles del sistema", path="/api/users")
 _svc = RoleService()
 
-# ── Models ────────────────────────────────────────────────────────────────────
-
 _error = error_model(ns, "UserError")
+
+_role_ref = ns.model("UserRoleRef", {
+    "id": fields.String(description="UUID del rol"),
+    "name": fields.String(description="Nombre del rol"),
+})
 
 _user_out = ns.model("User", {
     "id": fields.String(description="UUID del usuario"),
     "email": fields.String(description="Email corporativo (@sywork.net)"),
-    "role": fields.String(
-        description="Rol del sistema",
-        enum=["admin", "coordinator", "qm", "resolver"],
-        example="coordinator",
-    ),
+    "username": fields.String(description="Nombre de usuario"),
+    "role": fields.Nested(_role_ref, description="Rol del sistema"),
     "active": fields.Boolean(description="Estado activo"),
     "last_login_at": fields.String(description="Último login ISO-8601 (null si nunca ha ingresado)"),
     "created_at": fields.String(description="Fecha de creación ISO-8601"),
@@ -32,13 +32,8 @@ _user_list_out = ns.model("UserList", {
     "page_size": fields.Integer(description="Tamaño de página"),
 })
 
-_role_input = ns.model("RoleInput", {
-    "role": fields.String(
-        required=True,
-        description="Nuevo rol a asignar",
-        enum=["admin", "coordinator", "qm", "resolver"],
-        example="coordinator",
-    ),
+_role_input = ns.model("RoleIdInput", {
+    "role_id": fields.String(required=True, description="UUID del rol a asignar"),
 })
 
 _status_result = ns.model("UserStatusResult", {
@@ -51,7 +46,8 @@ def _user_to_dict(user) -> dict:
     return {
         "id": str(user.id),
         "email": user.email,
-        "role": user.role.value,
+        "username": user.username,
+        "role": {"id": str(user.role.id), "name": user.role.name},
         "active": user.active,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
         "created_at": user.created_at.isoformat() if user.created_at else None,
@@ -67,11 +63,7 @@ class UserList(Resource):
         params={
             "page": {"description": "Número de página (default: 1)", "type": "integer", "default": 1},
             "page_size": {"description": "Registros por página, máx 100 (default: 20)", "type": "integer", "default": 20},
-            "role": {
-                "description": "Filtrar por rol: admin, coordinator, qm, resolver",
-                "type": "string",
-                "enum": ["admin", "coordinator", "qm", "resolver"],
-            },
+            "role": {"description": "Filtrar por nombre de rol", "type": "string"},
             "active": {"description": "Filtrar por estado (true/false)", "type": "boolean"},
         },
     )
@@ -126,8 +118,8 @@ class UserRole(Resource):
     @ns.doc("change_role")
     @ns.expect(_role_input, validate=False)
     @ns.response(200, "Rol actualizado correctamente", _user_out)
-    @ns.response(400, "UUID inválido o rol no reconocido", _error)
-    @ns.response(404, "Usuario no encontrado", _error)
+    @ns.response(400, "UUID inválido o role_id faltante", _error)
+    @ns.response(404, "Usuario o rol no encontrado", _error)
     @ns.response(409, "Conflicto de negocio (ej: ultimo admin activo)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, user_id: str):
@@ -139,19 +131,18 @@ class UserRole(Resource):
         data = request.get_json(silent=True)
         if not data:
             return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
-        role_str = data.get("role", "").strip().lower()
-        if not role_str:
-            return {"error": "validation_error", "message": "El campo 'role' es requerido"}, 400
-        try:
-            new_role = Role(role_str)
-        except ValueError:
-            valid = [r.value for r in Role]
-            return {"error": "invalid_role", "message": f"Rol invalido. Valores permitidos: {valid}"}, 400
+        role_id = parse_uuid(data.get("role_id", ""))
+        if not role_id:
+            return {"error": "validation_error", "message": "El campo 'role_id' es requerido y debe ser un UUID"}, 400
         try:
             db = next(get_db())
             repo = UserRepository(db)
-            _svc.validate_role_change(uid, new_role, users_repo=repo)
-            updated = repo.update_role(uid, new_role)
+            role_repo = RoleRepository(db)
+            new_role = role_repo.get_by_id(role_id)
+            if not new_role:
+                return {"error": "role_not_found", "message": "Rol no encontrado"}, 404
+            _svc.validate_role_change(uid, new_role.name, users_repo=repo)
+            updated = repo.update_role(uid, role_id)
             if not updated:
                 return {"error": "not_found", "message": "Usuario no encontrado"}, 404
             return _user_to_dict(updated), 200

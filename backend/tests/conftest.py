@@ -1,12 +1,9 @@
-import os
 import uuid
 
 import pytest
 
-os.environ.setdefault("DEV_SKIP_AUTH", "true")
-
 from backend.app import create_app
-from backend.domain.entities.user import Role, User
+from backend.domain.entities.user import User
 from backend.infra.database import get_db
 from backend.infra.repositories.user_repo import UserRepository
 
@@ -40,6 +37,10 @@ def db_session():
 def resolver_user(db_session, unique_name):
     """A throwaway non-admin user for exercising /api/users mutation endpoints
     without touching real accounts or the last-admin business rule."""
-    repo = UserRepository(db_session)
-    user = User(id=uuid.uuid4(), email=f"test.{unique_name}@sywork.net", role=Role.RESOLVER, active=True)
-    return repo.create(user)
+    from backend.infra.repositories.role_repo import RoleRepository
+    resolutor_role = RoleRepository(db_session).get_by_name("Resolutor")
+    user = User(
+        id=uuid.uuid4(), email=f"test.{unique_name}@sywork.net", username=f"test_{unique_name}",
+        role=resolutor_role, active=True,
+    )
+    return UserRepository(db_session).create(user)
