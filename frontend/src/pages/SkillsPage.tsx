@@ -7,6 +7,7 @@ import type { Skill } from '../types/resource'
 import ConfirmationModal from '../components/common/ConfirmationModal'
 import StatusTag from '../components/common/StatusTag'
 import PageToolbar from '../components/common/PageToolbar'
+import { useAuthStore } from '../store/authStore'
 
 interface SkillFormData {
   code: string
@@ -14,6 +15,10 @@ interface SkillFormData {
 }
 
 export default function SkillsPage() {
+  const { hasPermission } = useAuthStore()
+  const canCreate = hasPermission('skills', 'create')
+  const canDelete = hasPermission('skills', 'deactivate')
+
   const [skills, setSkills] = useState<Skill[]>([])
   const [loading, setLoading] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
@@ -67,7 +72,7 @@ export default function SkillsPage() {
       title: 'Acciones', key: 'actions',
       render: (_: unknown, r: Skill) => (
         <Space>
-          <Tooltip title="Eliminar"><Button size="small" danger icon={<DeleteOutlined />} onClick={() => setConfirmDelete(r.id)} /></Tooltip>
+          {canDelete && <Tooltip title="Eliminar"><Button size="small" danger icon={<DeleteOutlined />} onClick={() => setConfirmDelete(r.id)} /></Tooltip>}
         </Space>
       ),
     },
@@ -77,7 +82,7 @@ export default function SkillsPage() {
     <div>
       <PageToolbar
         filters={null}
-        action={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo skill</Button>}
+        action={canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo skill</Button>}
       />
 
       <Table rowKey="id" columns={columns} dataSource={skills} loading={loading} pagination={false} />

@@ -1,20 +1,20 @@
+import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import type { Role } from '../../types/api'
 
 interface Props {
-  children: React.ReactNode
-  roles?: Role[]
+  children: ReactNode
+  requiredPermission?: { module: string; action: string }
 }
 
-export default function ProtectedRoute({ children, roles }: Props) {
-  const { isAuthenticated, hasRole } = useAuthStore()
+export default function ProtectedRoute({ children, requiredPermission }: Props) {
+  const { isAuthenticated, hasPermission } = useAuthStore()
 
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace />
   }
 
-  if (roles && roles.length > 0 && !hasRole(...roles)) {
+  if (requiredPermission && !hasPermission(requiredPermission.module, requiredPermission.action)) {
     return <Navigate to="/dashboard" replace />
   }
 

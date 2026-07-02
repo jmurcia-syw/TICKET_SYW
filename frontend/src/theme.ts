@@ -27,11 +27,16 @@ export const STATUS_COLORS = {
   inactive: palette.slate400,
 }
 
-export const ROLE_COLORS: Record<'admin' | 'coordinator' | 'qm' | 'resolver', string> = {
-  admin: palette.slate800,
-  coordinator: palette.teal600,
-  qm: palette.amber600,
-  resolver: palette.slate500,
+const ROLE_COLOR_PALETTE = [palette.slate800, palette.teal600, palette.amber600, palette.slate500, palette.green600, palette.red600]
+
+/** Asigna un color determinístico a un nombre de rol, sin depender de una lista fija de roles. */
+export function roleColor(name: string | null | undefined): string {
+  if (!name) return palette.slate400
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0
+  }
+  return ROLE_COLOR_PALETTE[hash % ROLE_COLOR_PALETTE.length]
 }
 
 export const theme: ThemeConfig = {

@@ -11,8 +11,10 @@ import PageToolbar from '../components/common/PageToolbar'
 import { palette } from '../theme'
 
 export default function ResourcesPage() {
-  const { role } = useAuthStore()
-  const isAdmin = role === 'admin'
+  const { hasPermission, userId } = useAuthStore()
+  // Admin, Coordinador y QM comparten el mismo acceso completo sobre Recursos (FR-013).
+  const canManage = hasPermission('resources', 'create')
+  const isOwnProfile = (r: Resource) => r.user_id === userId
 
   const [resources, setResources] = useState<Resource[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
@@ -54,7 +56,7 @@ export default function ResourcesPage() {
     try {
       if (editingId) {
         await resourceService.update(editingId, { notes: values.notes })
-        if (isAdmin && values.skill_ids) {
+        if (canManage && values.skill_ids) {
           await resourceService.updateSkills(editingId, values.skill_ids)
         }
         message.success('Recurso actualizado')
@@ -99,8 +101,8 @@ export default function ResourcesPage() {
       title: 'Acciones', key: 'actions',
       render: (_: unknown, r: Resource) => (
         <Space>
-          {isAdmin && <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} /></Tooltip>}
-          {isAdmin && (r.active
+          {(canManage || isOwnProfile(r)) && <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} /></Tooltip>}
+          {canManage && (r.active
             ? <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => setConfirmDeactivate(r.id)} /></Tooltip>
             : <Tooltip title="Activar"><Button size="small" icon={<PlayCircleOutlined style={{ color: palette.green600 }} />} onClick={() => handleActivate(r.id)} /></Tooltip>)}
         </Space>
@@ -116,7 +118,7 @@ export default function ResourcesPage() {
           <Select placeholder="Filtrar por skill" allowClear style={{ width: 200 }} onChange={setSkillFilter}
             options={skills.map(s => ({ value: s.code, label: `${s.code} — ${s.label}` }))} />
         </>}
-        action={isAdmin && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo recurso</Button>}
+        action={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo recurso</Button>}
       />
 
       <Table rowKey="id" columns={columns} dataSource={resources} loading={loading}
@@ -124,13 +126,13 @@ export default function ResourcesPage() {
 
       <Modal title={editingId ? 'Editar recurso' : 'Nuevo recurso'} open={formOpen} onCancel={() => setFormOpen(false)} onOk={() => form.submit()} okText="Guardar">
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          {isAdmin && !editingId && (
+          {canManage && !editingId && (
             <>
               <Form.Item name="full_name" label="Nombre completo" rules={[{ required: true, message: 'El nombre es requerido' }]}><Input /></Form.Item>
               <Form.Item name="email" label="Email (@sywork.net)" rules={[{ required: true, message: 'El email es requerido' }, { pattern: /^[^@]+@sywork\.net$/, message: 'Debe ser @sywork.net' }]}><Input /></Form.Item>
             </>
           )}
-          {isAdmin && (
+          {canManage && (
             <Form.Item name="skill_ids" label="Skills">
               <Select mode="multiple" options={skills.map(s => ({ value: s.id, label: `${s.code} — ${s.label}` }))} placeholder="Seleccionar skills" />
             </Form.Item>

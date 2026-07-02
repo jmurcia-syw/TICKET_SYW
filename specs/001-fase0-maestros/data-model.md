@@ -131,29 +131,84 @@ Miembros del equipo interno de SyWork.
 
 ### users
 
-Cuentas de acceso al sistema. Vinculada 1:1 con resources.
+Cuentas de acceso al sistema. Vinculada 0..1 con resources (un recurso puede aun no tener cuenta,
+o una cuenta puede existir sin recurso asociado, ej. cuentas administrativas puras).
 
 | Columna | Tipo | Constraints | Descripcion |
 |---------|------|-------------|-------------|
 | id | UUID | PK, default gen_random_uuid() | Identificador unico |
-| email | TEXT | NOT NULL, UNIQUE | Email Google @sywork.net |
-| role | TEXT | NOT NULL | 'admin', 'coordinator', 'qm', 'resolver' |
+| email | TEXT | NOT NULL, UNIQUE | Email @sywork.net |
+| username | TEXT | NOT NULL, UNIQUE | Nombre de usuario para login provisional |
+| role_id | UUID | NOT NULL, FK roles(id) | Rol dinamico asignado |
+| password_hash | TEXT | NULLABLE | Hash de contraseña para login provisional (FR-022b); null si solo usa Google OAuth2 |
 | active | BOOLEAN | NOT NULL, default TRUE | Estado activo/inactivo |
-| google_sub | TEXT | UNIQUE | Subject ID de Google OAuth2 |
-| last_login_at | TIMESTAMPTZ | | Ultimo login exitoso |
+| google_sub | TEXT | UNIQUE, NULLABLE | Subject ID de Google OAuth2 |
+| last_login_at | TIMESTAMPTZ | | Ultimo login exitoso (por cualquiera de los dos metodos) |
 | created_at | TIMESTAMPTZ | NOT NULL, default now() | Fecha de creacion |
 
 **Constraints**:
 ```sql
-CHECK (role IN ('admin', 'coordinator', 'qm', 'resolver'))
 CHECK (email LIKE '%@sywork.net')
 ```
 
 **Reglas de negocio**:
 - Solo emails @sywork.net son aceptados (validado en callback OAuth2 y en constraint DB)
-- Exactamente un rol por usuario
+- Exactamente un rol por usuario (FK `role_id`, nunca nulo)
 - No se puede desactivar ni degradar al ultimo Admin activo
 - El middleware verifica `users.active` en cada request; si false devuelve 401
+- `password_hash` es opcional: un usuario puede autenticarse solo con Google, solo con login
+  provisional (si un Admin le asigna username+password), o con ambos
+
+---
+
+### roles
+
+Rol dinamico gestionable por Admin (FR-015). Sembrado con 4 roles iniciales, extensible.
+
+| Columna | Tipo | Constraints | Descripcion |
+|---------|------|-------------|-------------|
+| id | UUID | PK, default gen_random_uuid() | Identificador unico |
+| name | TEXT | NOT NULL, UNIQUE | Nombre del rol (ej. Admin, Coordinador, QM, Resolutor) |
+| description | TEXT | | Descripcion del rol |
+| active | BOOLEAN | NOT NULL, default TRUE | Estado activo/inactivo |
+| created_at | TIMESTAMPTZ | NOT NULL, default now() | Fecha de creacion |
+
+**Reglas de negocio**:
+- El rol `Admin` no puede desactivarse ni eliminarse
+- No se puede desactivar un rol con usuarios activos asignados
+- Seed inicial: Admin, Coordinador, QM, Resolutor (ver migracion `009_roles_permissions_login.py`)
+
+---
+
+### permissions
+
+Permiso granular modulo + accion (FR-015b). Catalogo administrado por Admin.
+
+| Columna | Tipo | Constraints | Descripcion |
+|---------|------|-------------|-------------|
+| id | UUID | PK, default gen_random_uuid() | Identificador unico |
+| module | TEXT | NOT NULL | Modulo (ej. `clients`, `projects`, `resources`, `roles`) |
+| action | TEXT | NOT NULL | Accion (`view`, `create`, `edit`, `deactivate`) |
+| description | TEXT | | Descripcion legible |
+
+**Constraints**: `UNIQUE (module, action)`
+
+**Reglas de negocio**:
+- No se puede eliminar un permiso asignado a algun rol (409 `permission_in_use`)
+
+---
+
+### role_permissions (tabla de union)
+
+| Columna | Tipo | Constraints | Descripcion |
+|---------|------|-------------|-------------|
+| role_id | UUID | NOT NULL, FK roles(id) | Rol |
+| permission_id | UUID | NOT NULL, FK permissions(id) | Permiso asignado |
+
+**Constraints**: `PRIMARY KEY (role_id, permission_id)`
+
+**Reglas de negocio**:
+- `PUT /api/roles/{id}/permissions` reemplaza la lista completa (no incremental)
 
 ---
 
@@ -164,20 +219,22 @@ clients (1) ──── (N) projects
     │
     └── RLS root para tickets (Fase 1)
 
-users (1) ──── (1) resources
-                    │
-                    └── (N) resource_skills (N) ──── (1) skills
+users (0..1) ──── (0..1) resources
+  │                   │
+  │                   └── (N) resource_skills (N) ──── (1) skills
+  │
+  └── (N) role_permissions (N) ──── (1) roles ──── (N) permissions
+      [via role_id FK; role_permissions conecta roles ↔ permissions]
 ```
 
 ---
 
 ## Migraciones Alembic (orden de ejecucion)
 
-1. `001_create_users.py` — tabla users + constraint role + check email
+1. `001_create_users.py` — tabla users (email, username, role_id, password_hash, google_sub)
 2. `002_create_clients.py` — tabla clients + extension pgcrypto + columnas cifradas
 3. `003_create_projects.py` — tabla projects + FK client_id
-4. `004_create_skills.py` — tabla skills
-5. `005_create_resources.py` — tabla resources + FK user_id
-6. `006_create_resource_skills.py` — tabla de union resource_skills
-7. `007_enable_rls.py` — habilitar RLS y crear politicas en clients, resources, users
-8. `008_seed_initial_skills.py` — seed de skills iniciales (JDE_GL, API_REST, Oracle_Fusion, etc.)
+4. `004_create_skills_resources.py` — tablas skills, resources, resource_skills + seed de skills
+5. `008_enable_rls_policies.py` — habilitar RLS y crear politicas en clients, resources, users
+6. `009_roles_permissions_login.py` — tablas roles, permissions, role_permissions; seed de los
+   4 roles iniciales y su matriz de permisos; agrega `username`/`password_hash` a users

@@ -1,12 +1,20 @@
+import secrets
+import uuid
+
 from flask_restx import Namespace, Resource, fields
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.repositories.role_repo import RoleRepository
 from backend.infra.database import get_db
+from backend.domain.entities.user import User
 from backend.domain.services.role_service import RoleService, RoleBusinessError
+from backend.domain.services.auth_service import AuthService
 from backend.api.routes._shared import parse_uuid, error_model, server_error
 
 ns = Namespace("users", description="Gestión de usuarios y roles del sistema", path="/api/users")
 _svc = RoleService()
+_auth_svc = AuthService()
+
+ALLOWED_EMAIL_DOMAIN = "sywork.net"
 
 _error = error_model(ns, "UserError")
 
@@ -39,6 +47,17 @@ _role_input = ns.model("RoleIdInput", {
 _status_result = ns.model("UserStatusResult", {
     "id": fields.String(description="UUID del usuario"),
     "active": fields.Boolean(description="Nuevo estado activo"),
+})
+
+_user_create_input = ns.model("UserCreateInput", {
+    "email": fields.String(required=True, description="Email corporativo (@sywork.net)", example="nombre.apellido@sywork.net"),
+    "username": fields.String(required=True, description="Nombre de usuario", example="nombre.apellido"),
+    "role_id": fields.String(required=True, description="UUID del rol a asignar"),
+})
+
+_user_create_out = ns.model("UserCreateResult", {
+    "user": fields.Nested(_user_out),
+    "provisional_password": fields.String(description="Contraseña provisional en texto plano — se muestra una única vez"),
 })
 
 
@@ -85,6 +104,58 @@ class UserList(Resource):
             db = next(get_db())
             users, total = UserRepository(db).list_paginated(page=page, page_size=page_size, role=role_filter, active=active)
             return {"items": [_user_to_dict(u) for u in users], "total": total, "page": page, "page_size": page_size}, 200
+        except Exception:
+            return server_error()
+
+    @ns.doc("create_user")
+    @ns.expect(_user_create_input, validate=False)
+    @ns.response(201, "Usuario creado, con contraseña provisional en texto plano (única vez)", _user_create_out)
+    @ns.response(400, "Datos inválidos o dominio de email incorrecto", _error)
+    @ns.response(404, "Rol no encontrado", _error)
+    @ns.response(409, "Email o username duplicado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def post(self):
+        """Crear un usuario nuevo con contraseña provisional generada (FR-018b). Solo Admin."""
+        from flask import request
+        data = request.get_json(silent=True)
+        if not data:
+            return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
+        email = (data.get("email") or "").strip().lower()
+        username = (data.get("username") or "").strip()
+        role_id = parse_uuid(data.get("role_id", ""))
+        if not email:
+            return {"error": "validation_error", "message": "El campo 'email' es requerido"}, 400
+        if not email.endswith(f"@{ALLOWED_EMAIL_DOMAIN}"):
+            return {"error": "invalid_email_domain", "message": f"El email debe ser @{ALLOWED_EMAIL_DOMAIN}"}, 400
+        if not username:
+            return {"error": "validation_error", "message": "El campo 'username' es requerido"}, 400
+        if not role_id:
+            return {"error": "validation_error", "message": "El campo 'role_id' es requerido y debe ser un UUID"}, 400
+        try:
+            db = next(get_db())
+            repo = UserRepository(db)
+            role_repo = RoleRepository(db)
+            role = role_repo.get_by_id(role_id)
+            if not role:
+                return {"error": "role_not_found", "message": "Rol no encontrado"}, 404
+            if repo.get_by_email(email):
+                return {"error": "email_duplicate", "message": f"Ya existe un usuario con el email {email}"}, 409
+            if repo.get_by_username_or_email(username):
+                return {"error": "username_duplicate", "message": f"Ya existe un usuario con el username {username}"}, 409
+            provisional_password = secrets.token_urlsafe(9)
+            new_user = User(
+                id=uuid.uuid4(),
+                email=email,
+                username=username,
+                role=role,
+                password_hash=_auth_svc.hash_password(provisional_password),
+            )
+            created = repo.create(new_user)
+            return (
+                {"user": _user_to_dict(created), "provisional_password": provisional_password},
+                201,
+                {"Location": f"/api/users/{created.id}"},
+            )
         except Exception:
             return server_error()
 

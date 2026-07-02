@@ -1,334 +1,186 @@
-# SYWork Tickets
+# SyWork Tickets
 
-Sistema de gestión de tickets de soporte técnico interno. Permite registrar, asignar y hacer seguimiento de incidencias con autenticación segura y una interfaz moderna.
+Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM de SyWork.
 
----
-
-## Tabla de contenidos
-
-- [Arquitectura](#arquitectura)
-- [Stack tecnológico](#stack-tecnológico)
-- [Requisitos previos](#requisitos-previos)
-- [Configuración inicial](#configuración-inicial)
-- [Comandos Docker](#comandos-docker)
-- [URLs del proyecto](#urls-del-proyecto)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Skills instaladas](#skills-instaladas)
+> **Fase activa**: `Fase 0 — Maestros` · Rama: `develp_Jp`
 
 ---
 
-## Arquitectura
+## Roadmap
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                      CLIENTE (Browser)                   │
-└──────────────────────┬──────────────────────────────────┘
-                       │ HTTP :5173
-┌──────────────────────▼──────────────────────────────────┐
-│               FRONTEND  (sywork_frontend)                │
-│          React 19 · TypeScript · Ant Design · Vite       │
-│                      Puerto 5173                         │
-└──────────────────────┬──────────────────────────────────┘
-                       │ REST API :5000
-┌──────────────────────▼──────────────────────────────────┐
-│               BACKEND   (sywork_backend)                 │
-│         Flask · Flask-RESTX · JWT · Google OAuth         │
-│                      Puerto 5000                         │
-│                  Swagger en /swagger                     │
-└──────────────────────┬──────────────────────────────────┘
-                       │ PostgreSQL :5432
-┌──────────────────────▼──────────────────────────────────┐
-│               BASE DE DATOS  (sywork_db)                 │
-│                  PostgreSQL 16 Alpine                    │
-│                      Puerto 5432                         │
-└─────────────────────────────────────────────────────────┘
-```
-
-Todos los servicios corren en contenedores Docker orquestados con `docker-compose`. El backend espera a que la base de datos esté **healthy** antes de arrancar.
+| Fase | Descripción | Estado |
+|------|-------------|--------|
+| **Fase 0** | Maestros — Clientes, Proyectos, Recursos/Skills, Roles/Seguridad | 🟡 En progreso |
+| Fase 1 | Tickets — Ciclo de vida (FSM), SLA, comentarios, adjuntos, dashboards | ⏳ Pendiente |
+| Fase 2 | Tareas — Subtareas por rol, motor FSM, SLA por cliente | ⏳ Pendiente |
+| Fase 3 | Asignaciones con disponibilidad (Calendario) | ⏳ Pendiente |
+| Fase 4 | Motor FSM completo para SLA | ⏳ Pendiente |
+| Fase 5 | Focus Room | ⏳ Pendiente |
 
 ---
 
-## Stack tecnológico
-
-### Frontend
-| Tecnología | Versión | Propósito |
-|---|---|---|
-| React | 19.0 | UI framework |
-| TypeScript | 5.6 | Tipado estático |
-| Ant Design | 5.x | Componentes UI |
-| Zustand | 5.x | Estado global |
-| Vite | 6.x | Build tool / dev server |
-| Axios | 1.7 | HTTP client |
-| date-fns | 4.x | Manejo de fechas |
-| @hello-pangea/dnd | 17.x | Drag & drop |
+## Stack Tecnológico
 
 ### Backend
-| Tecnología | Versión | Propósito |
-|---|---|---|
-| Python | 3.12 | Runtime |
-| Flask | 3.1 | Web framework |
-| Flask-RESTX | 1.3 | REST API + Swagger |
-| Flask-CORS | 5.0 | Cross-Origin |
-| PyJWT | 2.10 | Autenticación JWT |
-| Google Auth | 2.38 | OAuth con Google |
-| psycopg2 | 2.9 | Driver PostgreSQL |
-| transitions | 0.9 | Máquina de estados (tickets) |
+- **Python 3.12** + **Flask 3.x** + **Flask-RESTX** (Swagger en `/swagger`)
+- **SQLAlchemy 2.x** + **Alembic** (migraciones — dueño único del schema)
+- **PostgreSQL 16** on-premise con RLS y pgcrypto (AES-256 para datos VPN)
+- **Flask-JWT-Extended** + **Google OAuth2** (dominio `@sywork.net`)
+
+### Frontend
+- **React 19** + **TypeScript strict** (prohibido `any`)
+- **Ant Design 5** · **Zustand 5** · **React Router v6** · **Axios**
+- **pnpm** exclusivamente (prohibido npm y yarn)
+- **date-fns** (prohibido moment.js)
 
 ### Infraestructura
-| Tecnología | Propósito |
-|---|---|
-| Docker + Docker Compose | Orquestación de contenedores |
-| PostgreSQL 16 Alpine | Base de datos relacional |
+- **Docker** + **Docker Compose**
+- `DEV_SKIP_AUTH=true` bypasea JWT en desarrollo
 
 ---
 
-## Requisitos previos
+## Arquitectura (Clean Architecture — 3 capas)
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado y corriendo
-- Archivo `.env` configurado en la raíz del proyecto (ver `.env.example` si existe)
+```
+backend/
+├── domain/          # Capa 1 — Entidades, servicios de negocio, FSM
+│   ├── entities/    # User, Client, Project, Resource, Skill
+│   └── services/    # ClientService, ProjectService, SkillService, RoleService
+├── infra/           # Capa 2 — Modelos SQLAlchemy, repositorios, migraciones
+│   ├── models/      # UserModel, ClientModel, ProjectModel, ResourceModel
+│   ├── repositories/
+│   └── migrations/  # Alembic (versions/)
+└── api/             # Capa 3 — Flask-RESTX namespaces, middleware
+    ├── middleware/  # auth.py (JWT + DEV_SKIP_AUTH), rbac.py
+    └── routes/      # clients, projects, resources, users, roles, permissions
 
-### Variables de entorno requeridas (`.env`)
+frontend/src/
+├── components/      # Componentes "tontos" — solo renderizan props
+├── pages/           # ClientsPage, ProjectsPage, ResourcesPage, UsersPage…
+├── services/        # Lógica de negocio y llamadas API (apiClient Axios)
+├── store/           # Estado global con Zustand
+└── types/           # Tipos TypeScript estrictos
+```
+
+---
+
+## Fase 0 — Maestros: Estado actual
+
+### ✅ Completado
+
+#### Backend
+- Migraciones Alembic: `users`, `clients`, `projects`, `skills`, `resources`, `resource_skills`
+- Entidades de dominio con reglas de negocio encapsuladas
+- Repositorios con paginación, búsqueda y filtros
+- **Namespaces Flask-RESTX con Swagger completo** (25+ endpoints):
+  - `GET/POST /api/clients` · `GET/PATCH /api/clients/{id}` · `/deactivate` · `/activate`
+  - `GET/POST /api/projects` · `GET/PATCH /api/projects/{id}` · `/deactivate` · `/activate`
+  - `GET/POST /api/skills` · `DELETE /api/skills/{id}`
+  - `GET/POST /api/resources` · `GET/PATCH /api/resources/{id}` · `/skills` · `/deactivate` · `/activate`
+  - `GET/POST /api/users` · `GET /api/users/{id}` · `/{id}/role` · `/deactivate` · `/activate`
+  - `GET/POST /api/roles` · `GET/PATCH/DELETE /api/roles/{id}`
+  - `GET/POST /api/permissions` · `DELETE /api/permissions/{id}`
+- Docker + `DEV_SKIP_AUTH=true` para desarrollo sin OAuth
+
+#### Frontend
+- Páginas base: Clients, Projects, Resources, Skills, Users, Roles/Permissions
+- DevLayout sin autenticación para modo desarrollo
+- Tipos TypeScript: `Client`, `Project`, `Resource`, `Skill`, `User`, `Role`, `Permission`
+- Servicios: `clientService`, `projectService`, `resourceService`, `userService`, `roleService`, `permissionService`, `authService`
+
+### ❌ Pendiente para completar Fase 0
+
+- [ ] RLS — políticas Row Level Security en PostgreSQL (`008_enable_rls_policies`)
+- [ ] Cifrado VPN verificado en reposo (pgcrypto AES-256 en columnas `vpn_ips`/`vpn_credentials`)
+- [ ] Componentes frontend completos (formularios, tablas con datos reales de la API)
+- [ ] Auth real: Google OAuth2 + JWT activo (actualmente `DEV_SKIP_AUTH=true`)
+- [ ] Validación E2E con escenarios del `quickstart.md`
+
+---
+
+## Quickstart — Desarrollo local
+
+### Requisitos
+- Docker Desktop
+- Node.js 20+ y pnpm (`npm install -g pnpm`)
+
+### Backend (Docker)
+
+```bash
+# Copiar variables de entorno
+cp .env.example .env
+
+# Levantar DB + backend (Alembic corre automáticamente al iniciar)
+docker compose up --build
+
+# Swagger UI disponible en:
+http://localhost:5000/swagger
+
+# Health check
+curl http://localhost:5000/health/
+```
+
+### Frontend
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+
+# App en http://localhost:5173
+```
+
+### Variables de entorno (`.env`)
 
 ```env
-POSTGRES_DB=sywork
-POSTGRES_USER=tu_usuario
-POSTGRES_PASSWORD=tu_password
-JWT_SECRET=tu_jwt_secret_muy_seguro
-GOOGLE_CLIENT_ID=tu_google_client_id
-GOOGLE_CLIENT_SECRET=tu_google_client_secret
+POSTGRES_DB=sywork_tickets
+POSTGRES_USER=sywork_user
+POSTGRES_PASSWORD=changeme
+JWT_SECRET=changeme_jwt_secret_at_least_32_chars
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 FLASK_ENV=development
-```
-
-> El archivo `.env` nunca se sube al repositorio (está en `.gitignore`). Crea uno local antes de ejecutar el proyecto.
-
----
-
-## Comandos Docker
-
-### Levantar el proyecto completo
-
-```bash
-docker compose up --build
-```
-
-> Reconstruye las imágenes y levanta todos los servicios. Usar la primera vez o cuando cambien dependencias.
-
-### Levantar sin reconstruir (más rápido)
-
-```bash
-docker compose up
-```
-
-### Levantar en segundo plano (detached)
-
-```bash
-docker compose up -d
-```
-
-### Ver logs en tiempo real
-
-```bash
-# Todos los servicios
-docker compose logs -f
-
-# Solo el backend
-docker compose logs -f backend
-
-# Solo el frontend
-docker compose logs -f frontend
-
-# Solo la base de datos
-docker compose logs -f postgres
-```
-
-### Detener los contenedores
-
-```bash
-docker compose down
-```
-
-### Detener y eliminar volúmenes (borra la base de datos)
-
-```bash
-docker compose down -v
-```
-
-> Usar solo si quieres reiniciar la base de datos desde cero.
-
-### Ver estado de los contenedores
-
-```bash
-docker compose ps
-```
-
-### Reconstruir solo un servicio
-
-```bash
-docker compose up --build backend
-docker compose up --build frontend
-```
-
-### Entrar a un contenedor
-
-```bash
-# Shell del backend
-docker exec -it sywork_backend bash
-
-# Shell de la base de datos
-docker exec -it sywork_db psql -U tu_usuario -d sywork
+DEV_SKIP_AUTH=true
 ```
 
 ---
 
-## URLs del proyecto
+## Skills del proyecto (`.claude/skills/`)
 
-| Servicio | URL | Descripción |
-|---|---|---|
-| Frontend | http://localhost:5173 | Interfaz de usuario |
-| Backend API | http://localhost:5000 | REST API |
-| Swagger UI | http://localhost:5000/swagger | Documentación interactiva de la API |
-| PostgreSQL | localhost:5432 | Base de datos (acceso directo) |
+Habilidades específicas del proyecto disponibles para Claude Code en esta sesión:
 
----
-
-## Estructura del proyecto
-
-```
-TICKET_SYW/
-├── backend/
-│   ├── app.py              # Punto de entrada Flask
-│   ├── requirements.txt    # Dependencias Python
-│   └── Dockerfile          # Imagen del backend
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx         # Componente raíz
-│   │   └── main.tsx        # Entry point React
-│   └── package.json        # Dependencias Node
-├── postgres/
-│   └── init.sql            # Script de inicialización de la DB
-├── docker-compose.yml      # Orquestación de servicios
-├── .env                    # Variables de entorno (NO commitear)
-├── .gitignore
-└── README.md
-```
+| Skill | Propósito |
+|-------|-----------|
+| `api-design-principles` | Guía de diseño REST: naming, status codes, paginación, errores |
+| `error-handling-patterns` | Patrones de manejo de errores backend (Flask) y frontend (Axios) |
+| `interface-design` | Principios de diseño de interfaces con Ant Design 5 |
+| `vercel-react-best-practices` | Best practices React 19 + TypeScript strict |
+| `speckit-implement` | Workflow de implementación guiada por spec (metodología SDD) |
+| `speckit-tasks` | Generación de `tasks.md` desde artefactos de diseño |
+| `speckit-clarify` | Clarificación de especificaciones antes de planificar |
+| `speckit-plan` | Planificación técnica: research + contratos API + data model |
 
 ---
 
-## Skills instaladas
+## Convenciones
 
-Este proyecto usa **Claude Code** con el sistema de skills **GSD (Get Stuff Done)** y **Superpowers** instaladas globalmente.
-
-### Skills Superpowers (flujo de trabajo con Claude)
-
-| Skill | Comando | Descripción |
-|---|---|---|
-| `using-superpowers` | automático | Punto de entrada — carga el sistema de skills al inicio de cada conversación |
-| `brainstorming` | `/brainstorming` | Ideación estructurada antes de planificar |
-| `writing-plans` | `/writing-plans` | Guía para crear planes de implementación claros |
-| `executing-plans` | `/executing-plans` | Ejecución de planes con commits atómicos y manejo de desvíos |
-| `systematic-debugging` | `/systematic-debugging` | Debugging científico con método reproducible |
-| `test-driven-development` | `/tdd` | Flujo TDD: escribir tests antes que código |
-| `verification-before-completion` | automático | Verifica que los cambios funcionen antes de marcar como hecho |
-| `subagent-driven-development` | automático | Orquesta subagentes en paralelo para tareas complejas |
-| `dispatching-parallel-agents` | automático | Lanza múltiples agentes en paralelo |
-| `requesting-code-review` | `/code-review` | Solicita revisión de código del diff actual |
-| `receiving-code-review` | automático | Procesa y aplica resultados de revisiones de código |
-| `finishing-a-development-branch` | automático | Checklist de cierre de rama antes de hacer PR |
-| `using-git-worktrees` | automático | Flujo de trabajo con git worktrees para trabajo en paralelo |
-| `writing-skills` | `/writing-skills` | Crea nuevas skills personalizadas |
-
-### Skills GSD (gestión de proyectos con IA)
-
-#### Proyecto y planificación
-| Skill | Comando | Descripción |
-|---|---|---|
-| `gsd-new-project` | `/gsd-new-project` | Inicializa un proyecto nuevo con contexto profundo y PROJECT.md |
-| `gsd-new-milestone` | `/gsd-new-milestone` | Crea un nuevo hito con fases y roadmap |
-| `gsd-phase` | `/gsd-phase` | Gestión completa de una fase (discuss → plan → execute) |
-| `gsd-plan-phase` | `/gsd-plan-phase` | Genera el plan de implementación de una fase |
-| `gsd-discuss-phase` | `/gsd-discuss-phase` | Recolecta contexto de una fase antes de planificar |
-| `gsd-execute-phase` | `/gsd-execute-phase` | Ejecuta todos los planes de una fase |
-| `gsd-spec-phase` | `/gsd-spec-phase` | Genera especificación técnica de una fase |
-| `gsd-mvp-phase` | `/gsd-mvp-phase` | Ejecuta una fase en modo MVP (mínimo viable) |
-| `gsd-ultraplan-phase` | `/gsd-ultraplan-phase` | Planificación ultra-detallada con análisis profundo |
-| `gsd-autonomous` | `/gsd-autonomous` | Ejecuta todas las fases restantes de forma autónoma |
-
-#### Calidad y revisión
-| Skill | Comando | Descripción |
-|---|---|---|
-| `gsd-code-review` | `/gsd-code-review` | Revisa el código cambiado en una fase |
-| `gsd-ui-review` | `/gsd-ui-review` | Auditoría visual de 6 pilares para frontend |
-| `gsd-verify-work` | `/gsd-verify-work` | Verifica que una fase cumple su objetivo |
-| `gsd-validate-phase` | `/gsd-validate-phase` | Valida que la fase está lista para ship |
-| `gsd-secure-phase` | `/gsd-secure-phase` | Auditoría de seguridad de la fase implementada |
-| `gsd-add-tests` | `/gsd-add-tests` | Genera tests basados en criterios UAT de la fase |
-| `gsd-audit-fix` | `/gsd-audit-fix` | Pipeline autónomo: encuentra issues → clasifica → corrige → commitea |
-| `gsd-audit-uat` | `/gsd-audit-uat` | Auditoría cruzada de todos los ítems UAT pendientes |
-
-#### Debug y análisis
-| Skill | Comando | Descripción |
-|---|---|---|
-| `gsd-debug` | `/gsd-debug` | Debugging sistemático con estado persistente |
-| `gsd-forensics` | `/gsd-forensics` | Post-mortem para flujos GSD fallidos |
-| `gsd-map-codebase` | `/gsd-map-codebase` | Análisis profundo del codebase |
-| `gsd-explore` | `/gsd-explore` | Ideación socrática antes de comprometerse a un plan |
-| `gsd-spike` | `/gsd-spike` | Investigación técnica rápida de una incógnita |
-
-#### Flujo de trabajo diario
-| Skill | Comando | Descripción |
-|---|---|---|
-| `gsd-progress` | `/gsd-progress` | Resumen del estado actual del proyecto |
-| `gsd-update` | `/gsd-update` | Actualiza el estado de las fases |
-| `gsd-health` | `/gsd-health` | Diagnóstica la salud del directorio `.planning/` |
-| `gsd-resume-work` | `/gsd-resume-work` | Retoma el trabajo donde lo dejaste |
-| `gsd-pause-work` | `/gsd-pause-work` | Guarda el estado para continuar después |
-| `gsd-capture` | `/gsd-capture` | Captura ideas, tareas o notas rápidas |
-| `gsd-fast` | `/gsd-fast` | Ejecuta una tarea trivial sin overhead de planificación |
-| `gsd-quick` | `/gsd-quick` | Ejecución rápida de cambios pequeños |
-| `gsd-manager` | `/gsd-manager` | Centro de comando interactivo para múltiples fases |
-| `gsd-workspace` | `/gsd-workspace` | Gestión del espacio de trabajo GSD |
-
-#### Ship y cierre
-| Skill | Comando | Descripción |
-|---|---|---|
-| `gsd-ship` | `/gsd-ship` | Prepara y ejecuta el ship de la fase actual |
-| `gsd-pr-branch` | `/gsd-pr-branch` | Crea rama y PR con formato correcto |
-| `gsd-complete-milestone` | `/gsd-complete-milestone` | Archiva el hito completado y prepara el siguiente |
-| `gsd-cleanup` | `/gsd-cleanup` | Archiva directorios de fases completadas |
-| `gsd-undo` | `/gsd-undo` | Revierte la última acción GSD |
-| `gsd-extract-learnings` | `/gsd-extract-learnings` | Extrae decisiones y lecciones de las fases completadas |
-| `gsd-milestone-summary` | `/gsd-milestone-summary` | Resumen del hito completado |
-| `gsd-audit-milestone` | `/gsd-audit-milestone` | Audita la completitud de un hito antes de archivarlo |
-
-#### AI y documentación
-| Skill | Comando | Descripción |
-|---|---|---|
-| `gsd-ai-integration-phase` | `/gsd-ai-integration-phase` | Genera AI-SPEC.md para fases con IA |
-| `gsd-eval-review` | `/gsd-eval-review` | Audita la cobertura de evaluación de una fase IA |
-| `gsd-docs-update` | `/gsd-docs-update` | Genera o actualiza documentación del proyecto |
-| `gsd-ingest-docs` | `/gsd-ingest-docs` | Importa ADRs, PRDs y specs existentes al proyecto |
-| `gsd-import` | `/gsd-import` | Importa planes externos con detección de conflictos |
-| `gsd-review-backlog` | `/gsd-review-backlog` | Revisa el backlog de tareas pendientes |
-| `gsd-inbox` | `/gsd-inbox` | Triages issues y PRs de GitHub |
-
-### Skills de utilidad (Claude Code)
-
-| Skill | Comando | Descripción |
-|---|---|---|
-| `code-review` | `/code-review` | Revisión del diff actual con distintos niveles de profundidad |
-| `verify` | `/verify` | Verifica que un cambio funciona ejecutando la app y observando comportamiento |
-| `run` | `/run` | Arranca la app y observa si el cambio funciona |
-| `simplify` | `/simplify` | Refactoriza el código cambiado buscando simplificaciones y eficiencia |
-| `update-config` | `/update-config` | Configura hooks, permisos y variables de entorno en `settings.json` |
-| `keybindings-help` | `/keybindings-help` | Personaliza los atajos de teclado de Claude Code |
-| `fewer-permission-prompts` | `/fewer-permission-prompts` | Escanea transcripts y agrega permisos para reducir prompts repetitivos |
-| `loop` | `/loop` | Ejecuta un comando en intervalos recurrentes |
-| `schedule` | `/schedule` | Programa agentes cloud en cron schedule |
-| `claude-api` | `/claude-api` | Referencia de la API de Claude / SDK de Anthropic |
-| `security-review` | `/security-review` | Auditoría de seguridad del código |
-| `init` | `/init` | Inicialización de proyecto con Claude Code |
-| `review` | `/review` | Revisión general del proyecto |
+| Contexto | Convención |
+|----------|-----------|
+| Componentes React | `PascalCase` (`ClientList.tsx`) |
+| Funciones/utilidades | `camelCase` (`formatDate.ts`) |
+| Columnas DB | `snake_case` (`created_at`, `client_id`) |
+| Códigos de error API | `snake_case` (`not_found`, `already_inactive`) |
+| Rama de desarrollo Fase 0 | `develp_Jp` |
 
 ---
 
-> Proyecto en desarrollo activo — v0.1.0
+## Especificación (Fase 0)
+
+| Artefacto | Ruta |
+|-----------|------|
+| Spec | [`specs/001-fase0-maestros/spec.md`](specs/001-fase0-maestros/spec.md) |
+| Plan técnico | [`specs/001-fase0-maestros/plan.md`](specs/001-fase0-maestros/plan.md) |
+| Modelo de datos | [`specs/001-fase0-maestros/data-model.md`](specs/001-fase0-maestros/data-model.md) |
+| Contratos API | [`specs/001-fase0-maestros/contracts/`](specs/001-fase0-maestros/contracts/) |
+| Tasks | [`specs/001-fase0-maestros/tasks.md`](specs/001-fase0-maestros/tasks.md) |
+| Quickstart | [`specs/001-fase0-maestros/quickstart.md`](specs/001-fase0-maestros/quickstart.md) |
+| Constitución | [`.specify/memory/constitution.md`](.specify/memory/constitution.md) |

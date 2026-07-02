@@ -93,3 +93,63 @@ El componente `Table` de Ant Design se conecta a esta paginacion nativamente.
 **Rationale**: Con hasta 500 registros en esta fase, la paginacion es preventiva pero necesaria
 para no degradar performance. Ant Design Table soporta paginacion server-side sin componentes
 adicionales.
+
+---
+
+## Decision 7: Roles dinamicos y permisos granulares (FR-015, FR-015b)
+
+**Decision**: Tablas `roles` y `permissions` (modulo + accion) con tabla puente `role_permissions`
+many-to-many. `users.role_id` es FK a `roles.id` (no un enum fijo). Se siembran 4 roles iniciales
+(Admin, Coordinador, QM, Resolutor) via migracion, pero Admin puede crear roles adicionales desde
+`/api/roles` y ajustar permisos via `PUT /api/roles/{id}/permissions` (reemplazo total de la lista).
+El rol Admin no puede desactivarse (`RoleAdminService.validate_deactivation`); un permiso no puede
+eliminarse si esta asignado a algun rol (`validate_permission_delete`).
+
+**Rationale**: FR-015/FR-015b exigen roles dinamicos, no una lista fija de 4. Modelar `role_id`
+como FK desde el inicio evita una migracion de ruptura posterior cuando se agregue un quinto rol.
+El middleware RBAC sigue centralizado en la API (Decision 3), solo cambia la fuente del rol: antes
+un enum de 4 valores, ahora una fila de `roles` con su set de permisos.
+
+**Alternatives considered**:
+- Enum fijo de 4 roles con permisos hardcodeados en el decorador `@require_role`: rechazado porque
+  no cumple FR-015 (roles dinamicos) ni FR-015b (permisos editables desde UI).
+
+---
+
+## Decision 8: Login provisional usuario/contraseña (FR-022b)
+
+**Decision**: Endpoint `POST /api/auth/login` que acepta `username_or_email` + `password`,
+verifica el hash (`AuthService.verify_password`) contra `users.password_hash`, y emite el mismo
+JWT que `POST /api/auth/google`. Coexiste sin reemplazar el flujo OAuth2; un usuario puede no tener
+`password_hash` (solo login Google) o tenerlo (ambos metodos disponibles). La respuesta de ambos
+endpoints tiene la misma forma (`{ access_token, user }`) para que el frontend no distinga el origen
+del login tras la autenticacion.
+
+**Rationale**: Mismo contrato de respuesta para ambos metodos de login simplifica el frontend
+(un solo `authStore`, sin lógica condicional post-login). El hash de contraseña vive solo en
+`users.password_hash`, nunca en texto plano, cumpliendo FR-022b.
+
+**Alternatives considered**:
+- Tabla separada de credenciales provisionales: rechazado, agrega complejidad sin beneficio dado
+  que `password_hash` nullable en `users` ya modela "login provisional opcional" correctamente.
+
+---
+
+## Decision 9: Eliminacion del bypass de autenticacion y datos semilla (FR-022c, FR-022d)
+
+**Decision**: Se elimina el `DEV_SKIP_AUTH` que inyectaba un usuario Admin falso sin login real.
+La migracion `009_roles_permissions_login.py` siembra los 4 roles y, ademas, 4 usuarios de prueba
+(`admin@sywork.net`, `coordinador@sywork.net`, `qm@sywork.net`, `resolutor@sywork.net`) con una
+contraseña provisional **compartida**, generada aleatoriamente con `secrets.token_urlsafe` en el
+momento de correr la migracion e impresa una sola vez en el log — nunca persistida en el repo.
+
+**Rationale**: Con login provisional real disponible (Decision 8), mantener un bypass de
+desarrollo ya no tiene justificacion y viola FR-022c (ningun mecanismo debe omitir la
+autenticacion). Generar la contraseña en el momento de la migracion (en vez de hardcodearla)
+evita que una contraseña fija termine commiteada en el historial de git.
+
+**Alternatives considered**:
+- Contraseña fija documentada en un README de desarrollo: rechazado, es indistinguible de un
+  secreto hardcodeado en el repo si el README se commitea.
+- Una contraseña distinta por usuario semilla: mas seguro pero innecesario para datos de prueba
+  de Fase 0 con ~4 cuentas; se documenta como limitacion aceptada, no como pendiente.

@@ -1,30 +1,49 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Role } from '../types/api'
+import type { Permission, Role } from '../types/api'
+
+export interface AuthUser {
+  id: string
+  email: string
+  username: string
+  role: Role
+  permissions: Permission[]
+}
 
 interface AuthState {
   token: string | null
-  role: Role | null
+  userId: string | null
   email: string | null
-  setAuth: (token: string, role: Role, email: string) => void
+  username: string | null
+  role: Role | null
+  permissions: Permission[]
+  setAuth: (token: string, user: AuthUser) => void
   logout: () => void
   isAuthenticated: () => boolean
-  hasRole: (...roles: Role[]) => boolean
+  hasPermission: (module: string, action: string) => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       token: null,
-      role: null,
+      userId: null,
       email: null,
-      setAuth: (token, role, email) => set({ token, role, email }),
-      logout: () => set({ token: null, role: null, email: null }),
+      username: null,
+      role: null,
+      permissions: [],
+      setAuth: (token, user) =>
+        set({
+          token,
+          userId: user.id,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          permissions: user.permissions,
+        }),
+      logout: () => set({ token: null, userId: null, email: null, username: null, role: null, permissions: [] }),
       isAuthenticated: () => !!get().token,
-      hasRole: (...roles) => {
-        const role = get().role
-        return role !== null && roles.includes(role)
-      },
+      hasPermission: (module, action) => get().permissions.some(p => p.module === module && p.action === action),
     }),
     { name: 'sywork-auth' }
   )

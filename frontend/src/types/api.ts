@@ -10,6 +10,14 @@ export interface ApiError {
   message: string
 }
 
-export type Role = 'admin' | 'coordinator' | 'qm' | 'resolver'
+export interface Role {
+  id: string
+  name: string
+}
+
+export interface Permission {
+  module: string
+  action: string
+}
 
 export type ActiveStatus = 'active' | 'inactive'

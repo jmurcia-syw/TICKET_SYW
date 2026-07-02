@@ -19,7 +19,7 @@ export interface Resource {
 export interface ResourceFormData {
   full_name: string
   email: string
-  user_id?: string
+  user_id?: string | null
   skill_ids?: string[]
-  notes?: string
+  notes?: string | null
 }

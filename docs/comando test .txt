@@ -13,6 +13,9 @@ global
 npx skills add https://github.com/anthropics/skills --skill docx
 
 
+npx -y @lobehub/market-cli skills install focuz-ai-odoo-spec-kit-enrich-us --agent claude-code
+
+
 spec-kit init
 
 /enrich_us
@@ -26,3 +29,16 @@ spec-kit init
 
 
 /code-review + implement
+
+
+┌──────────────────────────────────────┬─────────────┬──────────────┐
+│            Usuario/email             │     Rol     │  Contraseña  │
+├──────────────────────────────────────┼─────────────┼──────────────┤
+│ admin / admin@sywork.net             │ Admin       │ vX8gVLcMTdDm │
+├──────────────────────────────────────┼─────────────┼──────────────┤
+│ coordinador / coordinador@sywork.net │ Coordinador │ vX8gVLcMTdDm │
+├──────────────────────────────────────┼─────────────┼──────────────┤
+│ qm / qm@sywork.net                   │ QM          │ vX8gVLcMTdDm │
+├──────────────────────────────────────┼─────────────┼──────────────┤
+│ resolutor / resolutor@sywork.net     │ Resolutor   │ vX8gVLcMTdDm │
+└──────────────────────────────────────┴─────────────┴──────────────┘

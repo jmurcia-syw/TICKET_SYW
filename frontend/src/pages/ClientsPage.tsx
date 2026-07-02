@@ -8,8 +8,13 @@ import ConfirmationModal from '../components/common/ConfirmationModal'
 import StatusTag from '../components/common/StatusTag'
 import PageToolbar from '../components/common/PageToolbar'
 import { palette } from '../theme'
+import { useAuthStore } from '../store/authStore'
 
 export default function ClientsPage() {
+  const { hasPermission, role } = useAuthStore()
+  const canManage = hasPermission('clients', 'create') || hasPermission('clients', 'edit') || hasPermission('clients', 'deactivate')
+  const canSeeSensitive = role?.name === 'Admin' || role?.name === 'Coordinador'
+
   const [clients, setClients] = useState<ClientListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -93,10 +98,10 @@ export default function ClientsPage() {
       render: (_: unknown, record: ClientListItem) => (
         <Space>
           <Tooltip title="Ver detalle"><Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(record.id)} /></Tooltip>
-          <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} /></Tooltip>
-          {record.active
+          {canManage && <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} /></Tooltip>}
+          {canManage && (record.active
             ? <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => handleDeactivate(record.id)} /></Tooltip>
-            : <Tooltip title="Activar"><Button size="small" icon={<PlayCircleOutlined style={{ color: palette.green600 }} />} onClick={() => handleActivate(record.id)} /></Tooltip>}
+            : <Tooltip title="Activar"><Button size="small" icon={<PlayCircleOutlined style={{ color: palette.green600 }} />} onClick={() => handleActivate(record.id)} /></Tooltip>)}
         </Space>
       ),
     },
@@ -106,7 +111,7 @@ export default function ClientsPage() {
     <div>
       <PageToolbar
         filters={<Input.Search placeholder="Buscar cliente..." onSearch={setSearch} allowClear style={{ width: 300 }} />}
-        action={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo cliente</Button>}
+        action={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo cliente</Button>}
       />
 
       <Table
@@ -137,15 +142,19 @@ export default function ClientsPage() {
             <div><strong>Nombre:</strong> {selectedDetail.name}</div>
             <div><strong>Contacto:</strong> {selectedDetail.contact_name}</div>
             <div><strong>Email:</strong> {selectedDetail.contact_email}</div>
-            <div>
-              <strong>IPs VPN:</strong>{' '}
-              {revealVpn ? selectedDetail.vpn_ips : '••••••••'}{' '}
-              <Button size="small" type="link" icon={revealVpn ? <EyeInvisibleOutlined /> : <EyeOutlined />} onClick={() => setRevealVpn(v => !v)} />
-            </div>
-            <div>
-              <strong>Credenciales VPN:</strong>{' '}
-              {revealVpn ? selectedDetail.vpn_credentials : '••••••••'}
-            </div>
+            {canSeeSensitive && (
+              <>
+                <div>
+                  <strong>IPs VPN:</strong>{' '}
+                  {revealVpn ? selectedDetail.vpn_ips : '••••••••'}{' '}
+                  <Button size="small" type="link" icon={revealVpn ? <EyeInvisibleOutlined /> : <EyeOutlined />} onClick={() => setRevealVpn(v => !v)} />
+                </div>
+                <div>
+                  <strong>Credenciales VPN:</strong>{' '}
+                  {revealVpn ? selectedDetail.vpn_credentials : '••••••••'}
+                </div>
+              </>
+            )}
             <div><strong>Notas:</strong> {selectedDetail.notes}</div>
           </Space>
         )}

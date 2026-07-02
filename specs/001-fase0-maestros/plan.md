@@ -11,7 +11,9 @@
 Implementar las cuatro pantallas de datos maestros prerequisito para Fase 1 (Tickets):
 Clientes (con cifrado de credenciales VPN/IPs), Proyectos, Recursos/Skills y Roles/Seguridad.
 Stack completo definido en la Constitucion v1.0.0: React 19 + Flask + PostgreSQL 16 con RLS,
-RBAC de 4 roles, y middleware de verificacion de estado activo en cada request JWT.
+RBAC con roles dinamicos y permisos granulares (modulo + accion) sembrados con 4 roles iniciales,
+login dual (Google OAuth2 + login provisional usuario/contraseña), y middleware de verificacion
+de estado activo en cada request JWT.
 
 ---
 
@@ -98,35 +100,43 @@ backend/
 │   ├── entities/
 │   │   ├── client.py           entidad Client + reglas de negocio
 │   │   ├── project.py          entidad Project
-│   │   ├── resource.py         entidad Resource + Skills
-│   │   └── user.py             entidad User + Role enum
+│   │   ├── resource.py         entidad Resource + Skill (sin campo rol)
+│   │   ├── user.py             entidad User (role_id FK dinamica)
+│   │   └── role.py             entidades Role y Permission
 │   └── services/
 │       ├── client_service.py   unicidad nombre, cascade desactivacion
 │       ├── project_service.py  validacion cliente activo, unicidad por cliente
-│       ├── resource_service.py skill en uso, unicidad email
-│       └── role_service.py     regla ultimo Admin, cambio de rol
+│       ├── skill_service.py    skill en uso, bloqueo de eliminacion
+│       ├── resource_service.py unicidad email, advertencia sin skills
+│       ├── role_service.py     regla ultimo Admin, cambio de rol
+│       ├── role_admin_service.py  gestion de roles/permisos (crear, desactivar, permisos en uso)
+│       └── auth_service.py     verificacion de password_hash (login provisional)
 ├── infra/
 │   ├── models/
 │   │   ├── client_model.py     SQLAlchemy + pgcrypto columnas sensibles
 │   │   ├── project_model.py
-│   │   ├── resource_model.py
-│   │   ├── skill_model.py
-│   │   └── user_model.py
+│   │   ├── resource_model.py   incluye SkillModel + resource_skills
+│   │   ├── user_model.py
+│   │   └── role_model.py       RoleModel + PermissionModel + role_permissions
 │   ├── repositories/
 │   │   ├── client_repo.py
 │   │   ├── project_repo.py
 │   │   ├── resource_repo.py
-│   │   └── user_repo.py
+│   │   ├── user_repo.py
+│   │   └── role_repo.py        RoleRepository + PermissionRepository
 │   └── migrations/             Alembic versions/
 ├── api/
 │   ├── middleware/
 │   │   ├── auth.py             JWT decode + verificacion estado activo usuario
 │   │   └── rbac.py             decorador @require_role(...)
 │   └── routes/
-│       ├── clients.py          /api/clients
-│       ├── projects.py         /api/projects
+│       ├── auth.py             /api/auth/login (provisional), /google, /me
+│       ├── clients.py          /api/clients (incluye /activate, /deactivate)
+│       ├── projects.py         /api/projects (incluye /activate, /deactivate)
 │       ├── resources.py        /api/resources y /api/skills
-│       └── users.py            /api/users (roles y estado)
+│       ├── users.py            /api/users (cambio de rol, activate/deactivate)
+│       ├── roles.py            /api/roles (CRUD + /permissions + activate/deactivate)
+│       └── permissions.py      /api/permissions (catalogo modulo+accion)
 └── tests/
     ├── domain/
     ├── infra/
@@ -145,29 +155,42 @@ frontend/src/
 │   │   ├── ResourceList.tsx
 │   │   ├── ResourceForm.tsx
 │   │   └── SkillSelector.tsx
-│   └── users/
-│       ├── UserList.tsx
-│       └── RoleAssignment.tsx
+│   ├── users/
+│   │   ├── UserList.tsx
+│   │   └── RoleAssignment.tsx
+│   ├── roles/
+│   │   ├── RoleList.tsx
+│   │   └── PermissionMatrix.tsx    matriz modulo x accion, checkboxes por rol
+│   └── auth/
+│       └── LoginForm.tsx           login dual: Google OAuth2 + usuario/contraseña
 ├── services/
 │   ├── clientService.ts
 │   ├── projectService.ts
 │   ├── resourceService.ts
-│   └── userService.ts
+│   ├── userService.ts
+│   ├── roleService.ts
+│   ├── permissionService.ts
+│   └── authService.ts
 ├── store/
 │   ├── clientStore.ts
 │   ├── projectStore.ts
 │   ├── resourceStore.ts
-│   └── userStore.ts
+│   ├── userStore.ts
+│   ├── roleStore.ts
+│   └── authStore.ts
 ├── types/
 │   ├── client.ts
 │   ├── project.ts
 │   ├── resource.ts
-│   └── user.ts
+│   ├── user.ts
+│   └── role.ts
 └── pages/
+    ├── LoginPage.tsx
     ├── ClientsPage.tsx
     ├── ProjectsPage.tsx
     ├── ResourcesPage.tsx
-    └── UsersPage.tsx
+    ├── UsersPage.tsx
+    └── RolesPage.tsx           pantalla Roles y Permisos (solo Admin)
 ```
 
 **Structure Decision**: Web application. Frontend SPA en `frontend/src/`, backend Flask en

@@ -10,8 +10,12 @@ import ConfirmationModal from '../components/common/ConfirmationModal'
 import StatusTag from '../components/common/StatusTag'
 import PageToolbar from '../components/common/PageToolbar'
 import { palette } from '../theme'
+import { useAuthStore } from '../store/authStore'
 
 export default function ProjectsPage() {
+  const { hasPermission } = useAuthStore()
+  const canManage = hasPermission('projects', 'create') || hasPermission('projects', 'edit') || hasPermission('projects', 'deactivate')
+
   const [projects, setProjects] = useState<ProjectListItem[]>([])
   const [clients, setClients] = useState<ClientListItem[]>([])
   const [total, setTotal] = useState(0)
@@ -88,10 +92,10 @@ export default function ProjectsPage() {
       title: 'Acciones', key: 'actions',
       render: (_: unknown, r: ProjectListItem) => (
         <Space>
-          <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} /></Tooltip>
-          {r.active
+          {canManage && <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} /></Tooltip>}
+          {canManage && (r.active
             ? <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => setConfirmDeactivate(r.id)} /></Tooltip>
-            : <Tooltip title="Activar"><Button size="small" icon={<PlayCircleOutlined style={{ color: palette.green600 }} />} onClick={() => handleActivate(r.id)} /></Tooltip>}
+            : <Tooltip title="Activar"><Button size="small" icon={<PlayCircleOutlined style={{ color: palette.green600 }} />} onClick={() => handleActivate(r.id)} /></Tooltip>)}
         </Space>
       ),
     },
@@ -105,7 +109,7 @@ export default function ProjectsPage() {
           <Select placeholder="Filtrar por cliente" allowClear style={{ width: 200 }} onChange={setClientFilter}
             options={clients.map(c => ({ value: c.id, label: c.name }))} />
         </>}
-        action={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo proyecto</Button>}
+        action={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo proyecto</Button>}
       />
 
       <Table rowKey="id" columns={columns} dataSource={projects} loading={loading}

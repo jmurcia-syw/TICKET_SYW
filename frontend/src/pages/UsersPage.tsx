@@ -1,26 +1,38 @@
 import { useEffect, useState } from 'react'
-import { Button, Form, Modal, Select, Space, Table, Tag, Tooltip, message } from 'antd'
-import { EditOutlined, StopOutlined, PlayCircleOutlined } from '@ant-design/icons'
+import { Alert, Button, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd'
+import { CopyOutlined, EditOutlined, PlusOutlined, PlayCircleOutlined, StopOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { userService } from '../services/userService'
-import type { UserAdmin } from '../types/user'
-import type { Role } from '../types/api'
+import { roleService } from '../services/roleService'
+import type { UserAdmin, UserCreateRequest } from '../types/user'
+import type { RoleDetail } from '../types/role'
 import ConfirmationModal from '../components/common/ConfirmationModal'
 import StatusTag from '../components/common/StatusTag'
-import { ROLE_COLORS, palette } from '../theme'
-
-const ROLES: Role[] = ['admin', 'coordinator', 'qm', 'resolver']
-const ROLE_LABELS: Record<Role, string> = { admin: 'Admin', coordinator: 'Coordinador', qm: 'QM', resolver: 'Resolutor' }
+import PageToolbar from '../components/common/PageToolbar'
+import { useAuthStore } from '../store/authStore'
+import { roleColor, palette } from '../theme'
 
 export default function UsersPage() {
+  const { hasPermission } = useAuthStore()
+  const canCreate = hasPermission('users', 'create')
+  const canChangeRole = hasPermission('users', 'edit')
+  const canDeactivate = hasPermission('users', 'deactivate')
+
   const [users, setUsers] = useState<UserAdmin[]>([])
+  const [roles, setRoles] = useState<RoleDetail[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
+
   const [roleFormOpen, setRoleFormOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserAdmin | null>(null)
+  const [roleForm] = Form.useForm<{ role_id: string }>()
+
+  const [createFormOpen, setCreateFormOpen] = useState(false)
+  const [createForm] = Form.useForm<UserCreateRequest>()
+  const [provisionalPassword, setProvisionalPassword] = useState<string | null>(null)
+
   const [confirmDeactivate, setConfirmDeactivate] = useState<string | null>(null)
-  const [form] = Form.useForm<{ role: Role }>()
 
   const load = async () => {
     setLoading(true)
@@ -34,17 +46,18 @@ export default function UsersPage() {
   }
 
   useEffect(() => { load() }, [page])
+  useEffect(() => { roleService.list({ page_size: 100, active: true }).then(r => setRoles(r.items)) }, [])
 
   const openRoleChange = (u: UserAdmin) => {
-    form.setFieldsValue({ role: u.role })
+    roleForm.setFieldsValue({ role_id: u.role.id })
     setEditingUser(u)
     setRoleFormOpen(true)
   }
 
-  const handleRoleSubmit = async ({ role }: { role: Role }) => {
+  const handleRoleSubmit = async ({ role_id }: { role_id: string }) => {
     if (!editingUser) return
     try {
-      await userService.changeRole(editingUser.id, role)
+      await userService.changeRole(editingUser.id, role_id)
       message.success('Rol actualizado')
       setRoleFormOpen(false)
       load()
@@ -52,6 +65,25 @@ export default function UsersPage() {
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al cambiar el rol'
       message.error(msg)
     }
+  }
+
+  const openCreate = () => { createForm.resetFields(); setCreateFormOpen(true) }
+
+  const handleCreateSubmit = async (values: UserCreateRequest) => {
+    try {
+      const { provisional_password } = await userService.create(values)
+      setCreateFormOpen(false)
+      setProvisionalPassword(provisional_password)
+      load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al crear el usuario'
+      message.error(msg)
+    }
+  }
+
+  const handleCopyPassword = () => {
+    if (provisionalPassword) navigator.clipboard.writeText(provisionalPassword)
+    message.success('Contraseña copiada')
   }
 
   const handleDeactivate = async (id: string) => {
@@ -78,10 +110,11 @@ export default function UsersPage() {
   }
 
   const columns: ColumnsType<UserAdmin> = [
+    { title: 'Usuario', dataIndex: 'username' },
     { title: 'Email', dataIndex: 'email' },
     {
       title: 'Rol', dataIndex: 'role',
-      render: (r: Role) => <Tag color={ROLE_COLORS[r]}>{ROLE_LABELS[r]}</Tag>,
+      render: (r: UserAdmin['role']) => <Tag color={roleColor(r.name)}>{r.name}</Tag>,
     },
     { title: 'Estado', dataIndex: 'active', render: (v: boolean) => <StatusTag active={v} /> },
     { title: 'Último acceso', dataIndex: 'last_login_at', render: (v: string | null) => <span className="tabular-nums">{v ? new Date(v).toLocaleDateString('es-CO') : '—'}</span> },
@@ -89,10 +122,10 @@ export default function UsersPage() {
       title: 'Acciones', key: 'actions',
       render: (_: unknown, u: UserAdmin) => (
         <Space>
-          <Tooltip title="Cambiar rol"><Button size="small" icon={<EditOutlined />} onClick={() => openRoleChange(u)} /></Tooltip>
-          {u.active
+          {canChangeRole && <Tooltip title="Cambiar rol"><Button size="small" icon={<EditOutlined />} onClick={() => openRoleChange(u)} /></Tooltip>}
+          {canDeactivate && (u.active
             ? <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => setConfirmDeactivate(u.id)} /></Tooltip>
-            : <Tooltip title="Activar"><Button size="small" icon={<PlayCircleOutlined style={{ color: palette.green600 }} />} onClick={() => handleActivate(u.id)} /></Tooltip>}
+            : <Tooltip title="Activar"><Button size="small" icon={<PlayCircleOutlined style={{ color: palette.green600 }} />} onClick={() => handleActivate(u.id)} /></Tooltip>)}
         </Space>
       ),
     },
@@ -100,15 +133,56 @@ export default function UsersPage() {
 
   return (
     <div>
+      <PageToolbar
+        filters={null}
+        action={canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo usuario</Button>}
+      />
+
       <Table rowKey="id" columns={columns} dataSource={users} loading={loading}
         pagination={{ current: page, total, pageSize: 20, onChange: setPage }} />
 
-      <Modal title="Cambiar rol" open={roleFormOpen} onCancel={() => setRoleFormOpen(false)} onOk={() => form.submit()} okText="Guardar">
-        <Form form={form} layout="vertical" onFinish={handleRoleSubmit}>
-          <Form.Item name="role" label="Nuevo rol" rules={[{ required: true, message: 'Selecciona un rol' }]}>
-            <Select options={ROLES.map(r => ({ value: r, label: ROLE_LABELS[r] }))} />
+      <Modal title="Cambiar rol" open={roleFormOpen} onCancel={() => setRoleFormOpen(false)} onOk={() => roleForm.submit()} okText="Guardar">
+        <Form form={roleForm} layout="vertical" onFinish={handleRoleSubmit}>
+          <Form.Item name="role_id" label="Nuevo rol" rules={[{ required: true, message: 'Selecciona un rol' }]}>
+            <Select options={roles.map(r => ({ value: r.id, label: r.name }))} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal title="Nuevo usuario" open={createFormOpen} onCancel={() => setCreateFormOpen(false)} onOk={() => createForm.submit()} okText="Crear">
+        <Form form={createForm} layout="vertical" onFinish={handleCreateSubmit}>
+          <Form.Item name="email" label="Email (@sywork.net)" rules={[
+            { required: true, message: 'El email es requerido' },
+            { pattern: /^[^@]+@sywork\.net$/, message: 'Debe ser @sywork.net' },
+          ]}>
+            <Input placeholder="nombre.apellido@sywork.net" />
+          </Form.Item>
+          <Form.Item name="username" label="Nombre de usuario" rules={[{ required: true, message: 'El username es requerido' }]}>
+            <Input placeholder="nombre.apellido" />
+          </Form.Item>
+          <Form.Item name="role_id" label="Rol" rules={[{ required: true, message: 'Selecciona un rol' }]}>
+            <Select options={roles.map(r => ({ value: r.id, label: r.name }))} placeholder="Seleccionar rol" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Contraseña provisional generada"
+        open={!!provisionalPassword}
+        closable={false}
+        maskClosable={false}
+        footer={<Button type="primary" onClick={() => setProvisionalPassword(null)}>Ya la copié, cerrar</Button>}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          message="Esta contraseña no se volverá a mostrar. Compártela ahora con el usuario por un canal seguro."
+          style={{ marginBottom: 16 }}
+        />
+        <Space>
+          <Typography.Text code style={{ fontSize: 16 }}>{provisionalPassword}</Typography.Text>
+          <Button size="small" icon={<CopyOutlined />} onClick={handleCopyPassword}>Copiar</Button>
+        </Space>
       </Modal>
 
       {confirmDeactivate && (
