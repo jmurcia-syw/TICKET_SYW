@@ -2,7 +2,10 @@
 
 **Base path**: `/api/projects`
 **Auth**: JWT Bearer requerido
-**Roles**: Admin y Coordinator (CRUD) — QM y Resolver: 403
+**Roles con acceso (permisos sembrados)**: Admin y Coordinador — CRUD completo.
+QM — solo lectura (`projects: view`). Resolutor — solo lectura (`projects: view`).
+Enforcement de backend diferido (FR-017); esta tabla describe el permiso de módulo previsto
+para el menú del frontend, no un 403 real de la API hoy.
 
 ---
 
@@ -76,3 +79,12 @@ Actualizar proyecto parcialmente.
 
 **Response 200**: `{ "id": "uuid", "active": false }`
 **Errors**: 401, 403, 404
+
+---
+
+## PATCH /api/projects/{id}/activate
+
+Reactivar un proyecto previamente desactivado.
+
+**Response 200**: `{ "id": "uuid", "active": true }`
+**Errors**: 409 `{ "error": "already_active" }`, 401, 403, 404

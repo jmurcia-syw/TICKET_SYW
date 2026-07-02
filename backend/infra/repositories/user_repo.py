@@ -1,7 +1,8 @@
 from typing import Optional
 from sqlalchemy.orm import Session
 from backend.infra.models.user_model import UserModel
-from backend.domain.entities.user import User, Role
+from backend.infra.models.role_model import RoleModel
+from backend.domain.entities.user import User
 import uuid
 
 
@@ -17,6 +18,12 @@ class UserRepository:
         model = self._db.query(UserModel).filter(UserModel.email == email).first()
         return model.to_entity() if model else None
 
+    def get_by_username_or_email(self, identifier: str) -> Optional[User]:
+        model = self._db.query(UserModel).filter(
+            (UserModel.username == identifier) | (UserModel.email == identifier)
+        ).first()
+        return model.to_entity() if model else None
+
     def get_by_google_sub(self, google_sub: str) -> Optional[User]:
         model = self._db.query(UserModel).filter(UserModel.google_sub == google_sub).first()
         return model.to_entity() if model else None
@@ -24,7 +31,7 @@ class UserRepository:
     def list_paginated(self, page: int = 1, page_size: int = 20, role: Optional[str] = None, active: Optional[bool] = None) -> tuple[list[User], int]:
         q = self._db.query(UserModel)
         if role:
-            q = q.filter(UserModel.role == role)
+            q = q.join(RoleModel, UserModel.role_id == RoleModel.id).filter(RoleModel.name == role)
         if active is not None:
             q = q.filter(UserModel.active == active)
         total = q.count()
@@ -38,11 +45,11 @@ class UserRepository:
         self._db.refresh(model)
         return model.to_entity()
 
-    def update_role(self, user_id: uuid.UUID, role: Role) -> Optional[User]:
+    def update_role(self, user_id: uuid.UUID, role_id: uuid.UUID) -> Optional[User]:
         model = self._db.get(UserModel, user_id)
         if not model:
             return None
-        model.role = role.value
+        model.role_id = role_id
         self._db.commit()
         self._db.refresh(model)
         return model.to_entity()
@@ -62,4 +69,9 @@ class UserRepository:
         self._db.commit()
 
     def count_active_admins(self) -> int:
-        return self._db.query(UserModel).filter(UserModel.role == "admin", UserModel.active == True).count()
+        return (
+            self._db.query(UserModel)
+            .join(RoleModel, UserModel.role_id == RoleModel.id)
+            .filter(RoleModel.name == "Admin", UserModel.active == True)
+            .count()
+        )

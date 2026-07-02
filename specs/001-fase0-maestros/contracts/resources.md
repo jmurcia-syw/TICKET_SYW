@@ -1,15 +1,17 @@
 # API Contract: Resources & Skills
 
+Nota: `Resource` no tiene campo `role` propio. El rol de acceso (permisos) vive unicamente en el
+`User` vinculado via `user_id` (relacion opcional 0..1) — ver Clarifications en spec.md.
+
 ---
 
 ## Resources — Base path: `/api/resources`
 
 **Auth**: JWT Bearer requerido
-**Roles**:
-- Admin: CRUD completo
-- Coordinator: GET lista y detalle
-- QM: GET lista y detalle (solo lectura)
-- Resolver: GET y PATCH solo de su propio recurso (verificado por user_id en JWT)
+**Roles (FR-009, FR-013, permisos sembrados en `009_roles_permissions_login.py`)**:
+- Admin, Coordinador, QM: `resources` view/create/edit/deactivate — CRUD completo
+- Resolutor: `resources: view` únicamente, y ademas restringido a su propio recurso
+  (verificado por `user_id` en JWT, independiente del catalogo de permisos)
 
 ---
 
@@ -31,7 +33,6 @@
         { "id": "uuid", "code": "JDE_GL", "label": "JDE General Ledger" },
         { "id": "uuid", "code": "API_REST", "label": "API REST Integration" }
       ],
-      "role": "resolver",
       "created_at": "2026-06-29T00:00:00Z"
     }
   ],
@@ -46,7 +47,7 @@
 ### GET /api/resources/{id}
 
 **Response 200**: objeto recurso completo con skills.
-**Errors**: 401, 403 (Resolver intentando ver otro recurso), 404
+**Errors**: 401, 403 (Resolutor intentando ver otro recurso), 404
 
 ---
 
@@ -76,7 +77,7 @@ Solo Admin.
 
 ### PATCH /api/resources/{id}
 
-Admin: cualquier campo. Resolver: solo `notes` de su propio recurso.
+Admin: cualquier campo. Resolutor: solo `notes` de su propio recurso.
 
 **Response 200**: objeto recurso actualizado.
 **Errors**: 400, 401, 403, 404
@@ -99,6 +100,14 @@ Reemplaza lista completa de skills del recurso. Solo Admin.
 Solo Admin.
 **Response 200**: `{ "id": "uuid", "active": false }`
 **Errors**: 401, 403, 404
+
+---
+
+### PATCH /api/resources/{id}/activate
+
+Reactivar un recurso previamente desactivado. Solo Admin.
+**Response 200**: `{ "id": "uuid", "active": true }`
+**Errors**: 409 `{ "error": "already_active" }`, 401, 403, 404
 
 ---
 

@@ -3,6 +3,7 @@ import type { Role } from './api'
 export interface UserAdmin {
   id: string
   email: string
+  username: string
   role: Role
   active: boolean
   last_login_at: string | null
@@ -10,5 +11,16 @@ export interface UserAdmin {
 }
 
 export interface RoleChangeRequest {
-  role: Role
+  role_id: string
+}
+
+export interface UserCreateRequest {
+  email: string
+  username: string
+  role_id: string
+}
+
+export interface UserCreateResponse {
+  user: UserAdmin
+  provisional_password: string
 }

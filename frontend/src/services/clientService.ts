@@ -17,4 +17,7 @@ export const clientService = {
 
   deactivate: (id: string) =>
     apiClient.patch<{ id: string; active: boolean; active_projects_count?: number; warning?: string }>(`/api/clients/${id}/deactivate`).then(r => r.data),
+
+  activate: (id: string) =>
+    apiClient.patch<{ id: string; active: boolean }>(`/api/clients/${id}/activate`).then(r => r.data),
 }

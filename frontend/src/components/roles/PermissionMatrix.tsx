@@ -1,0 +1,62 @@
+import { useEffect, useState } from 'react'
+import { Checkbox, Table } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import type { PermissionCatalogItem, RoleDetail } from '../../types/role'
+
+const ACTIONS = ['view', 'create', 'edit', 'deactivate'] as const
+const ACTION_LABELS: Record<string, string> = { view: 'Ver', create: 'Crear', edit: 'Editar', deactivate: 'Desactivar' }
+
+interface ModuleRow {
+  module: string
+  byAction: Record<string, PermissionCatalogItem | undefined>
+}
+
+interface Props {
+  role: RoleDetail
+  allPermissions: PermissionCatalogItem[]
+  onChange: (permissionIds: string[]) => void
+}
+
+export default function PermissionMatrix({ role, allPermissions, onChange }: Props) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(role.permissions.map(p => p.id)))
+
+  useEffect(() => {
+    setSelected(new Set(role.permissions.map(p => p.id)))
+  }, [role.id])
+
+  useEffect(() => {
+    onChange(Array.from(selected))
+  }, [selected])
+
+  const modules = Array.from(new Set(allPermissions.map(p => p.module))).sort()
+  const rows: ModuleRow[] = modules.map(module => ({
+    module,
+    byAction: Object.fromEntries(ACTIONS.map(action => [action, allPermissions.find(p => p.module === module && p.action === action)])),
+  }))
+
+  const toggle = (permissionId: string | undefined) => {
+    if (!permissionId) return
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(permissionId)) next.delete(permissionId)
+      else next.add(permissionId)
+      return next
+    })
+  }
+
+  const columns: ColumnsType<ModuleRow> = [
+    { title: 'Módulo', dataIndex: 'module', render: (m: string) => <strong>{m}</strong> },
+    ...ACTIONS.map(action => ({
+      title: ACTION_LABELS[action],
+      key: action,
+      align: 'center' as const,
+      render: (_: unknown, row: ModuleRow) => {
+        const perm = row.byAction[action]
+        if (!perm) return null
+        return <Checkbox checked={selected.has(perm.id)} onChange={() => toggle(perm.id)} />
+      },
+    })),
+  ]
+
+  return <Table rowKey="module" columns={columns} dataSource={rows} pagination={false} size="small" />
+}

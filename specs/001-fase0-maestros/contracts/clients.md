@@ -1,8 +1,11 @@
 # API Contract: Clients
 
 **Base path**: `/api/clients`
-**Auth**: JWT Bearer requerido en todos los endpoints
-**Roles con acceso**: Admin, Coordinator (lectura y escritura) — QM y Resolver: acceso denegado (403)
+**Auth**: JWT Bearer requerido en todos los endpoints (enforcement de backend diferido, ver FR-017)
+**Roles con acceso (FR-001, permisos sembrados en `009_roles_permissions_login.py`)**: Admin,
+Coordinador y QM — lectura y escritura completa (`clients`: view/create/edit/deactivate).
+Resolutor — solo lectura (`clients: view`). Datos sensibles (`vpn_ips`, `vpn_credentials`)
+visibles únicamente para Admin/Coordinador (FR-003), independientemente del permiso de módulo.
 
 ---
 
@@ -46,7 +49,7 @@ Nota: `vpn_ips` y `vpn_credentials` NO se incluyen en el listado. Solo en GET /a
 
 ## GET /api/clients/{id}
 
-Detalle de un cliente. Incluye datos sensibles para Admin/Coordinator.
+Detalle de un cliente. Incluye datos sensibles para Admin/Coordinador.
 
 **Response 200**:
 ```json
@@ -72,7 +75,7 @@ Detalle de un cliente. Incluye datos sensibles para Admin/Coordinator.
 
 ## POST /api/clients
 
-Crear cliente. Solo Admin y Coordinator.
+Crear cliente. Solo Admin y Coordinador.
 
 **Body**:
 ```json
@@ -97,7 +100,7 @@ Crear cliente. Solo Admin y Coordinator.
 
 ## PATCH /api/clients/{id}
 
-Actualizar cliente parcialmente. Solo Admin y Coordinator.
+Actualizar cliente parcialmente. Solo Admin y Coordinador.
 
 **Body**: cualquier subconjunto de campos del POST.
 
@@ -129,3 +132,15 @@ La advertencia es informativa — la accion ya se ejecuto. El frontend DEBE most
 confirmacion antes de llamar a este endpoint.
 
 **Errors**: 401, 403, 404
+
+---
+
+## PATCH /api/clients/{id}/activate
+
+Reactivar un cliente previamente desactivado. Solo Admin/Coordinador.
+
+**Body**: ninguno.
+
+**Response 200**: `{ "id": "uuid", "active": true }`
+
+**Errors**: 409 `{ "error": "already_active" }`, 401, 403, 404

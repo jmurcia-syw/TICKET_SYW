@@ -13,7 +13,7 @@ export interface ProjectListItem {
 export interface ProjectFormData {
   client_id: string
   name: string
-  description?: string
+  description?: string | null
   start_date: string
-  end_date_estimated?: string
+  end_date_estimated?: string | null
 }

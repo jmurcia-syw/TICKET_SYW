@@ -3,17 +3,14 @@ from backend.infra.repositories.resource_repo import ResourceRepository, SkillRe
 from backend.infra.database import get_db
 from backend.domain.entities.resource import Resource as ResourceEntity, Skill
 from backend.domain.services.skill_service import SkillService, SkillBusinessError
-import uuid
+from backend.api.routes._shared import parse_uuid, error_model, server_error
 
 ns = Namespace("resources", description="Gestión de recursos y skills", path="/api")
 _skill_svc = SkillService()
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
-_error = ns.model("ResourceError", {
-    "error": fields.String(description="Código de error", example="not_found"),
-    "message": fields.String(description="Descripción del error"),
-})
+_error = error_model(ns, "ResourceError")
 
 _skill_out = ns.model("Skill", {
     "id": fields.String(description="UUID del skill"),
@@ -67,7 +64,6 @@ _resource_input = ns.model("ResourceInput", {
 _resource_update = ns.model("ResourceUpdate", {
     "full_name": fields.String(description="Nuevo nombre completo"),
     "notes": fields.String(description="Notas internas"),
-    "active": fields.Boolean(description="Estado activo"),
 })
 
 _skills_update = ns.model("ResourceSkillsUpdate", {
@@ -82,13 +78,6 @@ _status_result = ns.model("ResourceStatusResult", {
     "id": fields.String(description="UUID del recurso"),
     "active": fields.Boolean(description="Nuevo estado activo"),
 })
-
-
-def _parse_uuid(value: str):
-    try:
-        return uuid.UUID(value)
-    except (ValueError, AttributeError):
-        return None
 
 
 def _resource_to_dict(resource) -> dict:
@@ -132,8 +121,8 @@ class SkillList(Resource):
                 "items": [{"id": str(s.id), "code": s.code, "label": s.label, "active": s.active} for s in skills],
                 "total": len(skills),
             }, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
     @ns.doc("create_skill")
     @ns.expect(_skill_input, validate=False)
@@ -160,9 +149,13 @@ class SkillList(Resource):
                 return {"error": "code_duplicate", "message": f"Ya existe un skill con codigo {code}"}, 409
             skill = Skill.create(code=code, label=label)
             created = repo.create(skill)
-            return {"id": str(created.id), "code": created.code, "label": created.label, "active": created.active}, 201
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+            return (
+                {"id": str(created.id), "code": created.code, "label": created.label, "active": created.active},
+                201,
+                {"Location": f"/api/skills/{created.id}"},
+            )
+        except Exception:
+            return server_error()
 
 
 @ns.route("/skills/<string:skill_id>")
@@ -175,7 +168,7 @@ class SkillDetail(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def delete(self, skill_id: str):
         """Eliminar un skill. Retorna 409 si está asignado a algún recurso."""
-        uid = _parse_uuid(skill_id)
+        uid = parse_uuid(skill_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de skill invalido"}, 400
         try:
@@ -185,10 +178,9 @@ class SkillDetail(Resource):
             skill_repo.delete(uid)
             return "", 204
         except SkillBusinessError as e:
-            extra = getattr(e, "extra", {})
-            return {"error": e.code, "message": e.message, **extra}, 409
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
 
 
 # ── Resources endpoints ───────────────────────────────────────────────────────
@@ -226,8 +218,8 @@ class ResourceList(Resource):
                 page=page, page_size=page_size, search=search, skill_code=skill_code, active=active,
             )
             return {"items": [_resource_to_dict(r) for r in items], "total": total, "page": page, "page_size": page_size}, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
     @ns.doc("create_resource")
     @ns.expect(_resource_input, validate=False)
@@ -254,21 +246,21 @@ class ResourceList(Resource):
             repo = ResourceRepository(db)
             if repo.get_by_email(email):
                 return {"error": "email_duplicate", "message": f"Ya existe un recurso con el email {email}"}, 409
-            skill_ids = [_parse_uuid(sid) for sid in data.get("skill_ids", [])]
+            skill_ids = [parse_uuid(sid) for sid in data.get("skill_ids", [])]
             skill_ids = [s for s in skill_ids if s]
             skill_repo = SkillRepository(db)
             skill_entities = [s for s in [skill_repo.get_by_id(sid) for sid in skill_ids] if s]
             resource = ResourceEntity.create(
                 full_name=full_name,
                 email=email,
-                user_id=_parse_uuid(data["user_id"]) if data.get("user_id") else None,
+                user_id=parse_uuid(data["user_id"]) if data.get("user_id") else None,
                 notes=data.get("notes"),
                 skills=skill_entities,
             )
             created = repo.create(resource)
-            return _resource_to_dict(created), 201
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+            return _resource_to_dict(created), 201, {"Location": f"/api/resources/{created.id}"}
+        except Exception:
+            return server_error()
 
 
 @ns.route("/resources/<string:resource_id>")
@@ -281,7 +273,7 @@ class ResourceDetail(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def get(self, resource_id: str):
         """Obtener detalle de un recurso incluyendo sus skills"""
-        uid = _parse_uuid(resource_id)
+        uid = parse_uuid(resource_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
         try:
@@ -290,8 +282,8 @@ class ResourceDetail(Resource):
             if not resource:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
             return _resource_to_dict(resource), 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
     @ns.doc("update_resource")
     @ns.expect(_resource_update, validate=False)
@@ -300,9 +292,9 @@ class ResourceDetail(Resource):
     @ns.response(404, "Recurso no encontrado", _error)
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, resource_id: str):
-        """Actualizar campos de un recurso (PATCH parcial). Para skills usar el endpoint /skills."""
+        """Actualizar campos de un recurso (PATCH parcial). Para skills usar /skills, para estado usar /activate o /deactivate."""
         from flask import request
-        uid = _parse_uuid(resource_id)
+        uid = parse_uuid(resource_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
         data = request.get_json(silent=True)
@@ -314,11 +306,11 @@ class ResourceDetail(Resource):
             resource = repo.get_by_id(uid)
             if not resource:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
-            allowed = {k: v for k, v in data.items() if k in ("full_name", "notes", "active")}
+            allowed = {k: v for k, v in data.items() if k in ("full_name", "notes")}
             updated = repo.update(uid, **allowed)
             return _resource_to_dict(updated), 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
 
 @ns.route("/resources/<string:resource_id>/skills")
@@ -333,11 +325,11 @@ class ResourceSkills(Resource):
     def patch(self, resource_id: str):
         """Reemplazar todos los skills de un recurso (operación de reemplazo total, no incremental)"""
         from flask import request
-        uid = _parse_uuid(resource_id)
+        uid = parse_uuid(resource_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
         data = request.get_json(silent=True) or {}
-        skill_ids = [_parse_uuid(sid) for sid in data.get("skill_ids", [])]
+        skill_ids = [parse_uuid(sid) for sid in data.get("skill_ids", [])]
         skill_ids = [s for s in skill_ids if s]
         try:
             db = next(get_db())
@@ -345,8 +337,8 @@ class ResourceSkills(Resource):
             if not resource:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
             return _resource_to_dict(resource), 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
 
 @ns.route("/resources/<string:resource_id>/deactivate")
@@ -359,7 +351,7 @@ class ResourceDeactivate(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, resource_id: str):
         """Desactivar un recurso/colaborador"""
-        uid = _parse_uuid(resource_id)
+        uid = parse_uuid(resource_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
         try:
@@ -368,8 +360,8 @@ class ResourceDeactivate(Resource):
             if not resource:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
             return {"id": resource_id, "active": False}, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()
 
 
 @ns.route("/resources/<string:resource_id>/activate")
@@ -383,7 +375,7 @@ class ResourceActivate(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, resource_id: str):
         """Activar un recurso previamente desactivado"""
-        uid = _parse_uuid(resource_id)
+        uid = parse_uuid(resource_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
         try:
@@ -396,5 +388,5 @@ class ResourceActivate(Resource):
                 return {"error": "already_active", "message": "El recurso ya esta activo"}, 409
             repo.set_active(uid, True)
             return {"id": resource_id, "active": True}, 200
-        except Exception as exc:
-            return {"error": "server_error", "message": str(exc)}, 500
+        except Exception:
+            return server_error()

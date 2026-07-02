@@ -13,6 +13,7 @@ __pycache__/
 node_modules/
 dist/
 .pnpm-store/
+*.tsbuildinfo
 
 # Docker
 postgres_data/
@@ -20,3 +21,4 @@ postgres_data/
 # OS
 .DS_Store
 Thumbs.db
+.worktrees/

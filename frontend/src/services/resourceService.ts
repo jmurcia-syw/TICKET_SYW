@@ -20,6 +20,9 @@ export const resourceService = {
 
   deactivate: (id: string) =>
     apiClient.patch<{ id: string; active: boolean }>(`/api/resources/${id}/deactivate`).then(r => r.data),
+
+  activate: (id: string) =>
+    apiClient.patch<{ id: string; active: boolean }>(`/api/resources/${id}/activate`).then(r => r.data),
 }
 
 export const skillService = {

@@ -1,29 +1,25 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import Optional
 import uuid
 
-
-class Role(str, Enum):
-    ADMIN = "admin"
-    COORDINATOR = "coordinator"
-    QM = "qm"
-    RESOLVER = "resolver"
+from backend.domain.entities.role import Role
 
 
 @dataclass
 class User:
     id: uuid.UUID
     email: str
+    username: str
     role: Role
     active: bool = True
     google_sub: Optional[str] = None
+    password_hash: Optional[str] = None
     last_login_at: Optional[datetime] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
 
-    def has_role(self, *roles: Role) -> bool:
-        return self.role in roles
+    def has_role(self, *role_names: str) -> bool:
+        return self.role.name in role_names
 
     def can_access_sensitive_data(self) -> bool:
-        return self.role in (Role.ADMIN, Role.COORDINATOR)
+        return self.role.name in ("Admin", "Coordinador")

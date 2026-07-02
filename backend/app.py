@@ -1,3 +1,4 @@
+import logging
 import os
 from flask import Flask
 from flask_restx import Api, Resource
@@ -6,6 +7,8 @@ from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> Flask:
@@ -22,8 +25,9 @@ def create_app() -> Flask:
         title="SYWork Tickets API",
         description=(
             "API para el sistema de tickets de soporte SYWork.\n\n"
-            "**Nota de desarrollo**: autenticación desactivada (`DEV_SKIP_AUTH=true`). "
-            "Todos los endpoints son accesibles sin token JWT durante el desarrollo de Fase 0."
+            "**Nota de desarrollo**: las rutas de maestros (clients/projects/resources/skills/users/roles/permissions) "
+            "no exigen JWT en esta fase. `/api/auth/login` (usuario/contraseña provisional) y `/api/auth/google` "
+            "emiten un token real; `/api/auth/me` sí lo exige."
         ),
         doc="/swagger",
     )
@@ -37,11 +41,15 @@ def create_app() -> Flask:
     from backend.api.routes.projects import ns as ns_projects
     from backend.api.routes.resources import ns as ns_resources
     from backend.api.routes.users import ns as ns_users
+    from backend.api.routes.roles import ns as ns_roles
+    from backend.api.routes.permissions import ns as ns_permissions
 
     api.add_namespace(ns_clients)
     api.add_namespace(ns_projects)
     api.add_namespace(ns_resources)
     api.add_namespace(ns_users)
+    api.add_namespace(ns_roles)
+    api.add_namespace(ns_permissions)
 
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")
@@ -68,11 +76,12 @@ def create_app() -> Flask:
                         "version": result[0].split(",")[0],
                     },
                 }
-            except Exception as exc:
+            except Exception:
+                logger.exception("Health check failed: database unreachable")
                 return {
                     "status": "degraded",
                     "service": "sywork-backend",
-                    "database": {"connected": False, "error": str(exc)},
+                    "database": {"connected": False, "error": "No se pudo conectar a la base de datos"},
                 }, 503
 
     return app

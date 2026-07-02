@@ -1,38 +1,46 @@
 import { Layout, Menu, Typography, Tag, Space } from 'antd'
-import { TeamOutlined, ProjectOutlined, UserOutlined, SettingOutlined, LogoutOutlined } from '@ant-design/icons'
-import { useNavigate, Outlet } from 'react-router-dom'
+import { LogoutOutlined } from '@ant-design/icons'
+import { useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { palette, roleColor } from '../theme'
+import { getVisibleNavItems, maestrosGroupIcon, MAESTROS_GROUP_KEY } from '../config/navigation'
 
 const { Header, Sider, Content } = Layout
 const { Title } = Typography
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { role, email, logout } = useAuthStore()
+  const location = useLocation()
+  const { role, username, email, permissions, logout } = useAuthStore()
 
-  const menuItems = [
-    { key: '/clients', icon: <TeamOutlined />, label: 'Clientes', roles: ['admin', 'coordinator'] },
-    { key: '/projects', icon: <ProjectOutlined />, label: 'Proyectos', roles: ['admin', 'coordinator'] },
-    { key: '/resources', icon: <UserOutlined />, label: 'Recursos', roles: ['admin', 'coordinator', 'qm', 'resolver'] },
-    { key: '/users', icon: <SettingOutlined />, label: 'Usuarios', roles: ['admin'] },
-  ].filter(item => item.roles.includes(role ?? ''))
+  const visibleMaestros = getVisibleNavItems(permissions)
+  const menuItems = visibleMaestros.length > 0
+    ? [{
+        key: MAESTROS_GROUP_KEY,
+        icon: maestrosGroupIcon,
+        label: 'Maestros',
+        children: visibleMaestros.map(({ key, icon, label }) => ({ key, icon, label })),
+      }]
+    : []
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
         <Title level={4} style={{ color: '#fff', margin: 0 }}>SYWork Tickets</Title>
         <Space>
-          <Tag color="blue">{role}</Tag>
-          <Typography.Text style={{ color: '#fff' }}>{email}</Typography.Text>
+          <Tag color={roleColor(role?.name)}>{role?.name ?? '—'}</Tag>
+          <Typography.Text style={{ color: '#fff' }}>{username ?? email}</Typography.Text>
           <LogoutOutlined style={{ color: '#fff', cursor: 'pointer' }} onClick={() => { logout(); navigate('/login') }} />
         </Space>
       </Header>
       <Layout>
-        <Sider width={200} style={{ background: '#fff' }}>
+        <Sider width={200} style={{ borderRight: `1px solid ${palette.slate200}` }}>
           <Menu
             mode="inline"
-            style={{ height: '100%', borderRight: 0 }}
-            items={menuItems.map(item => ({ key: item.key, icon: item.icon, label: item.label }))}
+            selectedKeys={[location.pathname]}
+            defaultOpenKeys={[MAESTROS_GROUP_KEY]}
+            style={{ height: '100%', borderRight: 0, background: 'transparent' }}
+            items={menuItems}
             onClick={({ key }) => navigate(key)}
           />
         </Sider>
