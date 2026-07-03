@@ -1,7 +1,8 @@
 import type { ThemeConfig } from 'antd'
 
-// Sala de control: grafito/pizarra neutro + un acento teal operativo.
-// Un solo hue de acento (teal) para acción/estado activo; el resto es estructura neutra.
+// Sala de control: grafito/pizarra neutro + el rojo/carbón de marca de SyWork
+// (extraído de docs/iconoSW.jpg: S roja #EB3037, W carbón #353336). El acento
+// teal queda como respaldo (algunos componentes de tickets aún lo referencian).
 export const palette = {
   slate50: '#F8FAFC',
   slate100: '#F1F5F9',
@@ -20,6 +21,12 @@ export const palette = {
   green600: '#16A34A',
   amber600: '#D97706',
   red600: '#DC2626',
+  // Marca SyWork (docs/iconoSW.jpg)
+  brandRed50: '#FDECEC',
+  brandRed500: '#EB3037',
+  brandRed600: '#D42229',
+  brandRed700: '#B01B21',
+  brandCharcoal: '#353336',
 }
 
 export const STATUS_COLORS = {
@@ -86,7 +93,7 @@ export function initials(fullName: string | null | undefined): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || fullName[0].toUpperCase()
 }
 
-const ROLE_COLOR_PALETTE = [palette.slate800, palette.teal600, palette.amber600, palette.slate500, palette.green600, palette.red600]
+const ROLE_COLOR_PALETTE = [palette.slate800, palette.brandRed600, palette.amber600, palette.slate500, palette.green600, palette.brandCharcoal]
 
 /** Asigna un color determinístico a un nombre de rol, sin depender de una lista fija de roles. */
 export function roleColor(name: string | null | undefined): string {
@@ -100,8 +107,8 @@ export function roleColor(name: string | null | undefined): string {
 
 export const theme: ThemeConfig = {
   token: {
-    colorPrimary: palette.teal600,
-    colorLink: palette.teal600,
+    colorPrimary: palette.brandRed500,
+    colorLink: palette.brandRed600,
     colorSuccess: palette.green600,
     colorWarning: palette.amber600,
     colorError: palette.red600,
@@ -116,14 +123,14 @@ export const theme: ThemeConfig = {
   },
   components: {
     Layout: {
-      headerBg: palette.slate900,
+      headerBg: palette.brandCharcoal,
       siderBg: palette.slate50,
       bodyBg: palette.slate50,
     },
     Menu: {
       itemBg: 'transparent',
-      itemSelectedBg: palette.teal50,
-      itemSelectedColor: palette.teal700,
+      itemSelectedBg: palette.brandRed50,
+      itemSelectedColor: palette.brandRed600,
       itemHoverBg: palette.slate100,
     },
     Table: {

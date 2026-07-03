@@ -1,0 +1,275 @@
+================================================================================
+GUIA DE DESPLIEGUE - SYWORK TICKETS
+================================================================================
+Este documento es una GUIA DE REFERENCIA, no un runbook ejecutado.
+No se modifico ningun archivo del repositorio para producirlo.
+
+Estado actual del repo (importante antes de empezar):
+  - backend/Dockerfile   -> corre "flask run --reload" (servidor de DESARROLLO)
+  - frontend/Dockerfile  -> corre "vite dev" (servidor de DESARROLLO)
+  - docker-compose.yml   -> pensado para desarrollo local (bind mounts, hot reload)
+  Ninguno de los tres esta listo para produccion tal cual. Se explica abajo
+  que hay que cambiar (sin hacerlo yo, solo para que lo tengas mapeado).
+
+================================================================================
+1. SI NECESITAS UN "DEMONIO"
+================================================================================
+Corto: SI, pero no de la forma clasica de "un daemon por servicio".
+
+Con Docker, el demonio real es "dockerd" (el propio motor de Docker). Al
+instalar Docker en Ubuntu, dockerd queda registrado como servicio systemd y
+arranca solo en cada boot del servidor. Eso ya es un demonio.
+
+Cada contenedor (backend, frontend, postgres) NO necesita su propio daemon
+systemd si usas:
+  restart: unless-stopped
+en el docker-compose.yml (el actual YA lo tiene en los 3 servicios). Con eso:
+  - si un contenedor se cae, Docker lo reinicia solo
+  - si el servidor reinicia, dockerd arranca solo, y arranca los contenedores
+    que estaban corriendo antes del apagado
+
+Recomendacion adicional (opcional pero practica): crear UN servicio systemd
+que controle "todo el stack" via docker compose, para poder hacer:
+  systemctl start sywork-tickets
+  systemctl stop sywork-tickets
+  systemctl status sywork-tickets
+  systemctl enable sywork-tickets   (arranca solo en el boot del server)
+
+Eso NO reemplaza los restart:unless-stopped, es una capa de comodidad
+operativa encima. Se explica el archivo systemd en la seccion 6.
+
+================================================================================
+2. SISTEMA OPERATIVO RECOMENDADO
+================================================================================
+Ubuntu Server 24.04 LTS (o 22.04 LTS si tu organizacion aun no migra)
+  - Docker corre nativo en Linux (sin capa de virtualizacion extra)
+  - Soporte LTS largo, muy probado con Docker/Postgres
+  - Es el SO de facto para este tipo de stack
+
+Windows Server: viable solo si politica de TI lo exige. Docker necesita
+Hyper-V o WSL2 por debajo -> mas piezas moviles, mas puntos de falla,
+comandos diferentes (PowerShell en vez de bash). No lo recomiendo salvo
+que sea obligatorio en tu empresa.
+
+================================================================================
+3. EQUIPO / HARDWARE (para ~10-30 usuarios internos, segun la constitucion)
+================================================================================
+                Minimo          Recomendado
+  CPU           2 vCPU          4 vCPU
+  RAM           4 GB            8 GB
+  Disco         40 GB SSD       80-100 GB SSD (crece con adjuntos + backups)
+  Red           IP fija o DNS interno; puertos 80 y 443 abiertos hacia afuera
+
+Puede ser: VM en tu propio hipervisor (VMware/Proxmox/Hyper-V), o una VM en
+un proveedor cloud (DigitalOcean, Hetzner, AWS Lightsail, etc.) si el
+"on-premise" no es estrictamente obligatorio. Con ese volumen de usuarios,
+un solo servidor alcanza sin problema.
+
+================================================================================
+4. QUE CAMBIAR ANTES DE DESPLEGAR (checklist, sin comandos todavia)
+================================================================================
+[ ] backend: reemplazar "flask run" por un servidor WSGI real (gunicorn).
+    Hoy backend/requirements.txt NO tiene gunicorn instalado.
+[ ] frontend: reemplazar "vite dev" por un build de produccion
+    (pnpm build genera archivos estaticos) servidos por nginx o Caddy,
+    NO por el servidor de desarrollo de Vite.
+[ ] agregar un proxy inverso con TLS (Caddy es el mas simple: certificados
+    Let's Encrypt automaticos con una config de 5 lineas; nginx + certbot
+    es la alternativa mas tradicional pero con mas pasos manuales).
+[ ] dejar de exponer el puerto 5432 (Postgres) hacia afuera del servidor.
+    Hoy el docker-compose.yml de desarrollo lo publica en el host; en
+    produccion Postgres solo debe ser accesible desde la red interna
+    de Docker, nunca desde internet.
+[ ] variables de entorno de produccion en .env (ver seccion 7).
+[ ] backups automatizados de Postgres y de la carpeta uploads/.
+[ ] firewall del servidor: solo 80/443 abiertos (y 22 para SSH, idealmente
+    restringido por IP).
+
+================================================================================
+5. DOMINIO Y TLS - COMO SE INSTALA
+================================================================================
+Paso a paso conceptual (no depende de codigo del repo, es DNS + servidor):
+
+  1) Comprar/tener un dominio (ej. tickets.sywork.net) en el proveedor que
+     uses (GoDaddy, Namecheap, Route53, Cloudflare, el DNS interno de tu
+     empresa si es un dominio corporativo interno).
+
+  2) Crear un registro DNS tipo A apuntando al IP publico del servidor:
+       tickets.sywork.net.   A   <IP-publica-del-servidor>
+     Si el servidor esta detras de NAT (red interna de la oficina), hay que
+     hacer port forwarding de 80/443 en el router/firewall hacia la VM,
+     o usar un dominio + DNS interno si el acceso es solo desde la LAN.
+
+  3) Esperar propagacion DNS (minutos a un par de horas). Verificar con:
+       nslookup tickets.sywork.net
+       dig tickets.sywork.net +short          (en Linux/Mac)
+
+  4) Con Caddy como proxy (recomendado): el dominio se escribe UNA vez en
+     un archivo de configuracion (Caddyfile) y Caddy solo, al arrancar,
+     pide el certificado a Let's Encrypt y lo renueva automaticamente.
+     No hay que correr certbot a mano ni configurar cron para renovacion.
+     Requisito: que los puertos 80 y 443 del servidor sean alcanzables
+     desde internet en el momento de la primera emision del certificado
+     (Let's Encrypt valida el dominio asi).
+
+  5) Alternativa con nginx: instalar certbot, correrlo para emitir el
+     certificado, y configurar un cron/systemd timer para renovacion cada
+     ~60-90 dias (los certificados de Let's Encrypt duran 90 dias). Mas
+     pasos manuales que con Caddy.
+
+  6) Si es un entorno puramente interno (sin salir a internet) y no hay
+     forma de validar el dominio via Let's Encrypt: usar un certificado
+     autofirmado o una CA interna de la empresa (mas trabajo, requiere que
+     los navegadores de los usuarios confien en esa CA).
+
+================================================================================
+6. COMANDOS - INSTALACION DE DOCKER EN UBUNTU
+================================================================================
+# Actualizar el sistema
+sudo apt update && sudo apt upgrade -y
+
+# Instalar Docker Engine + Compose v2 (script oficial de Docker)
+curl -fsSL https://get.docker.com | sudo sh
+
+# Permitir correr docker sin sudo (cerrar sesion y volver a entrar despues)
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Verificar instalacion
+docker --version
+docker compose version
+
+# Habilitar Docker para que arranque en cada boot del servidor
+sudo systemctl enable docker
+sudo systemctl status docker
+
+================================================================================
+7. COMANDOS - CLONAR Y CONFIGURAR
+================================================================================
+# Clonar el repositorio
+git clone https://github.com/jmurcia-syw/TICKET_SYW.git
+cd TICKET_SYW
+
+# Copiar y editar variables de entorno
+cp .env.example .env
+nano .env
+
+Valores minimos a completar en .env para produccion:
+  POSTGRES_DB=sywork_tickets
+  POSTGRES_USER=sywork
+  POSTGRES_PASSWORD=<contraseña fuerte, generada aleatoriamente>
+  JWT_SECRET=<cadena aleatoria de al menos 32 caracteres>
+  GOOGLE_CLIENT_ID=<credenciales reales de Google OAuth2, si se usa>
+  GOOGLE_CLIENT_SECRET=<idem>
+  FLASK_ENV=production
+  DEV_SKIP_AUTH=false   (SIEMPRE false en produccion)
+
+Generar un secreto fuerte de forma rapida en Linux:
+  openssl rand -base64 32
+
+================================================================================
+8. COMANDOS - LEVANTAR EL STACK
+================================================================================
+NOTA: esto asume que ya se hicieron los cambios de la seccion 4 (Dockerfiles
+de produccion con gunicorn + build de frontend + proxy con dominio). Con la
+configuracion de DESARROLLO actual del repo, estos comandos levantan el
+mismo stack que usas en tu maquina (servidores de desarrollo, sin TLS).
+
+# Construir las imagenes y levantar en segundo plano
+docker compose up --build -d
+
+# Ver el estado de los 3 (o 4, si se agrega el proxy) contenedores
+docker compose ps
+
+# Seguir logs del backend (confirmar que corrieron las migraciones)
+docker compose logs -f backend
+
+# Ver todas las migraciones aplicadas
+docker exec sywork_backend alembic current
+
+# Probar que el backend responde
+curl -I http://localhost:5000/health/
+
+================================================================================
+9. COMANDOS - SERVICIO SYSTEMD (el "demonio" del stack completo)
+================================================================================
+Crear el archivo de unidad:
+  sudo nano /etc/systemd/system/sywork-tickets.service
+
+Contenido sugerido:
+------------------------------------------------------------
+[Unit]
+Description=SyWork Tickets (Docker Compose stack)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/sywork-tickets
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+------------------------------------------------------------
+(Ajustar WorkingDirectory a la ruta real donde clonaste el repo)
+
+Activar:
+  sudo systemctl daemon-reload
+  sudo systemctl enable sywork-tickets
+  sudo systemctl start sywork-tickets
+
+Operar el stack de ahi en adelante:
+  sudo systemctl status sywork-tickets
+  sudo systemctl stop sywork-tickets
+  sudo systemctl restart sywork-tickets
+  journalctl -u sywork-tickets -f          (logs del servicio)
+
+================================================================================
+10. COMANDOS - FIREWALL BASICO (ufw, Ubuntu)
+================================================================================
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status verbose
+
+Importante: NO abrir el puerto 5432 (Postgres) ni el 5000 (backend directo)
+hacia internet. Solo 80/443 deben quedar publicos; el resto se accede via
+la red interna de Docker.
+
+================================================================================
+11. COMANDOS - BACKUPS
+================================================================================
+# Backup manual de Postgres (ejecutar dentro del contenedor de la DB)
+docker exec sywork_db pg_dump -U sywork sywork_tickets > backup_$(date +%F).sql
+
+# Backup de adjuntos de tickets
+tar -czf uploads_backup_$(date +%F).tar.gz uploads/
+
+Para automatizar: agregar una linea a crontab (crontab -e) que corra un
+script con esos dos comandos, por ejemplo todos los dias a las 2 AM:
+  0 2 * * * /opt/sywork-tickets/scripts/backup.sh
+
+================================================================================
+12. RESUMEN DE LO QUE FALTA DEFINIR/CONSTRUIR (no es solo "seguir pasos")
+================================================================================
+Los pasos de arriba asumen que YA existen:
+  a) Un Dockerfile de produccion para el backend (gunicorn en vez de
+     "flask run"), hoy no existe en el repo.
+  b) Un Dockerfile de produccion para el frontend (build + servido por
+     nginx o Caddy), hoy no existe en el repo.
+  c) Un archivo de configuracion del proxy inverso (Caddyfile o nginx.conf)
+     con el dominio real.
+  d) Un docker-compose de produccion (o variante) que use esos Dockerfiles,
+     no exponga Postgres/backend directo a internet, y agregue el servicio
+     de proxy con los puertos 80/443.
+
+Esos 4 puntos SI son cambios de codigo/configuracion del repositorio (no
+solo comandos de servidor). Cuando quieras, los preparo -- por ahora este
+documento es solo la guia para que decidas y planifiques sin que yo toque
+nada del proyecto.
+================================================================================

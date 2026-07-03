@@ -1,4 +1,4 @@
-# SyWork Tickets
+# SyWork Desk
 
 Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM
 de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre **GitHub Spec Kit**.

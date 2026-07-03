@@ -27,7 +27,7 @@ def create_app() -> Flask:
     api = Api(
         app,
         version="1.0",
-        title="SYWork Tickets API",
+        title="SyWork Desk API",
         description=(
             "API para el sistema de tickets de soporte SYWork.\n\n"
             "**Seguridad (Fase 1)**: TODAS las rutas exigen JWT Bearer + permiso módulo/acción "
