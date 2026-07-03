@@ -1,12 +1,23 @@
+from datetime import date
+
 from flask_restx import Namespace, Resource, fields
-from backend.infra.repositories.resource_repo import ResourceRepository, SkillRepository
+from backend.infra.repositories.resource_repo import ResourceRepository, SkillRepository, CompensationRepository
 from backend.infra.database import get_db
 from backend.domain.entities.resource import Resource as ResourceEntity, Skill
 from backend.domain.services.skill_service import SkillService, SkillBusinessError
+from backend.domain.services.compensation_service import CompensationService, CompensationBusinessError
 from backend.api.routes._shared import parse_uuid, error_model, server_error
 
 ns = Namespace("resources", description="Gestión de recursos y skills", path="/api")
 _skill_svc = SkillService()
+_comp_svc = CompensationService()
+
+# Campos de texto del perfil extendido SDD V3 (FR-031) editables via POST/PATCH
+_PROFILE_TEXT_FIELDS = (
+    "identification", "nationality", "marital_status", "contract_type",
+    "calendar_country", "education_level", "specialty", "seniority",
+    "certifications", "team",
+)
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +53,18 @@ _resource_out = ns.model("ResourceRecord", {
     "email": fields.String(description="Email corporativo @sywork.net"),
     "active": fields.Boolean(description="Estado activo"),
     "notes": fields.String(description="Notas internas"),
+    "identification": fields.String(description="Número de identificación"),
+    "nationality": fields.String(description="Nacionalidad"),
+    "birth_date": fields.String(description="Fecha de nacimiento (YYYY-MM-DD)"),
+    "marital_status": fields.String(description="Estado civil"),
+    "contract_type": fields.String(description="Tipo de contrato"),
+    "calendar_country": fields.String(description="País base del calendario de trabajo"),
+    "education_level": fields.String(description="Nivel de estudios"),
+    "specialty": fields.String(description="Especialidad (Desarrollador, Funcional, Infraestructura...)"),
+    "seniority": fields.String(description="Seniority (Junior, Staff, Senior)"),
+    "certifications": fields.String(description="Certificaciones"),
+    "team": fields.String(description="Equipo al que pertenece"),
+    "manager_id": fields.String(description="UUID del recurso jefe directo"),
     "skills": fields.List(fields.Nested(_skill_ref), description="Skills asignados"),
     "created_at": fields.String(description="Fecha de creación ISO-8601"),
 })
@@ -58,12 +81,53 @@ _resource_input = ns.model("ResourceInput", {
     "email": fields.String(required=True, description="Email @sywork.net", example="ana.lopez@sywork.net"),
     "user_id": fields.String(description="UUID del usuario del sistema a vincular (opcional)"),
     "notes": fields.String(description="Notas internas"),
+    "identification": fields.String(description="Número de identificación"),
+    "nationality": fields.String(description="Nacionalidad"),
+    "birth_date": fields.String(description="Fecha de nacimiento (YYYY-MM-DD)"),
+    "marital_status": fields.String(description="Estado civil"),
+    "contract_type": fields.String(description="Tipo de contrato"),
+    "calendar_country": fields.String(description="País base del calendario"),
+    "education_level": fields.String(description="Nivel de estudios"),
+    "specialty": fields.String(description="Especialidad"),
+    "seniority": fields.String(description="Seniority"),
+    "certifications": fields.String(description="Certificaciones"),
+    "team": fields.String(description="Equipo"),
+    "manager_id": fields.String(description="UUID del recurso jefe directo"),
     "skill_ids": fields.List(fields.String, description="Lista de UUIDs de skills", example=[]),
 })
 
 _resource_update = ns.model("ResourceUpdate", {
     "full_name": fields.String(description="Nuevo nombre completo"),
     "notes": fields.String(description="Notas internas"),
+    "identification": fields.String(description="Número de identificación"),
+    "nationality": fields.String(description="Nacionalidad"),
+    "birth_date": fields.String(description="Fecha de nacimiento (YYYY-MM-DD)"),
+    "marital_status": fields.String(description="Estado civil"),
+    "contract_type": fields.String(description="Tipo de contrato"),
+    "calendar_country": fields.String(description="País base del calendario"),
+    "education_level": fields.String(description="Nivel de estudios"),
+    "specialty": fields.String(description="Especialidad"),
+    "seniority": fields.String(description="Seniority"),
+    "certifications": fields.String(description="Certificaciones"),
+    "team": fields.String(description="Equipo"),
+    "manager_id": fields.String(description="UUID del recurso jefe directo (null para quitar)"),
+})
+
+_compensation_out = ns.model("ResourceCompensation", {
+    "resource_id": fields.String(description="UUID del recurso"),
+    "base_salary": fields.Float(description="Salario base"),
+    "total_salary": fields.Float(description="Salario total con beneficios"),
+    "overhead": fields.Float(description="Costos adicionales / overhead"),
+    "hourly_cost": fields.Float(description="Costo hora calculado por el sistema (solo lectura)"),
+    "currency": fields.String(description="Moneda"),
+    "updated_at": fields.String(description="Última modificación ISO-8601"),
+})
+
+_compensation_input = ns.model("ResourceCompensationInput", {
+    "base_salary": fields.Float(description="Salario base"),
+    "total_salary": fields.Float(description="Salario total con beneficios"),
+    "overhead": fields.Float(description="Costos adicionales / overhead"),
+    "currency": fields.String(description="Moneda (default USD)", example="USD"),
 })
 
 _skills_update = ns.model("ResourceSkillsUpdate", {
@@ -88,9 +152,53 @@ def _resource_to_dict(resource) -> dict:
         "email": resource.email,
         "active": resource.active,
         "notes": resource.notes,
+        "identification": resource.identification,
+        "nationality": resource.nationality,
+        "birth_date": resource.birth_date.isoformat() if resource.birth_date else None,
+        "marital_status": resource.marital_status,
+        "contract_type": resource.contract_type,
+        "calendar_country": resource.calendar_country,
+        "education_level": resource.education_level,
+        "specialty": resource.specialty,
+        "seniority": resource.seniority,
+        "certifications": resource.certifications,
+        "team": resource.team,
+        "manager_id": str(resource.manager_id) if resource.manager_id else None,
         "skills": [{"id": str(s.id), "code": s.code, "label": s.label} for s in (resource.skills or [])],
         "created_at": resource.created_at.isoformat() if resource.created_at else None,
     }
+
+
+def _parse_profile_fields(data: dict, repo, resource_id=None) -> tuple[dict, tuple[str, int] | None]:
+    """Extrae los campos de perfil extendido (FR-031). Devuelve (valores, (mensaje, status) | None)."""
+    values: dict = {}
+    for f in _PROFILE_TEXT_FIELDS:
+        if f in data:
+            values[f] = data[f] or None
+    if "birth_date" in data:
+        if data["birth_date"]:
+            try:
+                values["birth_date"] = date.fromisoformat(data["birth_date"])
+            except ValueError:
+                return {}, ("birth_date debe ser YYYY-MM-DD", 400)
+        else:
+            values["birth_date"] = None
+    if "manager_id" in data:
+        if data["manager_id"]:
+            manager_id = parse_uuid(data["manager_id"])
+            if not manager_id:
+                return {}, ("manager_id invalido", 400)
+            if resource_id and manager_id == resource_id:
+                return {}, ("Un recurso no puede ser su propio jefe", 400)
+            manager = repo.get_by_id(manager_id)
+            if not manager:
+                return {}, ("El jefe indicado no existe", 404)
+            if not manager.active:
+                return {}, ("El jefe indicado debe ser un recurso activo", 400)
+            values["manager_id"] = manager_id
+        else:
+            values["manager_id"] = None
+    return values, None
 
 
 # ── Skills endpoints ──────────────────────────────────────────────────────────
@@ -115,7 +223,7 @@ class SkillList(Resource):
         active_param = request.args.get("active", "all")
         active = None if active_param == "all" else active_param.lower() == "true"
         try:
-            db = next(get_db())
+            db = get_db()
             skills = SkillRepository(db).list_all(active=active)
             return {
                 "items": [{"id": str(s.id), "code": s.code, "label": s.label, "active": s.active} for s in skills],
@@ -143,7 +251,7 @@ class SkillList(Resource):
         if not label:
             return {"error": "validation_error", "message": "El campo 'label' es requerido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = SkillRepository(db)
             if repo.get_by_code(code):
                 return {"error": "code_duplicate", "message": f"Ya existe un skill con codigo {code}"}, 409
@@ -172,7 +280,7 @@ class SkillDetail(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de skill invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             skill_repo = SkillRepository(db)
             _skill_svc.validate_delete(uid, resources_repo=skill_repo)
             skill_repo.delete(uid)
@@ -213,7 +321,7 @@ class ResourceList(Resource):
         active_param = request.args.get("active")
         active = None if active_param is None else active_param.lower() == "true"
         try:
-            db = next(get_db())
+            db = get_db()
             items, total = ResourceRepository(db).list_paginated(
                 page=page, page_size=page_size, search=search, skill_code=skill_code, active=active,
             )
@@ -242,7 +350,7 @@ class ResourceList(Resource):
         if not email.endswith("@sywork.net"):
             return {"error": "invalid_email_domain", "message": "El email debe ser del dominio @sywork.net"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = ResourceRepository(db)
             if repo.get_by_email(email):
                 return {"error": "email_duplicate", "message": f"Ya existe un recurso con el email {email}"}, 409
@@ -250,12 +358,17 @@ class ResourceList(Resource):
             skill_ids = [s for s in skill_ids if s]
             skill_repo = SkillRepository(db)
             skill_entities = [s for s in [skill_repo.get_by_id(sid) for sid in skill_ids] if s]
+            profile, profile_error = _parse_profile_fields(data, repo)
+            if profile_error:
+                message, status = profile_error
+                return {"error": "validation_error" if status == 400 else "not_found", "message": message}, status
             resource = ResourceEntity.create(
                 full_name=full_name,
                 email=email,
                 user_id=parse_uuid(data["user_id"]) if data.get("user_id") else None,
                 notes=data.get("notes"),
                 skills=skill_entities,
+                **profile,
             )
             created = repo.create(resource)
             return _resource_to_dict(created), 201, {"Location": f"/api/resources/{created.id}"}
@@ -277,7 +390,7 @@ class ResourceDetail(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             resource = ResourceRepository(db).get_by_id(uid)
             if not resource:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
@@ -301,12 +414,17 @@ class ResourceDetail(Resource):
         if not data:
             return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = ResourceRepository(db)
             resource = repo.get_by_id(uid)
             if not resource:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
             allowed = {k: v for k, v in data.items() if k in ("full_name", "notes")}
+            profile, profile_error = _parse_profile_fields(data, repo, resource_id=uid)
+            if profile_error:
+                message, status = profile_error
+                return {"error": "validation_error" if status == 400 else "not_found", "message": message}, status
+            allowed.update(profile)
             updated = repo.update(uid, **allowed)
             return _resource_to_dict(updated), 200
         except Exception:
@@ -332,7 +450,7 @@ class ResourceSkills(Resource):
         skill_ids = [parse_uuid(sid) for sid in data.get("skill_ids", [])]
         skill_ids = [s for s in skill_ids if s]
         try:
-            db = next(get_db())
+            db = get_db()
             resource = ResourceRepository(db).update_skills(uid, skill_ids)
             if not resource:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
@@ -355,7 +473,7 @@ class ResourceDeactivate(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             resource = ResourceRepository(db).deactivate(uid)
             if not resource:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
@@ -379,7 +497,7 @@ class ResourceActivate(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = ResourceRepository(db)
             resource = repo.get_by_id(uid)
             if not resource:
@@ -390,3 +508,135 @@ class ResourceActivate(Resource):
             return {"id": resource_id, "active": True}, 200
         except Exception:
             return server_error()
+
+
+# ── Compensación protegida (FR-032/FR-033, SDD V3) ───────────────────────────
+# A diferencia del resto de rutas de maestros (enforcement diferido, FR-017),
+# esta ruta exige JWT + permiso `compensation` porque es dato sensible (FR-033),
+# igual que los campos VPN de clientes.
+
+def _user_has_compensation_permission(db, user, action: str) -> bool:
+    from backend.infra.repositories.role_repo import RoleRepository
+    permissions = RoleRepository(db).list_permissions_for_role(user.role.id)
+    return any(p.module == "compensation" and p.action == action for p in permissions)
+
+
+def _compensation_to_dict(comp) -> dict:
+    return {
+        "resource_id": str(comp.resource_id),
+        "base_salary": comp.base_salary,
+        "total_salary": comp.total_salary,
+        "overhead": comp.overhead,
+        "hourly_cost": comp.hourly_cost,
+        "currency": comp.currency,
+        "updated_at": comp.updated_at.isoformat() if comp.updated_at else None,
+    }
+
+
+@ns.route("/resources/<string:resource_id>/compensation")
+@ns.param("resource_id", "UUID del recurso")
+class ResourceCompensationRoute(Resource):
+    @ns.doc("get_resource_compensation", security="Bearer")
+    @ns.response(200, "Compensación del recurso", _compensation_out)
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso compensation:view", _error)
+    @ns.response(404, "Recurso no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def get(self, resource_id: str):
+        """Obtener el área protegida de compensación (requiere permiso compensation:view)"""
+        from backend.api.middleware.auth import jwt_required_active
+
+        @jwt_required_active
+        def _inner():
+            from flask import g
+            uid = parse_uuid(resource_id)
+            if not uid:
+                return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
+            try:
+                db = get_db()
+                if not _user_has_compensation_permission(db, g.current_user, "view"):
+                    return {"error": "forbidden", "message": "Acceso denegado"}, 403
+                if not ResourceRepository(db).get_by_id(uid):
+                    return {"error": "not_found", "message": "Recurso no encontrado"}, 404
+                comp = CompensationRepository(db).get(uid)
+                if not comp:
+                    return {"error": "not_found", "message": "El recurso no tiene compensación registrada"}, 404
+                return _compensation_to_dict(comp), 200
+            except Exception:
+                return server_error()
+
+        try:
+            return _inner()
+        except Exception:
+            # Token ausente/invalido: flask-restx interceptaria la excepcion de
+            # flask-jwt-extended como 500; se mapea explicitamente a 401 (FR-023)
+            return {"error": "unauthorized", "message": "Acceso denegado"}, 401
+
+    @ns.doc("put_resource_compensation", security="Bearer")
+    @ns.expect(_compensation_input, validate=False)
+    @ns.response(200, "Compensación guardada (upsert)", _compensation_out)
+    @ns.response(400, "Datos inválidos", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso compensation:edit", _error)
+    @ns.response(404, "Recurso no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def put(self, resource_id: str):
+        """Crear/actualizar la compensación. El costo hora lo calcula el backend (FR-032)."""
+        from backend.api.middleware.auth import jwt_required_active
+
+        @jwt_required_active
+        def _inner():
+            from flask import g, request
+            uid = parse_uuid(resource_id)
+            if not uid:
+                return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
+            data = request.get_json(silent=True)
+            if data is None:
+                return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
+            try:
+                db = get_db()
+                if not _user_has_compensation_permission(db, g.current_user, "edit"):
+                    return {"error": "forbidden", "message": "Acceso denegado"}, 403
+                if not ResourceRepository(db).get_by_id(uid):
+                    return {"error": "not_found", "message": "Recurso no encontrado"}, 404
+
+                def _num(field):
+                    value = data.get(field)
+                    if value is None:
+                        return None
+                    return float(value)
+
+                try:
+                    base_salary, total_salary, overhead = _num("base_salary"), _num("total_salary"), _num("overhead")
+                except (TypeError, ValueError):
+                    return {"error": "validation_error", "message": "Los montos deben ser numéricos"}, 400
+                comp = _comp_svc.build(
+                    resource_id=uid, base_salary=base_salary, total_salary=total_salary,
+                    overhead=overhead, currency=data.get("currency") or "USD",
+                )
+                saved = CompensationRepository(db).upsert(comp)
+                return _compensation_to_dict(saved), 200
+            except CompensationBusinessError as e:
+                return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+            except Exception:
+                return server_error()
+
+        try:
+            return _inner()
+        except Exception:
+            # Token ausente/invalido: flask-restx interceptaria la excepcion de
+            # flask-jwt-extended como 500; se mapea explicitamente a 401 (FR-023)
+            return {"error": "unauthorized", "message": "Acceso denegado"}, 401
+
+
+# ── Enforcement FR-022 (spec 002): JWT + permiso por módulo/acción ─────────────
+# La ruta de compensación NO se toca: ya aplica su propio control (compensation:view/edit).
+from backend.api.middleware.rbac import enforce_module as _enforce
+
+for _cls in (SkillList, SkillDetail):
+    _cls.method_decorators = [_enforce("skills")]
+for _cls in (ResourceList, ResourceSkills, ResourceDeactivate, ResourceActivate):
+    _cls.method_decorators = [_enforce("resources")]
+# FR-012: un Resolutor sin resources:edit puede editar SU propio perfil
+ResourceDetail.method_decorators = [_enforce("resources", allow_own_resource_edit=True)]

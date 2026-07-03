@@ -47,7 +47,7 @@ class PermissionList(Resource):
     def get(self):
         """Listar todos los permisos disponibles del sistema"""
         try:
-            db = next(get_db())
+            db = get_db()
             repo = PermissionRepository(db)
             items = repo.list_all()
             return {"items": [_permission_to_dict(p) for p in items], "total": len(items)}, 200
@@ -73,7 +73,7 @@ class PermissionList(Resource):
         if not action:
             return {"error": "validation_error", "message": "El campo 'action' es requerido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = PermissionRepository(db)
             if repo.get_by_module_action(module, action):
                 return {"error": "module_action_duplicate", "message": f"Ya existe el permiso {module}.{action}"}, 409
@@ -98,7 +98,7 @@ class PermissionDetail(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de permiso invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             perm_repo = PermissionRepository(db)
             role_repo = RoleRepository(db)
             _svc.validate_permission_delete(uid, roles_repo=role_repo)
@@ -108,3 +108,10 @@ class PermissionDetail(Resource):
             return {"error": e.code, "message": e.message, **e.extra}, e.status_code
         except Exception:
             return server_error()
+
+
+# ── Enforcement FR-022 (spec 002): JWT + permiso por módulo/acción ─────────────
+from backend.api.middleware.rbac import enforce_module as _enforce
+
+for _cls in (PermissionList, PermissionDetail):
+    _cls.method_decorators = [_enforce("roles")]

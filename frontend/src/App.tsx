@@ -9,6 +9,10 @@ import ResourcesPage from './pages/ResourcesPage'
 import SkillsPage from './pages/SkillsPage'
 import UsersPage from './pages/UsersPage'
 import RolesPermissionsPage from './pages/RolesPermissionsPage'
+import TicketsPage from './pages/TicketsPage'
+import TicketDetailPage from './pages/TicketDetailPage'
+import AssignmentPanelPage from './pages/AssignmentPanelPage'
+import CatalogsPage from './pages/CatalogsPage'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import { theme } from './theme'
 
@@ -24,8 +28,12 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/clients" replace />} />
-        <Route path="dashboard" element={<Navigate to="/clients" replace />} />
+        <Route index element={<Navigate to="/tickets" replace />} />
+        <Route path="dashboard" element={<Navigate to="/tickets" replace />} />
+        <Route path="tickets" element={<ProtectedRoute requiredPermission={{ module: 'tickets', action: 'view' }}><TicketsPage /></ProtectedRoute>} />
+        <Route path="tickets/:id" element={<ProtectedRoute requiredPermission={{ module: 'tickets', action: 'view' }}><TicketDetailPage /></ProtectedRoute>} />
+        <Route path="assignment-panel" element={<ProtectedRoute requiredPermission={{ module: 'assignment_panel', action: 'view' }}><AssignmentPanelPage /></ProtectedRoute>} />
+        <Route path="catalogs" element={<ProtectedRoute requiredPermission={{ module: 'catalogs', action: 'view' }}><CatalogsPage /></ProtectedRoute>} />
         <Route path="clients" element={<ProtectedRoute requiredPermission={{ module: 'clients', action: 'view' }}><ClientsPage /></ProtectedRoute>} />
         <Route path="projects" element={<ProtectedRoute requiredPermission={{ module: 'projects', action: 'view' }}><ProjectsPage /></ProtectedRoute>} />
         <Route path="resources" element={<ProtectedRoute requiredPermission={{ module: 'resources', action: 'view' }}><ResourcesPage /></ProtectedRoute>} />

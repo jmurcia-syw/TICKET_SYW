@@ -20,6 +20,11 @@ _project_out = ns.model("Project", {
     "client_name": fields.String(description="Nombre del cliente (join)"),
     "name": fields.String(description="Nombre del proyecto"),
     "description": fields.String(description="Descripción"),
+    "overview": fields.String(description="Overview / resumen ejecutivo (SDD V3)"),
+    "sale_services_usd": fields.Float(description="Valor de venta de servicios en USD"),
+    "sale_licenses_usd": fields.Float(description="Valor de venta de licencias en USD"),
+    "sale_subscriptions_usd": fields.Float(description="Valor de venta de suscripciones en USD"),
+    "components_sold": fields.String(description="Componentes vendidos"),
     "active": fields.Boolean(description="Estado activo"),
     "start_date": fields.String(description="Fecha de inicio (YYYY-MM-DD)"),
     "end_date_estimated": fields.String(description="Fecha estimada de fin (YYYY-MM-DD)"),
@@ -37,6 +42,11 @@ _project_input = ns.model("ProjectInput", {
     "client_id": fields.String(required=True, description="UUID del cliente", example="00000000-0000-0000-0000-000000000001"),
     "name": fields.String(required=True, description="Nombre del proyecto", example="Implementación JDE GL"),
     "description": fields.String(description="Descripción del proyecto"),
+    "overview": fields.String(description="Overview / resumen ejecutivo"),
+    "sale_services_usd": fields.Float(description="Valor de venta de servicios en USD"),
+    "sale_licenses_usd": fields.Float(description="Valor de venta de licencias en USD"),
+    "sale_subscriptions_usd": fields.Float(description="Valor de venta de suscripciones en USD"),
+    "components_sold": fields.String(description="Componentes vendidos"),
     "start_date": fields.String(required=True, description="Fecha de inicio (YYYY-MM-DD)", example="2026-01-15"),
     "end_date_estimated": fields.String(description="Fecha estimada de fin (YYYY-MM-DD)", example="2026-06-30"),
 })
@@ -44,6 +54,11 @@ _project_input = ns.model("ProjectInput", {
 _project_update = ns.model("ProjectUpdate", {
     "name": fields.String(description="Nuevo nombre"),
     "description": fields.String(description="Nueva descripción"),
+    "overview": fields.String(description="Overview / resumen ejecutivo"),
+    "sale_services_usd": fields.Float(description="Valor de venta de servicios en USD"),
+    "sale_licenses_usd": fields.Float(description="Valor de venta de licencias en USD"),
+    "sale_subscriptions_usd": fields.Float(description="Valor de venta de suscripciones en USD"),
+    "components_sold": fields.String(description="Componentes vendidos"),
     "start_date": fields.String(description="Fecha de inicio (YYYY-MM-DD)"),
     "end_date_estimated": fields.String(description="Fecha estimada de fin (YYYY-MM-DD), null para eliminar"),
 })
@@ -54,12 +69,38 @@ _status_result = ns.model("ProjectStatusResult", {
 })
 
 
+_SALE_FIELDS = ("sale_services_usd", "sale_licenses_usd", "sale_subscriptions_usd")
+
+
+def _parse_sale_amounts(data: dict) -> tuple[dict, str | None]:
+    """Extrae y valida los montos de venta (>= 0). Devuelve (valores, error)."""
+    amounts: dict = {}
+    for f in _SALE_FIELDS:
+        if f in data:
+            if data[f] is None:
+                amounts[f] = None
+                continue
+            try:
+                value = float(data[f])
+            except (TypeError, ValueError):
+                return {}, f"El campo {f} debe ser numérico"
+            if value < 0:
+                return {}, f"El campo {f} no puede ser negativo"
+            amounts[f] = value
+    return amounts, None
+
+
 def _project_to_dict(project, client_name=None) -> dict:
     d = {
         "id": str(project.id),
         "client_id": str(project.client_id),
         "name": project.name,
         "description": project.description,
+        "overview": project.overview,
+        "sale_services_usd": project.sale_services_usd,
+        "sale_licenses_usd": project.sale_licenses_usd,
+        "sale_subscriptions_usd": project.sale_subscriptions_usd,
+        "components_sold": project.components_sold,
         "active": project.active,
         "start_date": project.start_date.isoformat() if project.start_date else None,
         "end_date_estimated": project.end_date_estimated.isoformat() if project.end_date_estimated else None,
@@ -101,7 +142,7 @@ class ProjectList(Resource):
         active = None if active_param is None else active_param.lower() == "true"
         client_id = parse_uuid(client_id_str) if client_id_str else None
         try:
-            db = next(get_db())
+            db = get_db()
             repo = ProjectRepository(db)
             client_repo = ClientRepository(db)
             items, total = repo.list_paginated(page=page, page_size=page_size, client_id=client_id, search=search, active=active)
@@ -142,8 +183,11 @@ class ProjectList(Resource):
                 end_date = date.fromisoformat(data["end_date_estimated"])
             except ValueError:
                 return {"error": "validation_error", "message": "end_date_estimated debe ser YYYY-MM-DD"}, 400
+        amounts, amount_error = _parse_sale_amounts(data)
+        if amount_error:
+            return {"error": "validation_error", "message": amount_error}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             _svc.validate_create(
                 client_id=client_id, name=data["name"], start_date=start_date, end_date=end_date,
                 clients_repo=ClientRepository(db), projects_repo=ProjectRepository(db),
@@ -151,6 +195,8 @@ class ProjectList(Resource):
             project = Project.create(
                 client_id=client_id, name=data["name"], start_date=start_date,
                 description=data.get("description"), end_date_estimated=end_date,
+                overview=data.get("overview"), components_sold=data.get("components_sold"),
+                **amounts,
             )
             created = ProjectRepository(db).create(project)
             return _project_to_dict(created), 201, {"Location": f"/api/projects/{created.id}"}
@@ -174,7 +220,7 @@ class ProjectDetail(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de proyecto invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             project = ProjectRepository(db).get_by_id(uid)
             if not project:
                 return {"error": "not_found", "message": "Proyecto no encontrado"}, 404
@@ -199,14 +245,19 @@ class ProjectDetail(Resource):
         if not data:
             return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = ProjectRepository(db)
             project = repo.get_by_id(uid)
             if not project:
                 return {"error": "not_found", "message": "Proyecto no encontrado"}, 404
-            for field in ("name", "description"):
+            amounts, amount_error = _parse_sale_amounts(data)
+            if amount_error:
+                return {"error": "validation_error", "message": amount_error}, 400
+            for field in ("name", "description", "overview", "components_sold"):
                 if field in data:
                     setattr(project, field, data[field])
+            for field, value in amounts.items():
+                setattr(project, field, value)
             if "start_date" in data:
                 project.start_date = date.fromisoformat(data["start_date"])
             if "end_date_estimated" in data:
@@ -234,7 +285,7 @@ class ProjectDeactivate(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de proyecto invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = ProjectRepository(db)
             project = repo.get_by_id(uid)
             if not project:
@@ -262,7 +313,7 @@ class ProjectActivate(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de proyecto invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = ProjectRepository(db)
             project = repo.get_by_id(uid)
             if not project:
@@ -273,3 +324,10 @@ class ProjectActivate(Resource):
             return {"id": project_id, "active": True}, 200
         except Exception:
             return server_error()
+
+
+# ── Enforcement FR-022 (spec 002): JWT + permiso por módulo/acción ─────────────
+from backend.api.middleware.rbac import enforce_module as _enforce
+
+for _cls in (ProjectList, ProjectDetail, ProjectDeactivate, ProjectActivate):
+    _cls.method_decorators = [_enforce("projects")]

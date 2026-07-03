@@ -34,7 +34,7 @@ spec-kit init
 ┌──────────────────────────────────────┬─────────────┬──────────────┐
 │            Usuario/email             │     Rol     │  Contraseña  │
 ├──────────────────────────────────────┼─────────────┼──────────────┤
-│ admin / admin@sywork.net             │ Admin       │ vX8gVLcMTdDm │
+│ admin / admin@sywork.net             │ Admin       │ vX8gVLcMTdDm │    lJZU_bCabhUB 
 ├──────────────────────────────────────┼─────────────┼──────────────┤
 │ coordinador / coordinador@sywork.net │ Coordinador │ vX8gVLcMTdDm │
 ├──────────────────────────────────────┼─────────────┼──────────────┤

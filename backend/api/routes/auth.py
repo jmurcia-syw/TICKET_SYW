@@ -34,7 +34,7 @@ def login():
     if not identifier or not password:
         return jsonify({"error": "validation_error", "message": "username_or_email y password son requeridos"}), 400
 
-    db = next(get_db())
+    db = get_db()
     repo = UserRepository(db)
     user = repo.get_by_username_or_email(identifier)
     if not user or not user.active or not _auth_svc.verify_password(password, user.password_hash):
@@ -67,7 +67,7 @@ def google_login():
         return jsonify({"error": "unauthorized", "message": "Acceso denegado"}), 401
 
     google_sub: str = idinfo["sub"]
-    db = next(get_db())
+    db = get_db()
     repo = UserRepository(db)
 
     user = repo.get_by_google_sub(google_sub) or repo.get_by_email(email)
@@ -89,7 +89,7 @@ def me():
 
     @jwt_required_active
     def _inner():
-        db = next(get_db())
+        db = get_db()
         return jsonify({"user": _user_payload(g.current_user, db)}), 200
 
     return _inner()
