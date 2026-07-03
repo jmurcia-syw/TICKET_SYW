@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { TeamOutlined, ProjectOutlined, UserOutlined, SettingOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined } from '@ant-design/icons'
+import { TeamOutlined, ProjectOutlined, UserOutlined, SettingOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined, AppstoreOutlined } from '@ant-design/icons'
 import type { Permission } from '../types/api'
 
 export interface NavLeaf {
@@ -25,6 +25,7 @@ export const maestrosNavItems: NavLeaf[] = [
 /** Ítems de la Fase 1 — Tickets (van al nivel raíz del menú, antes de Maestros). */
 export const ticketsNavItems: NavLeaf[] = [
   { key: '/tickets', icon: <FileTextOutlined />, label: 'Tickets', module: 'tickets' },
+  { key: '/kanban', icon: <AppstoreOutlined />, label: 'Kanban', module: 'tickets' },
   { key: '/assignment-panel', icon: <DashboardOutlined />, label: 'Panel de Asignación', module: 'assignment_panel' },
   { key: '/catalogs', icon: <TagsOutlined />, label: 'Catálogos', module: 'catalogs' },
 ]

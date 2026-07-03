@@ -10,6 +10,7 @@ import SkillsPage from './pages/SkillsPage'
 import UsersPage from './pages/UsersPage'
 import RolesPermissionsPage from './pages/RolesPermissionsPage'
 import TicketsPage from './pages/TicketsPage'
+import KanbanPage from './pages/KanbanPage'
 import TicketDetailPage from './pages/TicketDetailPage'
 import AssignmentPanelPage from './pages/AssignmentPanelPage'
 import CatalogsPage from './pages/CatalogsPage'
@@ -32,6 +33,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<Navigate to="/tickets" replace />} />
         <Route path="tickets" element={<ProtectedRoute requiredPermission={{ module: 'tickets', action: 'view' }}><TicketsPage /></ProtectedRoute>} />
         <Route path="tickets/:id" element={<ProtectedRoute requiredPermission={{ module: 'tickets', action: 'view' }}><TicketDetailPage /></ProtectedRoute>} />
+        <Route path="kanban" element={<ProtectedRoute requiredPermission={{ module: 'tickets', action: 'view' }}><KanbanPage /></ProtectedRoute>} />
         <Route path="assignment-panel" element={<ProtectedRoute requiredPermission={{ module: 'assignment_panel', action: 'view' }}><AssignmentPanelPage /></ProtectedRoute>} />
         <Route path="catalogs" element={<ProtectedRoute requiredPermission={{ module: 'catalogs', action: 'view' }}><CatalogsPage /></ProtectedRoute>} />
         <Route path="clients" element={<ProtectedRoute requiredPermission={{ module: 'clients', action: 'view' }}><ClientsPage /></ProtectedRoute>} />
