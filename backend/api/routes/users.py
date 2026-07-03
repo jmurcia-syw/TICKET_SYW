@@ -101,7 +101,7 @@ class UserList(Resource):
         active_param = request.args.get("active")
         active = None if active_param is None else active_param.lower() == "true"
         try:
-            db = next(get_db())
+            db = get_db()
             users, total = UserRepository(db).list_paginated(page=page, page_size=page_size, role=role_filter, active=active)
             return {"items": [_user_to_dict(u) for u in users], "total": total, "page": page, "page_size": page_size}, 200
         except Exception:
@@ -132,7 +132,7 @@ class UserList(Resource):
         if not role_id:
             return {"error": "validation_error", "message": "El campo 'role_id' es requerido y debe ser un UUID"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = UserRepository(db)
             role_repo = RoleRepository(db)
             role = role_repo.get_by_id(role_id)
@@ -174,7 +174,7 @@ class UserDetail(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de usuario invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             user = UserRepository(db).get_by_id(uid)
             if not user:
                 return {"error": "not_found", "message": "Usuario no encontrado"}, 404
@@ -206,7 +206,7 @@ class UserRole(Resource):
         if not role_id:
             return {"error": "validation_error", "message": "El campo 'role_id' es requerido y debe ser un UUID"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = UserRepository(db)
             role_repo = RoleRepository(db)
             new_role = role_repo.get_by_id(role_id)
@@ -238,7 +238,7 @@ class UserDeactivate(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de usuario invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = UserRepository(db)
             _svc.validate_deactivation(uid, users_repo=repo)
             updated = repo.set_active(uid, False)
@@ -266,7 +266,7 @@ class UserActivate(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de usuario invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = UserRepository(db)
             user = repo.get_by_id(uid)
             if not user:
@@ -277,3 +277,10 @@ class UserActivate(Resource):
             return {"id": user_id, "active": True}, 200
         except Exception:
             return server_error()
+
+
+# ── Enforcement FR-022 (spec 002): JWT + permiso por módulo/acción ─────────────
+from backend.api.middleware.rbac import enforce_module as _enforce
+
+for _cls in (UserList, UserDetail, UserRole, UserDeactivate, UserActivate):
+    _cls.method_decorators = [_enforce("users")]

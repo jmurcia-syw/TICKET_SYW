@@ -58,8 +58,8 @@ def test_login_missing_fields_returns_400(client):
     assert resp.get_json()["error"] == "validation_error"
 
 
-def test_me_requires_a_valid_token(client):
-    resp = client.get("/api/auth/me")
+def test_me_requires_a_valid_token(anon_client):
+    resp = anon_client.get("/api/auth/me")
     assert resp.status_code == 401
 
 

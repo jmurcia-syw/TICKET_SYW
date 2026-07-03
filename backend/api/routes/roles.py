@@ -87,7 +87,7 @@ class RoleList(Resource):
         active_param = request.args.get("active")
         active = None if active_param is None else active_param.lower() == "true"
         try:
-            db = next(get_db())
+            db = get_db()
             repo = RoleRepository(db)
             items, total = repo.list_paginated(page=page, page_size=page_size, active=active)
             return {"items": [_role_to_dict(r, repo) for r in items], "total": total, "page": page, "page_size": page_size}, 200
@@ -110,7 +110,7 @@ class RoleList(Resource):
         if not name:
             return {"error": "validation_error", "message": "El campo 'name' es requerido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = RoleRepository(db)
             if repo.get_by_name(name):
                 return {"error": "name_duplicate", "message": f"Ya existe un rol con el nombre {name}"}, 409
@@ -135,7 +135,7 @@ class RoleDetail(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de rol invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = RoleRepository(db)
             role = repo.get_by_id(uid)
             if not role:
@@ -161,7 +161,7 @@ class RoleDetail(Resource):
         if not data:
             return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = RoleRepository(db)
             role = repo.get_by_id(uid)
             if not role:
@@ -201,7 +201,7 @@ class RolePermissions(Resource):
         permission_ids = [parse_uuid(pid) for pid in data.get("permission_ids", [])]
         permission_ids = [p for p in permission_ids if p]
         try:
-            db = next(get_db())
+            db = get_db()
             repo = RoleRepository(db)
             role = repo.replace_permissions(uid, permission_ids)
             if not role:
@@ -226,7 +226,7 @@ class RoleDeactivate(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de rol invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = RoleRepository(db)
             role = repo.get_by_id(uid)
             if not role:
@@ -257,7 +257,7 @@ class RoleActivate(Resource):
         if not uid:
             return {"error": "validation_error", "message": "ID de rol invalido"}, 400
         try:
-            db = next(get_db())
+            db = get_db()
             repo = RoleRepository(db)
             role = repo.get_by_id(uid)
             if not role:
@@ -268,3 +268,10 @@ class RoleActivate(Resource):
             return {"id": role_id, "active": True}, 200
         except Exception:
             return server_error()
+
+
+# ── Enforcement FR-022 (spec 002): JWT + permiso por módulo/acción ─────────────
+from backend.api.middleware.rbac import enforce_module as _enforce
+
+for _cls in (RoleList, RoleDetail, RolePermissions, RoleDeactivate, RoleActivate):
+    _cls.method_decorators = [_enforce("roles")]

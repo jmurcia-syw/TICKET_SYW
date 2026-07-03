@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Button, Form, Input, Modal, Space, Table, Tooltip, message } from 'antd'
-import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined, EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons'
+import { Button, Divider, Form, Input, InputNumber, Modal, Select, Space, Table, Tooltip, message } from 'antd'
+import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined, EyeInvisibleOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { clientService } from '../services/clientService'
-import type { ClientListItem, ClientDetail, ClientFormData } from '../types/client'
+import type { ClientListItem, ClientDetail, ClientFormData, ClientSystem, ClientSystemFormData } from '../types/client'
 import ConfirmationModal from '../components/common/ConfirmationModal'
 import StatusTag from '../components/common/StatusTag'
 import PageToolbar from '../components/common/PageToolbar'
@@ -26,7 +26,9 @@ export default function ClientsPage() {
   const [selectedDetail, setSelectedDetail] = useState<ClientDetail | null>(null)
   const [revealVpn, setRevealVpn] = useState(false)
   const [confirmDeactivate, setConfirmDeactivate] = useState<{ id: string; impact: string } | null>(null)
+  const [systems, setSystems] = useState<ClientSystem[]>([])
   const [form] = Form.useForm<ClientFormData>()
+  const [systemForm] = Form.useForm<ClientSystemFormData>()
 
   const load = async () => {
     setLoading(true)
@@ -48,7 +50,28 @@ export default function ClientsPage() {
     const detail = await clientService.get(id)
     setSelectedDetail(detail)
     setRevealVpn(false)
+    setSystems(await clientService.listSystems(id))
     setDetailOpen(true)
+  }
+
+  const handleAddSystem = async (values: ClientSystemFormData) => {
+    if (!selectedDetail) return
+    try {
+      await clientService.addSystem(selectedDetail.id, values)
+      systemForm.resetFields()
+      setSystems(await clientService.listSystems(selectedDetail.id))
+      message.success('Sistema agregado')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al agregar el sistema'
+      message.error(msg)
+    }
+  }
+
+  const handleDeleteSystem = async (systemId: string) => {
+    if (!selectedDetail) return
+    await clientService.deleteSystem(selectedDetail.id, systemId)
+    setSystems(await clientService.listSystems(selectedDetail.id))
+    message.success('Sistema eliminado')
   }
 
   const handleSubmit = async (values: ClientFormData) => {
@@ -130,6 +153,9 @@ export default function ClientsPage() {
           <Form.Item name="contact_name" label="Nombre de contacto"><Input /></Form.Item>
           <Form.Item name="contact_email" label="Email de contacto" rules={[{ type: 'email', message: 'Email inválido' }]}><Input /></Form.Item>
           <Form.Item name="contact_phone" label="Teléfono"><Input /></Form.Item>
+          <Form.Item name="annual_billing_usd" label="Facturación anual (USD)">
+            <InputNumber min={0} style={{ width: '100%' }} formatter={v => `$ ${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} />
+          </Form.Item>
           <Form.Item name="vpn_ips" label="IPs VPN"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="vpn_credentials" label="Credenciales VPN"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="notes" label="Notas"><Input.TextArea rows={3} /></Form.Item>
@@ -155,7 +181,44 @@ export default function ClientsPage() {
                 </div>
               </>
             )}
+            <div><strong>Facturación anual (USD):</strong>{' '}
+              {selectedDetail.annual_billing_usd != null
+                ? `$ ${selectedDetail.annual_billing_usd.toLocaleString('en-US')}`
+                : '—'}
+            </div>
             <div><strong>Notas:</strong> {selectedDetail.notes}</div>
+
+            <Divider style={{ margin: '12px 0' }}>Portafolio de software</Divider>
+            <Table
+              rowKey="id"
+              size="small"
+              dataSource={systems}
+              pagination={false}
+              locale={{ emptyText: 'Sin sistemas registrados' }}
+              columns={[
+                { title: 'Tipo', dataIndex: 'system_type' },
+                { title: 'Marca', dataIndex: 'brand' },
+                { title: 'Versión', dataIndex: 'version' },
+                ...(canManage ? [{
+                  title: '', key: 'del',
+                  render: (_: unknown, s: ClientSystem) => (
+                    <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => handleDeleteSystem(s.id)} />
+                  ),
+                }] : []),
+              ]}
+            />
+            {canManage && (
+              <Form form={systemForm} layout="inline" onFinish={handleAddSystem} style={{ marginTop: 8 }}>
+                <Form.Item name="system_type" rules={[{ required: true, message: 'Tipo requerido' }]}>
+                  <Select placeholder="Tipo" style={{ width: 110 }} options={['ERP', 'WMS', 'CRM', 'OTM', 'Otro'].map(v => ({ value: v, label: v }))} />
+                </Form.Item>
+                <Form.Item name="brand" rules={[{ required: true, message: 'Marca requerida' }]}>
+                  <Input placeholder="Marca (ej. JD Edwards)" style={{ width: 170 }} />
+                </Form.Item>
+                <Form.Item name="version"><Input placeholder="Versión" style={{ width: 90 }} /></Form.Item>
+                <Form.Item><Button htmlType="submit" icon={<PlusOutlined />}>Agregar</Button></Form.Item>
+              </Form>
+            )}
           </Space>
         )}
       </Modal>

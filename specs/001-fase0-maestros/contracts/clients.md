@@ -144,3 +144,32 @@ Reactivar un cliente previamente desactivado. Solo Admin/Coordinador.
 **Response 200**: `{ "id": "uuid", "active": true }`
 
 **Errors**: 409 `{ "error": "already_active" }`, 401, 403, 404
+
+---
+
+## Ampliación SDD V3 (2026-07-02, FR-028/FR-029)
+
+Los payloads de cliente (list, detail, create, update) incluyen ahora:
+
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| annual_billing_usd | number \| null | Facturacion anual del cliente en USD (>= 0) |
+
+### GET /api/clients/{id}/systems
+
+Portafolio de software del cliente. **Response 200**: array de:
+```json
+{ "id": "uuid", "client_id": "uuid", "system_type": "ERP", "brand": "JD Edwards",
+  "version": "9.2", "notes": null, "created_at": "iso-8601" }
+```
+Errores: 400 UUID invalido, 404 cliente no encontrado.
+
+### POST /api/clients/{id}/systems
+
+Body: `{ "system_type": "ERP", "brand": "JD Edwards", "version": "9.2", "notes": "..." }`
+(`system_type` y `brand` requeridos). **Response 201** con el sistema creado.
+Errores: 400 validacion, 404 cliente no encontrado.
+
+### DELETE /api/clients/{id}/systems/{system_id}
+
+**Response 204**. Errores: 400 UUID invalido, 404 sistema no encontrado para ese cliente.

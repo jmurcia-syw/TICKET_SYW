@@ -8,6 +8,16 @@
 
 ## Summary
 
+> **Ampliación 2026-07-02 (SDD V3)**: el alcance base ya está implementado. Esta revisión agrega
+> la ampliación de maestros definida en `docs/SDD V3.docx` (FR-028..FR-034 del spec): facturación
+> anual y portafolio de software del cliente (`client_systems`), financieros y overview de
+> proyecto, perfil extendido del recurso (identificación, seniority, especialidad, equipo, jefe,
+> etc.) y el área protegida de compensación (`resource_compensation`, cifrada pgcrypto + nuevo
+> módulo de permisos `compensation` sembrado solo para Admin). Migración
+> `010_extend_masters_sdd_v3.py` + tareas T100-T115 en tasks.md. La constitución v1.1.0
+> incorpora además el flujo oficial de 9 estados (`docs/Regla de actividad de estados.xlsx`)
+> que regirá la fase siguiente de Tickets.
+
 Implementar las cuatro pantallas de datos maestros prerequisito para Fase 1 (Tickets):
 Clientes (con cifrado de credenciales VPN/IPs), Proyectos, Recursos/Skills y Roles/Seguridad.
 Stack completo definido en la Constitucion v1.0.0: React 19 + Flask + PostgreSQL 16 con RLS,

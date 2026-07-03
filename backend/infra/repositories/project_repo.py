@@ -43,7 +43,8 @@ class ProjectRepository:
         model = self._db.get(ProjectModel, project.id)
         if not model:
             return project
-        for f in ("name", "description", "active", "start_date", "end_date_estimated"):
+        for f in ("name", "description", "overview", "sale_services_usd", "sale_licenses_usd",
+                  "sale_subscriptions_usd", "components_sold", "active", "start_date", "end_date_estimated"):
             setattr(model, f, getattr(project, f))
         self._db.commit()
         self._db.refresh(model)

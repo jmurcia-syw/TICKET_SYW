@@ -22,3 +22,6 @@ postgres_data/
 .DS_Store
 Thumbs.db
 .worktrees/
+
+# Adjuntos de tickets (Fase 1)
+uploads/

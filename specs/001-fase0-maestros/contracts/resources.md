@@ -155,3 +155,40 @@ Solo Admin. Falla si el skill esta asignado a recursos activos.
 **Errors**:
 - 409 `{ "error": "skill_in_use", "message": "El skill esta asignado a 3 recursos activos", "resource_count": 3 }`
 - 401, 403, 404
+
+---
+
+## Ampliación SDD V3 (2026-07-02, FR-031/FR-032/FR-033)
+
+### Perfil extendido (FR-031)
+
+Los payloads de recurso (list, detail, create, update) incluyen ahora (todos opcionales):
+`identification`, `nationality`, `birth_date` (YYYY-MM-DD), `marital_status`,
+`contract_type`, `calendar_country`, `education_level`, `specialty`, `seniority`,
+`certifications`, `team`, `manager_id` (UUID de otro recurso).
+
+Reglas de `manager_id`: debe existir, estar activo y ser distinto del propio recurso
+(400/404 segun el caso). `null` lo elimina.
+
+### GET /api/resources/{id}/compensation  🔒
+
+Area protegida (FR-032/FR-033). **Requiere JWT + permiso `compensation: view`**
+(a diferencia del resto de maestros, esta ruta SI aplica enforcement en backend por
+tratarse de dato sensible, mismo criterio que los campos VPN).
+
+**Response 200**:
+```json
+{ "resource_id": "uuid", "base_salary": 4000.0, "total_salary": 6000.0,
+  "overhead": 1200.0, "hourly_cost": 30.0, "currency": "USD", "updated_at": "iso-8601" }
+```
+Errores: 401 sin JWT, 403 sin permiso (payload sin detalle del recurso solicitado, FR-023),
+404 recurso o compensacion inexistente.
+
+### PUT /api/resources/{id}/compensation  🔒
+
+**Requiere JWT + permiso `compensation: edit`.** Upsert completo.
+Body: `{ "base_salary": 4000, "total_salary": 6000, "overhead": 1200, "currency": "USD" }`.
+`hourly_cost` NO se acepta en el body: lo calcula el backend como
+`(total_salary + overhead) / 240` (horas mes) — FR-032.
+Validaciones: montos >= 0; `total_salary >= base_salary`. **Response 200** con el registro
+guardado (incluye `hourly_cost` calculado).

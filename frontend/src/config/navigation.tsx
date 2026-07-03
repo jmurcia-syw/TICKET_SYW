@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { TeamOutlined, ProjectOutlined, UserOutlined, SettingOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import { TeamOutlined, ProjectOutlined, UserOutlined, SettingOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined } from '@ant-design/icons'
 import type { Permission } from '../types/api'
 
 export interface NavLeaf {
@@ -22,9 +22,22 @@ export const maestrosNavItems: NavLeaf[] = [
   { key: '/roles', icon: <SafetyCertificateOutlined />, label: 'Roles y Permisos', module: 'roles' },
 ]
 
+/** Ítems de la Fase 1 — Tickets (van al nivel raíz del menú, antes de Maestros). */
+export const ticketsNavItems: NavLeaf[] = [
+  { key: '/tickets', icon: <FileTextOutlined />, label: 'Tickets', module: 'tickets' },
+  { key: '/assignment-panel', icon: <DashboardOutlined />, label: 'Panel de Asignación', module: 'assignment_panel' },
+  { key: '/catalogs', icon: <TagsOutlined />, label: 'Catálogos', module: 'catalogs' },
+]
+
 /** Filtra los items de navegación por los permisos `view` que tiene el usuario autenticado. */
 export function getVisibleNavItems(permissions: Permission[]): NavLeaf[] {
   return maestrosNavItems.filter(item =>
+    permissions.some(p => p.module === item.module && p.action === 'view')
+  )
+}
+
+export function getVisibleTicketNavItems(permissions: Permission[]): NavLeaf[] {
+  return ticketsNavItems.filter(item =>
     permissions.some(p => p.module === item.module && p.action === 'view')
   )
 }

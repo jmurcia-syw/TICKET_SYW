@@ -11,6 +11,11 @@ class Project:
     name: str
     start_date: date
     description: Optional[str] = None
+    overview: Optional[str] = None
+    sale_services_usd: Optional[float] = None
+    sale_licenses_usd: Optional[float] = None
+    sale_subscriptions_usd: Optional[float] = None
+    components_sold: Optional[str] = None
     active: bool = True
     end_date_estimated: Optional[date] = None
     created_at: datetime = field(default_factory=datetime.utcnow)

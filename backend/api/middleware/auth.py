@@ -36,7 +36,7 @@ def jwt_required_active(fn):
             return fn(*args, **kwargs)
         verify_jwt_in_request()
         user_id_str = get_jwt_identity()
-        db = next(get_db())
+        db = get_db()
         repo = UserRepository(db)
         user = repo.get_by_id(uuid.UUID(user_id_str))
         if not user or not user.active:

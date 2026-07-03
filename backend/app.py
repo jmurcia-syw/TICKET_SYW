@@ -19,16 +19,25 @@ def create_app() -> Flask:
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     JWTManager(app)
 
+    # Devuelve la conexión de PostgreSQL al pool al final de CADA request
+    # (la sesión es request-scoped; sin esto el pool se agota bajo carga).
+    from backend.infra.database import close_db
+    app.teardown_appcontext(close_db)
+
     api = Api(
         app,
         version="1.0",
         title="SYWork Tickets API",
         description=(
             "API para el sistema de tickets de soporte SYWork.\n\n"
-            "**Nota de desarrollo**: las rutas de maestros (clients/projects/resources/skills/users/roles/permissions) "
-            "no exigen JWT en esta fase. `/api/auth/login` (usuario/contraseña provisional) y `/api/auth/google` "
-            "emiten un token real; `/api/auth/me` sí lo exige."
+            "**Seguridad (Fase 1)**: TODAS las rutas exigen JWT Bearer + permiso módulo/acción "
+            "del rol del usuario. Rutas públicas: `/api/auth/login`, `/api/auth/google` y `/health/`."
         ),
+        authorizations={
+            "Bearer": {"type": "apiKey", "in": "header", "name": "Authorization",
+                       "description": "Formato: Bearer {token}"},
+        },
+        security="Bearer",
         doc="/swagger",
     )
 
@@ -51,6 +60,17 @@ def create_app() -> Flask:
     api.add_namespace(ns_roles)
     api.add_namespace(ns_permissions)
 
+    # ── Fase 1 — Tickets ──────────────────────────────────────────────────────
+    from backend.api.routes.tickets import ns as ns_tickets
+    from backend.api.routes.catalogs import ns as ns_catalogs
+    from backend.api.routes.notifications import ns as ns_notifications
+    from backend.api.routes.assignment_panel import ns as ns_panel
+
+    api.add_namespace(ns_tickets)
+    api.add_namespace(ns_catalogs)
+    api.add_namespace(ns_notifications)
+    api.add_namespace(ns_panel)
+
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")
 
@@ -64,7 +84,7 @@ def create_app() -> Flask:
             from backend.infra.database import get_db
             from sqlalchemy import text
             try:
-                db = next(get_db())
+                db = get_db()
                 result = db.execute(text("SELECT version(), current_database(), now()")).fetchone()
                 return {
                     "status": "ok",

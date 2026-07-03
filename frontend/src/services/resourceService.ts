@@ -1,6 +1,6 @@
 import apiClient from './apiClient'
 import type { PaginatedResponse } from '../types/api'
-import type { Resource, ResourceFormData, Skill } from '../types/resource'
+import type { Resource, ResourceFormData, Skill, ResourceCompensation, CompensationFormData } from '../types/resource'
 
 export const resourceService = {
   list: (params?: { page?: number; page_size?: number; search?: string; skill_code?: string; active?: boolean }) =>
@@ -23,6 +23,12 @@ export const resourceService = {
 
   activate: (id: string) =>
     apiClient.patch<{ id: string; active: boolean }>(`/api/resources/${id}/activate`).then(r => r.data),
+
+  getCompensation: (id: string) =>
+    apiClient.get<ResourceCompensation>(`/api/resources/${id}/compensation`).then(r => r.data),
+
+  saveCompensation: (id: string, data: CompensationFormData) =>
+    apiClient.put<ResourceCompensation>(`/api/resources/${id}/compensation`, data).then(r => r.data),
 }
 
 export const skillService = {
