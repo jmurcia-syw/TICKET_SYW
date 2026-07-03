@@ -1,8 +1,11 @@
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from backend.infra.models.resource_model import ResourceModel, SkillModel, resource_skills_table
+from backend.infra.models.resource_model import (
+    ResourceModel, SkillModel, ResourceCompensationModel, resource_skills_table,
+)
 from backend.domain.entities.resource import Resource, Skill
+from backend.domain.entities.compensation import ResourceCompensation
 import uuid
 
 
@@ -86,6 +89,18 @@ class ResourceRepository:
             email=resource.email,
             active=resource.active,
             notes=resource.notes,
+            identification=resource.identification,
+            nationality=resource.nationality,
+            birth_date=resource.birth_date,
+            marital_status=resource.marital_status,
+            contract_type=resource.contract_type,
+            calendar_country=resource.calendar_country,
+            education_level=resource.education_level,
+            specialty=resource.specialty,
+            seniority=resource.seniority,
+            certifications=resource.certifications,
+            team=resource.team,
+            manager_id=resource.manager_id,
         )
         if resource.skills:
             skill_models = [self._db.get(SkillModel, s.id) for s in resource.skills]
@@ -120,3 +135,27 @@ class ResourceRepository:
 
     def set_active(self, resource_id: uuid.UUID, active: bool) -> Optional[Resource]:
         return self.update(resource_id, active=active)
+
+
+class CompensationRepository:
+    """Acceso al area protegida de compensacion (FR-032/FR-033, SDD V3)."""
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get(self, resource_id: uuid.UUID) -> Optional[ResourceCompensation]:
+        model = self._db.get(ResourceCompensationModel, resource_id)
+        return model.to_entity() if model else None
+
+    def upsert(self, comp: ResourceCompensation) -> ResourceCompensation:
+        model = self._db.get(ResourceCompensationModel, comp.resource_id)
+        new_model = ResourceCompensationModel.from_entity(comp)
+        if model:
+            for f in ("base_salary", "total_salary", "overhead", "hourly_cost", "currency"):
+                setattr(model, f, getattr(new_model, f))
+        else:
+            model = new_model
+            self._db.add(model)
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()

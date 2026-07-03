@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Form, Input, Modal, Select, Space, Table, Tooltip, message } from 'antd'
+import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tooltip, message } from 'antd'
 import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { projectService } from '../services/projectService'
@@ -122,6 +122,19 @@ export default function ProjectsPage() {
           </Form.Item>
           <Form.Item name="name" label="Nombre" rules={[{ required: true, message: 'El nombre es requerido' }]}><Input /></Form.Item>
           <Form.Item name="description" label="Descripción"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="overview" label="Overview del proyecto"><Input.TextArea rows={3} /></Form.Item>
+          <Space style={{ display: 'flex' }} align="start">
+            <Form.Item name="sale_services_usd" label="Venta servicios (USD)">
+              <InputNumber min={0} style={{ width: 140 }} />
+            </Form.Item>
+            <Form.Item name="sale_licenses_usd" label="Venta licencias (USD)">
+              <InputNumber min={0} style={{ width: 140 }} />
+            </Form.Item>
+            <Form.Item name="sale_subscriptions_usd" label="Suscripciones (USD)">
+              <InputNumber min={0} style={{ width: 140 }} />
+            </Form.Item>
+          </Space>
+          <Form.Item name="components_sold" label="Componentes vendidos"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="start_date" label="Fecha de inicio" rules={[{ required: true, message: 'La fecha de inicio es requerida' }]}>
             <Input type="date" />
           </Form.Item>

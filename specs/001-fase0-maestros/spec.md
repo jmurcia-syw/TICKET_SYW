@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-29
 
-**Status**: Enriched
+**Status**: Enriched — Ampliado 2026-07-02 con los campos de maestros de SDD V3 (`docs/SDD V3.docx`)
 
 ---
 
@@ -326,6 +326,33 @@ provisional generada.
   aleatoriamente en el momento de la migración, mostrada una única vez y nunca almacenada en el
   repositorio en texto plano.
 
+**Ampliación de Maestros — SDD V3 (2026-07-02)**
+
+- **FR-028**: El maestro de Clientes DEBE registrar el volumen de facturación anual en dólares
+  (USD) del cliente, editable por los roles con permiso `clients: edit`.
+- **FR-029**: El maestro de Clientes DEBE registrar el portafolio de software del cliente:
+  cero o más sistemas, cada uno con tipo (ERP, WMS, CRM, otro), marca y versión
+  (ej. ERP / JD Edwards / 9.2). Gestionable desde el detalle del cliente.
+- **FR-030**: El maestro de Proyectos DEBE registrar el overview del proyecto, los valores de
+  venta desglosados (servicios, licencias, suscripciones, en USD) y los componentes vendidos,
+  conformando el historial completo de proyectos por cliente.
+- **FR-031**: El maestro de Recursos DEBE ampliarse con: identificación, nacionalidad, fecha de
+  nacimiento, estado civil, tipo de contrato, país/calendario de trabajo (país base), nivel de
+  estudios, especialidad (Desarrollador, Funcional, Infraestructura, etc.), seniority (Junior,
+  Staff, Senior), certificaciones, equipo al que pertenece y jefe (referencia a otro recurso).
+  Todos opcionales salvo los ya requeridos (nombre, email).
+- **FR-032**: El sistema DEBE manejar un área protegida de compensación por recurso: salario
+  base, salario total (con beneficios legales y extralegales), costos adicionales/overhead, y
+  el costo hora calculado por el sistema a partir de esos valores. Estos datos DEBEN
+  almacenarse cifrados en reposo (mismo mecanismo que los datos VPN de clientes).
+- **FR-033**: El acceso al área de compensación DEBE controlarse con un nuevo módulo de permisos
+  `compensation` (acciones `view`, `edit`), sembrado inicialmente solo para el rol Admin. Los
+  campos de compensación NUNCA aparecen en el payload de la API para roles sin ese permiso
+  (ausentes, no enmascarados), y nunca en logs.
+- **FR-034**: El calendario detallado de trabajo por país (feriados, ausencias, vacaciones)
+  queda fuera de alcance de esta fase (Fase 5 del roadmap SDD V3); en esta fase solo se registra
+  el país base del calendario como atributo del recurso.
+
 **UX y Formularios**
 
 - **FR-024**: Todos los formularios de creación/edición DEBEN validar campos requeridos en el
@@ -340,13 +367,22 @@ provisional generada.
 ### Key Entities
 
 - **Client**: Organización cliente de SyWork. Atributos: nombre, slug, estado (activo/inactivo),
-  datos de contacto, datos sensibles de conexión (IPs, credenciales VPN cifradas). Es el nodo
-  raíz del modelo de datos (RLS root).
-- **Project**: Proyecto o contrato asociado a un cliente. Atributos: nombre, descripción, estado,
-  fecha de inicio, fecha de fin estimada, FK client_id.
+  datos de contacto, facturación anual USD (FR-028), datos sensibles de conexión (IPs,
+  credenciales VPN cifradas). Es el nodo raíz del modelo de datos (RLS root).
+- **ClientSystem**: Sistema de software que posee el cliente (FR-029). Atributos: tipo
+  (ERP/WMS/CRM/otro), marca, versión, FK client_id. Relación 1..N desde Client.
+- **Project**: Proyecto o contrato asociado a un cliente. Atributos: nombre, descripción,
+  overview, estado, fecha de inicio, fecha de fin estimada, valores de venta (servicios,
+  licencias, suscripciones en USD), componentes vendidos (FR-030), FK client_id.
 - **Resource**: Miembro del equipo de SyWork. Atributos: nombre, email (@sywork.net),
-  estado (activo/inactivo), lista de skills asignados. No tiene campo de rol propio; el rol
-  de acceso (permisos) reside únicamente en el `User` vinculado (relación opcional, 0..1).
+  estado (activo/inactivo), lista de skills asignados; perfil extendido FR-031 (identificación,
+  nacionalidad, fecha de nacimiento, estado civil, tipo de contrato, país de calendario, nivel
+  de estudios, especialidad, seniority, certificaciones, equipo, jefe → FK autorreferencial a
+  Resource). No tiene campo de rol propio; el rol de acceso (permisos) reside únicamente en el
+  `User` vinculado (relación opcional, 0..1).
+- **ResourceCompensation**: Área protegida de compensación 1..1 con Resource (FR-032/FR-033).
+  Atributos cifrados: salario base, salario total con beneficios, overhead/costos adicionales,
+  costo hora calculado. Visible solo con permiso `compensation`.
 - **Skill**: Etiqueta de habilidad técnica predefinida. Ejemplos: JDE_GL, API_REST,
   Oracle_Fusion, JDE_AP, Oracle_CRM. Catálogo gestionable por Admin, Coordinador y QM (mismo
   permiso de módulo `skills`).
@@ -356,8 +392,9 @@ provisional generada.
 - **Role**: Rol dinámico gestionable por Admin. Atributos: nombre, descripción, estado
   activo/inactivo. Sembrado inicialmente con Admin, Coordinador, QM, Resolutor.
 - **Permission**: Permiso granular módulo + acción. Módulos: `clients`, `projects`, `resources`,
-  `skills`, `users`, `roles`. Acciones: `view`, `create`, `edit`, `deactivate` (24 combinaciones
-  sembradas inicialmente). Asignado a roles mediante una tabla puente many-to-many.
+  `skills`, `users`, `roles` y `compensation` (FR-033, agregado 2026-07-02). Acciones: `view`,
+  `create`, `edit`, `deactivate` (24 combinaciones sembradas inicialmente + `compensation:
+  view/edit` sembradas solo para Admin). Asignado a roles mediante una tabla puente many-to-many.
 
 ---
 
@@ -402,6 +439,21 @@ provisional generada.
 - Q: ¿Qué nivel de acceso deben tener QM y Resolutor sobre Clientes, Proyectos, Recursos y Skills — el spec original solo mencionaba Admin/Coordinador para Clientes/Proyectos y "QM sin edición" para Recursos? → A: Se formaliza el modelo de permisos ya diseñado y aprobado fuera de este flujo (`docs/superpowers/specs/2026-07-01-roles-permissions-login-design.md`, implementado en la migración `009_roles_permissions_login.py`): QM tiene el mismo acceso completo que Admin/Coordinador sobre `clients`, `resources` y `skills` (pero nunca ve datos VPN sensibles); QM tiene solo lectura sobre `projects`; Resolutor tiene solo lectura sobre `clients`/`projects`/`skills`/`users`, y sobre `resources` solo lectura salvo su propio perfil (FR-012). Esto reemplaza la Acceptance Scenario 3 original de US1 ("Resolutor... acceso denegado") y el FR-013 original ("QM sin capacidad de edición").
 - Q: ¿Debe eliminarse cualquier bypass de autenticación de desarrollo (`DEV_SKIP_AUTH`) ahora que existe login provisional real? → A: Sí — el login provisional (FR-022b) pasa a ser, junto con Google OAuth2, el único mecanismo real de acceso al frontend en todos los ambientes (FR-022c).
 - Q: Ni el spec ni el código definen cómo se crea un `User` nuevo para un empleado que no sea uno de los 4 usuarios semilla (no hay `POST /api/users`, y el login de Google no auto-crea cuentas). ¿Cómo debe un Admin dar acceso a un empleado nuevo? → A: Admin crea el `User` manualmente desde la pantalla de Usuarios (email, username, rol); el sistema genera una contraseña provisional aleatoria mostrada una única vez para compartirla manualmente, igual que con los usuarios semilla (FR-022d).
+
+### Session 2026-07-02 — Ampliación por SDD V3
+
+- Q: ¿Los nuevos campos de maestros de SDD V3 (facturación de cliente, portafolio de software,
+  financieros de proyecto, perfil extendido y compensación de recurso) se agregan a esta spec o
+  a una nueva? → A: Se amplía esta spec (FR-028..FR-034); son extensiones de las mismas cuatro
+  pantallas de maestros ya construidas y prerequisito para iniciar la fase de Tickets.
+- Q: ¿Cómo se protege la compensación del recurso? → A: Tabla separada 1..1 cifrada con pgcrypto
+  (mismo patrón que VPN de clientes) + nuevo módulo de permisos `compensation` sembrado solo
+  para Admin; los campos están ausentes del payload para roles sin permiso.
+- Q: ¿El calendario de trabajo del recurso? → A: Solo se guarda el país base del calendario
+  (texto/código de país); la administración de calendarios, feriados y ausencias es Fase 5 del
+  roadmap SDD V3 (FR-034).
+- Q: Información familiar del recurso (hijos, EPS, etc.) mencionada como "más adelante" en el
+  SDD → A: Fuera de alcance de esta fase.
 
 ---
 

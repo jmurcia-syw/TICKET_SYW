@@ -1,17 +1,17 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: (none) → 1.0.0 (initial ratification)
-Modified principles: N/A — primera version
+Version change: 1.0.0 → 1.1.0 (2026-07-02, alineacion con SDD V3 + "Regla de actividad de estados.xlsx")
+Modified principles: N/A — principios I-VI sin cambios de fondo
+Modified sections:
+  - FSM: reemplazado el flujo provisional de 6 estados por el flujo oficial de 9 estados
+    definido en docs/"Regla de actividad de estados.xlsx" (fuente de verdad del ciclo de vida)
+  - Modelo de datos: nota de campos nuevos de maestros segun SDD V3 (facturacion cliente,
+    portafolio de software, financieros de proyecto, perfil extendido y compensacion de recurso)
 Added sections:
-  - Core Principles (I-VI)
-  - Stack Tecnologico y Gobernanza de Librerias
-  - Convenciones de Nomenclatura y Estructura
-  - Gobernanza
+  - Roadmap de Fases (SDD V3) con mapeo a la numeracion interna del repositorio
 Templates reviewed:
-  - .specify/templates/plan-template.md (compatible, sin actualizaciones necesarias)
-  - .specify/templates/spec-template.md (compatible, sin actualizaciones necesarias)
-  - .specify/templates/tasks-template.md (compatible, sin actualizaciones necesarias)
+  - .specify/templates/*: compatibles, sin actualizaciones necesarias
 Deferred TODOs:
   - TODO(HOSTING): Definir entorno de hosting on-premise (servidor, SO, proxy inverso)
   - TODO(SSO_DETAIL): Detallar configuracion SSO si se extiende mas alla de @sywork.net
@@ -131,20 +131,59 @@ criticas en el futuro sin cambios de arquitectura.
 
 ### FSM - Estados y transiciones del ticket
 
+**Fuente de verdad**: `docs/Regla de actividad de estados.xlsx` (SDD V3). Este flujo reemplaza
+el flujo provisional de 6 estados de la v1.0.0.
+
 ```
-nuevo -> asignado -> en_progreso <-> pendiente -> resuelto -> cerrado
+NUEVO ──asignar resolutor──> CONTACTO ──"Confirmación de atención"──> EN ANÁLISIS
+  │                             ▲                                        │
+  └──asignar QM──> PRE-ANÁLISIS ┘                       "Termina análisis"
+                        │                                                ▼
+                        └───"Solicitud de información"──> PENDIENTE DE USUARIO <──┐
+                                                              │ (respuesta)       │
+                                                              ▼                   │
+                                       EN EJECUCIÓN ──"Solicitud de información"──┘
+                                          │    │
+                                (EN PRUEBAS)   └──"Solicitud de cierre"──> RESUELTO
+                                                     acepta usuario / 3 días ──> CERRADO
+                                                     rechaza usuario ──> EN EJECUCIÓN
 ```
 
-| Estado | SLA activo | Trigger de entrada |
-|--------|-----------|-------------------|
-| nuevo | Si | estado inicial |
-| asignado | Si | `asignar()` |
-| en_progreso | Si | `iniciar()` |
-| pendiente | No (pausado) | `pausar()` / `contactar_cliente()` |
-| resuelto | Si | `resolver()` |
-| cerrado | — (final) | `cerrar()` / auto-cierre configurable |
+| Estado | Rol que atiende | Trigger de entrada | Campos bloqueados |
+|--------|-----------------|--------------------|-------------------|
+| NUEVO | Coordinador | Creacion manual o por integracion | ninguno |
+| PRE-ANÁLISIS | QM | Coordinador asigna al QM | ninguno |
+| CONTACTO | Resolutor | Coordinador/QM asigna resolutor | tiempo SLA, severidad, prioridad |
+| EN ANÁLISIS | Resolutor | Comentario "Confirmación de atención" | se desbloquean tiempo estimado, severidad, prioridad |
+| EN EJECUCIÓN | Resolutor | Comentario "Termina análisis" o respuesta del usuario | tiempo de resolucion |
+| EN PRUEBAS | Resolutor | (pendiente de definicion en el SDD — marcado con "?") | tiempo de resolucion |
+| PENDIENTE DE USUARIO | Usuario/N1/cliente | Comentario "Solicitud de información" o "Solicitud de cierre" | N.A. (SLA pausado) |
+| RESUELTO | Usuario/cliente | Comentario "Solicitud de cierre" | N.A. |
+| CERRADO | Resolutor | Usuario acepta resolucion, o 3+ dias sin respuesta | se habilita "Tipo de resolución" (obligatorio para cerrar) |
 
-Solo se permiten transiciones explicitamente definidas en la maquina de estados.
+Reglas transversales del flujo:
+- Los cambios de estado se disparan por **tipos de comentario estructurados** (Asignado,
+  Pre-Análisis, Confirmación de atención, Solicitud de información, Termina análisis,
+  Solicitud de cierre, Descripción solución) — nunca por texto libre (Principio VI).
+- Cada transicion genera notificaciones (APP obligatoria; Google Chat deseable; email al
+  usuario en comentarios externos).
+- En Fase 1 los estados se actualizan manualmente por Coordinador/Resolutor; el motor FSM
+  automatizado con `python-transitions` llega en la Fase 6 del roadmap, pero el catalogo de
+  estados y tipos de comentario DEBE ser este desde Fase 1.
+- Solo se permiten transiciones explicitamente definidas en la maquina de estados.
+
+## Roadmap de Fases (SDD V3)
+
+| Fase SDD V3 | Alcance | Equivalencia interna |
+|-------------|---------|----------------------|
+| 1 | Tickets + comentarios con adjuntos + ciclo de vida manual + pantallas de maestros (clientes, proyectos, recursos/skills, roles, datos sensibles) + Panel de Asignacion basico | `001-fase0-maestros` (maestros, hecho) + `002-fase1-tickets` (siguiente) |
+| 2 | Registro diario de tiempos por recurso | futura |
+| 3 | Manejo de Tareas (misma tabla que tickets, campo "Tipo de registro" + "Registro relacionado") | futura |
+| 4 | SLAs por prioridad/cliente/proyecto con estados que pausan el contador | futura |
+| 5 | Asignacion por disponibilidad + calendarios por pais/recurso + excepciones RRHH | futura |
+| 6 | Motor FSM automatizado + motor de comentarios con triggers | futura |
+| 7 | Focus Room + agente IA asistente del resolutor (evaluar Triage Agent) | futura |
+| 8 | Portal de clientes + integraciones + creacion automatica de tickets | futura |
 
 ### Modelo de datos - Jerarquia de 5 niveles
 
@@ -155,6 +194,17 @@ clients           (RLS root, Nivel 1)
       tasks       (FK: task_list_id, FSM + SLA + comentarios, Nivel 4)
         subtasks  (autorreferencial FK: parent_task_id, sin SLA propio, Nivel 5)
 ```
+
+**Maestros ampliados (SDD V3)** — los maestros DEBEN soportar, ademas de los datos base:
+- **Clientes**: facturacion anual (USD) y portafolio de software del cliente
+  (tipo ERP/WMS/CRM/etc., marca y version).
+- **Proyectos**: overview, valores de venta (servicios, licencias, suscripciones) y
+  componentes vendidos — historial completo de proyectos por cliente.
+- **Recursos**: identificacion, nacionalidad, fecha de nacimiento, estado civil, tipo de
+  contrato, pais/calendario de trabajo, nivel de estudios, especialidad, seniority,
+  certificaciones, equipo y jefe (FK autorreferencial). Area protegida de compensacion
+  (salario base, salario total con beneficios, overhead, costo hora calculado) cifrada y
+  visible solo para roles con el permiso `compensation`.
 
 ### Endpoints de API principales (contrato minimo Fase 1)
 
@@ -218,4 +268,4 @@ ad-hoc previas. Todo agente IA y todo desarrollador DEBEN leerla antes de tocar 
 4. Propagar cambios a templates en `.specify/templates/`.
 5. Actualizar `Last Amended`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-29 | **Last Amended**: 2026-06-29
+**Version**: 1.1.0 | **Ratified**: 2026-06-29 | **Last Amended**: 2026-07-02

@@ -220,3 +220,37 @@ Antes de marcar Fase 0 como completada:
 - [ ] Clientes, Proyectos y Recursos pueden reactivarse despues de desactivarse
 - [ ] Todas las validaciones muestran mensajes en espanol en el formulario
 - [ ] Swagger en http://localhost:5000/swagger muestra todos los endpoints documentados
+
+---
+
+## Escenario 11 — Ampliación de maestros SDD V3 (FR-028..FR-031)
+
+1. Como Admin, editar un cliente y asignarle facturación anual (ej. 1.500.000 USD). Verificar
+   que se guarda y se muestra en el detalle.
+2. En el detalle del cliente, agregar dos sistemas al portafolio (ej. ERP / JD Edwards / 9.2 y
+   CRM / Salesforce). Eliminar uno y verificar la lista.
+3. Editar un proyecto: llenar overview, valores de venta (servicios/licencias/suscripciones) y
+   componentes vendidos. Verificar persistencia. Intentar un monto negativo → error en español.
+4. Editar un recurso: llenar el perfil extendido (identificación, nacionalidad, fecha de
+   nacimiento, contrato, país calendario, estudios, especialidad, seniority, certificaciones,
+   equipo) y asignarle un jefe. Verificar que no se puede elegir a sí mismo como jefe.
+
+## Escenario 12 — Compensación protegida (FR-032/FR-033)
+
+1. Como Admin, abrir "Compensación" (botón $) de un recurso: registrar salario base 4000,
+   salario total 6000, overhead 1200. Guardar → el costo hora calculado (30.00 USD/h con base
+   240 h/mes) aparece como solo lectura.
+2. Intentar salario total menor al base → error 400 en español.
+3. Iniciar sesión como Coordinador/QM/Resolutor: el botón de compensación NO aparece
+   (sin permiso `compensation: view`).
+4. Con un token de Coordinador, llamar directamente `GET /api/resources/{id}/compensation`
+   → 403 sin detalle del recurso solicitado (FR-023). Sin token → 401.
+
+### Checklist ampliación SDD V3
+
+- [ ] Facturación anual y portafolio de software del cliente funcionales
+- [ ] Financieros/overview/componentes de proyecto persistentes y validados
+- [ ] Perfil extendido de recurso completo, jefe válido (activo y distinto de sí mismo)
+- [ ] Compensación cifrada, costo hora calculado por backend, visible solo con permiso
+  `compensation` (403/401 verificados por API directa)
+- [ ] Permisos `compensation:view/edit` sembrados solo para Admin (migración 010)

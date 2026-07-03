@@ -1,7 +1,7 @@
 from typing import Optional
 from sqlalchemy.orm import Session
-from backend.infra.models.client_model import ClientModel
-from backend.domain.entities.client import Client
+from backend.infra.models.client_model import ClientModel, ClientSystemModel
+from backend.domain.entities.client import Client, ClientSystem
 import uuid
 
 
@@ -42,7 +42,8 @@ class ClientRepository:
         model = self._db.get(ClientModel, client.id)
         if not model:
             return client
-        for field in ("name", "slug", "active", "contact_name", "contact_email", "contact_phone", "notes"):
+        for field in ("name", "slug", "active", "contact_name", "contact_email", "contact_phone",
+                      "annual_billing_usd", "notes"):
             setattr(model, field, getattr(client, field))
         if client.vpn_ips is not None:
             from backend.infra.models.client_model import _encrypt
@@ -56,6 +57,32 @@ class ClientRepository:
 
     def deactivate(self, client_id: uuid.UUID) -> Optional[Client]:
         return self.set_active(client_id, False)
+
+    # ── Portafolio de software del cliente (FR-029, SDD V3) ────────────
+
+    def list_systems(self, client_id: uuid.UUID) -> list[ClientSystem]:
+        models = (
+            self._db.query(ClientSystemModel)
+            .filter(ClientSystemModel.client_id == client_id)
+            .order_by(ClientSystemModel.created_at)
+            .all()
+        )
+        return [m.to_entity() for m in models]
+
+    def add_system(self, system: ClientSystem) -> ClientSystem:
+        model = ClientSystemModel.from_entity(system)
+        self._db.add(model)
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def delete_system(self, client_id: uuid.UUID, system_id: uuid.UUID) -> bool:
+        model = self._db.get(ClientSystemModel, system_id)
+        if not model or model.client_id != client_id:
+            return False
+        self._db.delete(model)
+        self._db.commit()
+        return True
 
     def set_active(self, client_id: uuid.UUID, active: bool) -> Optional[Client]:
         model = self._db.get(ClientModel, client_id)

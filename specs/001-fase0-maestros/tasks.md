@@ -374,6 +374,81 @@ provisional generada.
 
 ---
 
+## Phase 8: Ampliación de Maestros — SDD V3 (FR-028..FR-034) — ✅ COMPLETO (código)
+
+**Origen (2026-07-02)**: análisis de `docs/SDD V3.docx` y `docs/Regla de actividad de estados.xlsx`.
+Extiende las 4 pantallas de maestros existentes con los campos requeridos por el SDD V3 antes de
+iniciar la fase de Tickets. Ver spec (FR-028..FR-034) y data-model (migración 010).
+
+**Ejecutado 2026-07-02.** Verificación en esta sesión: `py_compile` de todos los módulos,
+arranque de `create_app()` con las 3 rutas nuevas registradas (`/api/clients/{id}/systems`,
+`/api/clients/{id}/systems/{sid}`, `/api/resources/{id}/compensation`), 41 tests de
+`backend/tests/domain/` en verde (7 nuevos de `CompensationService`), `npx tsc -b` sin errores.
+
+**Validado contra el stack real (2026-07-02)**: `docker compose up` ejecutó la migración 010
+(verificado: tablas `client_systems`/`resource_compensation`, permisos `compensation:view/edit`
+solo en Admin, columnas nuevas en `resources`). Escenarios 11-12 del quickstart validados por
+API: **18/18 checks PASS** (facturación, portafolio, financieros de proyecto, perfil extendido,
+jefe≠sí mismo, costo hora 30.0 calculado, 403 Coordinador sin detalle FR-023, 401 sin token,
+salarios ausentes del payload general). Suite completa en contenedor: **93 tests passed**
+(incluye `tests/api/` contra Postgres real — cierra la verificación pendiente de T096).
+Fix aplicado durante la validación: el endpoint de compensación devolvía 500 (en vez de 401)
+sin token porque flask-restx interceptaba la excepción JWT; ahora mapea a 401 explícito.
+Nota: quedan datos de prueba en la DB dev (`Cliente E2E SDD V3`, `Proyecto E2E SDD V3`,
+recursos `Recurso E2E`/`Jefe E2E`); la contraseña provisional de `admin`/`coordinador` fue
+rotada durante la validación.
+
+### Backend
+
+- [x] T100 Migración `010_extend_masters_sdd_v3.py`: `annual_billing_usd` en `clients`; tabla
+  `client_systems`; `overview`, `sale_services_usd`, `sale_licenses_usd`,
+  `sale_subscriptions_usd`, `components_sold` en `projects`; campos de perfil extendido +
+  `manager_id` (FK autorreferencial, CHECK `manager_id <> id`) en `resources`; tabla
+  `resource_compensation` (columnas BYTEA pgcrypto); seed de permisos `compensation:view` y
+  `compensation:edit` asignados solo al rol Admin.
+- [x] T101 [P] Extender entidad `Client` + `ClientService` (facturación anual; validación >= 0)
+  y nueva entidad `ClientSystem` (`backend/domain/entities/client.py`, `client_service.py`).
+- [x] T102 [P] Extender entidad `Project` + `ProjectService` (overview, financieros,
+  componentes vendidos; validación de montos >= 0).
+- [x] T103 [P] Extender entidad `Resource` + `ResourceService` (perfil extendido FR-031;
+  regla: el jefe debe ser un recurso activo distinto de sí mismo).
+- [x] T104 Nueva entidad `ResourceCompensation` + `CompensationService` en domain: cálculo de
+  `hourly_cost` en backend a partir de salario total + overhead / horas mes (FR-032).
+- [x] T105 Modelos SQLAlchemy y repositorios: `ClientSystemModel`, `ResourceCompensationModel`,
+  columnas nuevas en `ClientModel`/`ProjectModel`/`ResourceModel` (infra/).
+- [x] T106 Endpoints: sub-recurso `/api/clients/{id}/systems` (GET/POST/DELETE); campos nuevos
+  en payloads de clients/projects/resources; `/api/resources/{id}/compensation` (GET/PUT)
+  visible solo con permiso `compensation` — actualizar Swagger.
+- [x] T107 [P] Tests domain + API de los campos nuevos, en especial: compensación ausente del
+  payload sin permiso `compensation` (no enmascarada), cálculo de costo hora, manager
+  autorreferencial inválido.
+- [x] T108 [P] Actualizar contratos en `specs/001-fase0-maestros/contracts/` (clients.md,
+  projects.md, resources.md) con los campos y endpoints nuevos.
+
+### Frontend
+
+- [x] T109 [P] Actualizar tipos TS: `Client` (+facturación), `ClientSystem`, `Project`
+  (+financieros/overview), `Resource` (+perfil extendido), `ResourceCompensation`.
+- [x] T110 [P] Servicios: `clientService` (systems), `projectService`, `resourceService`
+  (+`compensationService` o métodos en resourceService).
+- [x] T111 `ClientsPage.tsx`: campo facturación anual + gestión del portafolio de software
+  (tabla editable de sistemas en el detalle del cliente).
+- [x] T112 `ProjectsPage.tsx`: overview + valores de venta + componentes vendidos en el
+  formulario/detalle (montos con formato USD).
+- [x] T113 `ResourcesPage.tsx`: formulario extendido (identificación, nacionalidad, fecha
+  nacimiento, estado civil, contrato, país calendario, estudios, especialidad, seniority,
+  certificaciones, equipo, selector de jefe entre recursos activos).
+- [x] T114 Sección "Compensación" en el detalle del recurso, visible solo con
+  `hasPermission('compensation', 'view')`; edición con `compensation: edit`; costo hora
+  calculado mostrado como solo lectura.
+- [x] T115 Validación E2E de la ampliación (extender `quickstart.md` con escenarios de
+  portafolio de software, financieros de proyecto, perfil extendido y compensación protegida).
+
+**Checkpoint**: Maestros alineados con SDD V3 — prerequisito cumplido para abrir la spec
+`002-fase1-tickets` (tickets + comentarios tipificados + 9 estados + Panel de Asignación).
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -383,6 +458,8 @@ provisional generada.
 - **Phase 6b**: ✅ Completa (T074-T099) — código escrito y verificado por typecheck/dev-server;
   falta validación E2E manual (T072)
 - **Phase 7 (Polish)**: T066, T067, T071, T072 pendientes de auditoría/validación explícita
+- **Phase 8 (Ampliación SDD V3)**: ✅ completa en código (T100-T115); falta correr la
+  migración 010 y los Escenarios 11-12 del quickstart contra el stack real (junto con T072)
 
 ### Dentro de Phase 6b
 

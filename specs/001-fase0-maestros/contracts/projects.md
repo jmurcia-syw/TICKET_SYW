@@ -88,3 +88,19 @@ Reactivar un proyecto previamente desactivado.
 
 **Response 200**: `{ "id": "uuid", "active": true }`
 **Errors**: 409 `{ "error": "already_active" }`, 401, 403, 404
+
+---
+
+## Ampliación SDD V3 (2026-07-02, FR-030)
+
+Los payloads de proyecto (list, detail, create, update) incluyen ahora:
+
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| overview | string \| null | Overview / resumen ejecutivo |
+| sale_services_usd | number \| null | Valor de venta de servicios en USD (>= 0) |
+| sale_licenses_usd | number \| null | Valor de venta de licencias en USD (>= 0) |
+| sale_subscriptions_usd | number \| null | Valor de venta de suscripciones en USD (>= 0) |
+| components_sold | string \| null | Componentes vendidos |
+
+Montos negativos o no numericos → 400 `validation_error` con mensaje en español.

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 import uuid
 
@@ -26,6 +26,19 @@ class Resource:
     user_id: Optional[uuid.UUID] = None
     notes: Optional[str] = None
     skills: list[Skill] = field(default_factory=list)
+    # Perfil extendido SDD V3 (FR-031) — todos opcionales
+    identification: Optional[str] = None
+    nationality: Optional[str] = None
+    birth_date: Optional[date] = None
+    marital_status: Optional[str] = None
+    contract_type: Optional[str] = None
+    calendar_country: Optional[str] = None
+    education_level: Optional[str] = None
+    specialty: Optional[str] = None
+    seniority: Optional[str] = None
+    certifications: Optional[str] = None
+    team: Optional[str] = None
+    manager_id: Optional[uuid.UUID] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 

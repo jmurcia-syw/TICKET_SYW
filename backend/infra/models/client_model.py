@@ -1,10 +1,10 @@
 import os
 import uuid
-from sqlalchemy import Boolean, Column, LargeBinary, Text, TIMESTAMP
+from sqlalchemy import Boolean, Column, ForeignKey, LargeBinary, Numeric, Text, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func, text
 from backend.infra.models import Base
-from backend.domain.entities.client import Client
+from backend.domain.entities.client import Client, ClientSystem
 
 _PGCRYPTO_KEY_ENV = "PGCRYPTO_KEY"
 
@@ -38,6 +38,7 @@ class ClientModel(Base):
     contact_phone = Column(Text, nullable=True)
     vpn_ips = Column(LargeBinary, nullable=True)
     vpn_credentials = Column(LargeBinary, nullable=True)
+    annual_billing_usd = Column(Numeric(14, 2), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
@@ -53,6 +54,7 @@ class ClientModel(Base):
             contact_phone=self.contact_phone,
             vpn_ips=_decrypt(self.vpn_ips) if include_sensitive else None,
             vpn_credentials=_decrypt(self.vpn_credentials) if include_sensitive else None,
+            annual_billing_usd=float(self.annual_billing_usd) if self.annual_billing_usd is not None else None,
             notes=self.notes,
             created_at=self.created_at,
             updated_at=self.updated_at,
@@ -70,5 +72,40 @@ class ClientModel(Base):
             contact_phone=client.contact_phone,
             vpn_ips=_encrypt(client.vpn_ips),
             vpn_credentials=_encrypt(client.vpn_credentials),
+            annual_billing_usd=client.annual_billing_usd,
             notes=client.notes,
+        )
+
+
+class ClientSystemModel(Base):
+    __tablename__ = "client_systems"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    system_type = Column(Text, nullable=False)
+    brand = Column(Text, nullable=False)
+    version = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    def to_entity(self) -> ClientSystem:
+        return ClientSystem(
+            id=self.id,
+            client_id=self.client_id,
+            system_type=self.system_type,
+            brand=self.brand,
+            version=self.version,
+            notes=self.notes,
+            created_at=self.created_at,
+        )
+
+    @classmethod
+    def from_entity(cls, system: ClientSystem) -> "ClientSystemModel":
+        return cls(
+            id=system.id,
+            client_id=system.client_id,
+            system_type=system.system_type,
+            brand=system.brand,
+            version=system.version,
+            notes=system.notes,
         )

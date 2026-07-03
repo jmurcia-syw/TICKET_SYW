@@ -21,6 +21,7 @@ Nodo raiz del modelo de datos. RLS root — todas las politicas de aislamiento p
 | contact_phone | TEXT | | Telefono del contacto |
 | vpn_ips | BYTEA | cifrado pgcrypto AES-256 | IPs de acceso VPN del cliente |
 | vpn_credentials | BYTEA | cifrado pgcrypto AES-256 | Credenciales de acceso VPN |
+| annual_billing_usd | NUMERIC(14,2) | NULLABLE | Facturacion anual del cliente en USD (FR-028, SDD V3) |
 | notes | TEXT | | Notas adicionales (no cifradas) |
 | created_at | TIMESTAMPTZ | NOT NULL, default now() | Fecha de creacion |
 | updated_at | TIMESTAMPTZ | NOT NULL, default now() | Ultima modificacion |
@@ -49,6 +50,26 @@ CREATE POLICY clients_access ON clients
 
 ---
 
+### client_systems (nueva — SDD V3, FR-029)
+
+Portafolio de software que posee el cliente.
+
+| Columna | Tipo | Constraints | Descripcion |
+|---------|------|-------------|-------------|
+| id | UUID | PK, default gen_random_uuid() | Identificador unico |
+| client_id | UUID | NOT NULL, FK clients(id) | Cliente propietario |
+| system_type | TEXT | NOT NULL | Tipo: ERP, WMS, CRM, OTM, otro |
+| brand | TEXT | NOT NULL | Marca (JD Edwards, Oracle Fusion, SAP, etc.) |
+| version | TEXT | | Version del sistema |
+| notes | TEXT | | Notas |
+| created_at | TIMESTAMPTZ | NOT NULL, default now() | Fecha de creacion |
+
+**Reglas de negocio**:
+- Un cliente puede tener 0..N sistemas; gestionable desde el detalle del cliente
+- Se elimina en cascada logica con el cliente (conserva historial si el cliente se desactiva)
+
+---
+
 ### projects
 
 | Columna | Tipo | Constraints | Descripcion |
@@ -57,6 +78,11 @@ CREATE POLICY clients_access ON clients
 | client_id | UUID | NOT NULL, FK clients(id) | Cliente propietario |
 | name | TEXT | NOT NULL | Nombre del proyecto |
 | description | TEXT | | Descripcion del proyecto |
+| overview | TEXT | | Overview / resumen ejecutivo del proyecto (FR-030, SDD V3) |
+| sale_services_usd | NUMERIC(14,2) | NULLABLE | Valor de venta de servicios (FR-030) |
+| sale_licenses_usd | NUMERIC(14,2) | NULLABLE | Valor de venta de licencias (FR-030) |
+| sale_subscriptions_usd | NUMERIC(14,2) | NULLABLE | Valor de venta de suscripciones (FR-030) |
+| components_sold | TEXT | | Componentes vendidos (FR-030) |
 | active | BOOLEAN | NOT NULL, default TRUE | Estado activo/inactivo |
 | start_date | DATE | NOT NULL | Fecha de inicio |
 | end_date_estimated | DATE | | Fecha de fin estimada |
@@ -105,6 +131,18 @@ Miembros del equipo interno de SyWork.
 | user_id | UUID | FK users(id), UNIQUE | Cuenta de acceso asociada |
 | full_name | TEXT | NOT NULL | Nombre completo |
 | email | TEXT | NOT NULL, UNIQUE | Email @sywork.net (igual al de autenticacion) |
+| identification | TEXT | NULLABLE | Numero de identificacion (FR-031, SDD V3) |
+| nationality | TEXT | NULLABLE | Nacionalidad (FR-031) |
+| birth_date | DATE | NULLABLE | Fecha de nacimiento (FR-031) |
+| marital_status | TEXT | NULLABLE | Estado civil (FR-031) |
+| contract_type | TEXT | NULLABLE | Tipo de contrato (FR-031) |
+| calendar_country | TEXT | NULLABLE | Pais base del calendario de trabajo (FR-031/FR-034) |
+| education_level | TEXT | NULLABLE | Nivel de estudios (FR-031) |
+| specialty | TEXT | NULLABLE | Especialidad: Desarrollador, Funcional, Infraestructura, etc. (FR-031) |
+| seniority | TEXT | NULLABLE | Junior, Staff, Senior (FR-031) |
+| certifications | TEXT | NULLABLE | Certificaciones (texto libre / lista, FR-031) |
+| team | TEXT | NULLABLE | Equipo al que pertenece (FR-031) |
+| manager_id | UUID | NULLABLE, FK resources(id) | Jefe directo — autorreferencial (FR-031) |
 | active | BOOLEAN | NOT NULL, default TRUE | Estado activo/inactivo |
 | notes | TEXT | | Notas del perfil (visible para Admin/Coordinador) |
 | created_at | TIMESTAMPTZ | NOT NULL, default now() | Fecha de creacion |
@@ -114,6 +152,31 @@ Miembros del equipo interno de SyWork.
 - Email unico globalmente (es el identificador de identidad)
 - Un recurso sin skills asignados puede existir, pero genera advertencia en asignacion de tickets
 - RLS: Resolutor solo puede leer/actualizar su propio registro
+- `manager_id` no puede apuntar al propio recurso (CHECK manager_id <> id)
+- Los campos nuevos FR-031 son todos opcionales; no rompen los registros existentes
+
+---
+
+### resource_compensation (nueva — SDD V3, FR-032/FR-033)
+
+Area protegida de compensacion, 1..1 con resources. Mismo patron de cifrado que VPN de clientes.
+
+| Columna | Tipo | Constraints | Descripcion |
+|---------|------|-------------|-------------|
+| resource_id | UUID | PK, FK resources(id) | Recurso (relacion 1..1) |
+| base_salary | BYTEA | cifrado pgcrypto AES-256 | Salario base |
+| total_salary | BYTEA | cifrado pgcrypto AES-256 | Salario total con beneficios legales y extralegales |
+| overhead | BYTEA | cifrado pgcrypto AES-256 | Costos adicionales / overhead |
+| hourly_cost | BYTEA | cifrado pgcrypto AES-256 | Costo hora calculado por el sistema (total + overhead / horas mes) |
+| currency | TEXT | NOT NULL, default 'USD' | Moneda de los valores |
+| updated_at | TIMESTAMPTZ | NOT NULL, default now() | Ultima modificacion |
+
+**Reglas de negocio**:
+- Accesible solo con permiso `compensation: view` (lectura) / `compensation: edit` (escritura),
+  sembrado inicialmente solo para el rol Admin
+- Los campos NUNCA aparecen en payloads de API para roles sin permiso (ausentes, no enmascarados)
+- Nunca serializados en logs
+- `hourly_cost` lo calcula el backend al guardar (domain service), no lo envia el cliente
 
 ---
 
@@ -187,7 +250,7 @@ Permiso granular modulo + accion (FR-015b). Catalogo administrado por Admin.
 | Columna | Tipo | Constraints | Descripcion |
 |---------|------|-------------|-------------|
 | id | UUID | PK, default gen_random_uuid() | Identificador unico |
-| module | TEXT | NOT NULL | Modulo (ej. `clients`, `projects`, `resources`, `roles`) |
+| module | TEXT | NOT NULL | Modulo (`clients`, `projects`, `resources`, `skills`, `users`, `roles`, `compensation`) |
 | action | TEXT | NOT NULL | Accion (`view`, `create`, `edit`, `deactivate`) |
 | description | TEXT | | Descripcion legible |
 
@@ -216,11 +279,14 @@ Permiso granular modulo + accion (FR-015b). Catalogo administrado por Admin.
 
 ```
 clients (1) ──── (N) projects
+    │  │
+    │  └── (N) client_systems          [portafolio de software del cliente, SDD V3]
     │
     └── RLS root para tickets (Fase 1)
 
-users (0..1) ──── (0..1) resources
-  │                   │
+users (0..1) ──── (0..1) resources ──── (0..1) resource_compensation  [cifrada, SDD V3]
+  │                   │      │
+  │                   │      └── manager_id (autorreferencial: jefe)
   │                   └── (N) resource_skills (N) ──── (1) skills
   │
   └── (N) role_permissions (N) ──── (1) roles ──── (N) permissions
@@ -238,3 +304,8 @@ users (0..1) ──── (0..1) resources
 5. `008_enable_rls_policies.py` — habilitar RLS y crear politicas en clients, resources, users
 6. `009_roles_permissions_login.py` — tablas roles, permissions, role_permissions; seed de los
    4 roles iniciales y su matriz de permisos; agrega `username`/`password_hash` a users
+7. `010_extend_masters_sdd_v3.py` — **(nueva, pendiente)** ampliacion SDD V3: columna
+   `annual_billing_usd` en clients; tabla `client_systems`; columnas financieras/overview en
+   projects; columnas de perfil extendido + `manager_id` en resources; tabla
+   `resource_compensation` cifrada; seed del modulo de permisos `compensation` (view/edit)
+   asignado solo al rol Admin

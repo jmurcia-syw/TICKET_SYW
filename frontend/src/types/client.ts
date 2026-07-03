@@ -6,6 +6,7 @@ export interface ClientListItem {
   contact_name: string | null
   contact_email: string | null
   contact_phone: string | null
+  annual_billing_usd: number | null
   created_at: string
   updated_at: string
 }
@@ -23,5 +24,23 @@ export interface ClientFormData {
   contact_phone?: string | null
   vpn_ips?: string | null
   vpn_credentials?: string | null
+  annual_billing_usd?: number | null
+  notes?: string | null
+}
+
+export interface ClientSystem {
+  id: string
+  client_id: string
+  system_type: string
+  brand: string
+  version: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface ClientSystemFormData {
+  system_type: string
+  brand: string
+  version?: string | null
   notes?: string | null
 }

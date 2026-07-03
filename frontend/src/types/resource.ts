@@ -12,6 +12,18 @@ export interface Resource {
   email: string
   active: boolean
   notes: string | null
+  identification: string | null
+  nationality: string | null
+  birth_date: string | null
+  marital_status: string | null
+  contract_type: string | null
+  calendar_country: string | null
+  education_level: string | null
+  specialty: string | null
+  seniority: string | null
+  certifications: string | null
+  team: string | null
+  manager_id: string | null
   skills: Skill[]
   created_at: string
 }
@@ -22,4 +34,33 @@ export interface ResourceFormData {
   user_id?: string | null
   skill_ids?: string[]
   notes?: string | null
+  identification?: string | null
+  nationality?: string | null
+  birth_date?: string | null
+  marital_status?: string | null
+  contract_type?: string | null
+  calendar_country?: string | null
+  education_level?: string | null
+  specialty?: string | null
+  seniority?: string | null
+  certifications?: string | null
+  team?: string | null
+  manager_id?: string | null
+}
+
+export interface ResourceCompensation {
+  resource_id: string
+  base_salary: number | null
+  total_salary: number | null
+  overhead: number | null
+  hourly_cost: number | null
+  currency: string
+  updated_at: string | null
+}
+
+export interface CompensationFormData {
+  base_salary?: number | null
+  total_salary?: number | null
+  overhead?: number | null
+  currency?: string
 }
