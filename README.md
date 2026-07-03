@@ -120,28 +120,137 @@ frontend/src/
 
 ---
 
-## Quickstart — Desarrollo local
+## Instalación y despliegue
 
-### Requisitos
-- Docker Desktop
-- Node.js 20+ y pnpm (solo si corres el frontend fuera de Docker)
+### Requisitos previos
 
-### Levantar todo
+| Componente | Uso |
+|------------|-----|
+| **Docker Desktop** (o Docker Engine + Compose v2) | Orquesta los 3 servicios: `sywork_db`, `sywork_backend`, `sywork_frontend` |
+| **Git** | Clonar el repositorio |
+| Node.js 20+ y pnpm | Solo si vas a correr el frontend **fuera** de Docker |
+| Python 3.12 | Solo si vas a correr el backend **fuera** de Docker |
+
+Todo el stack corre en contenedores — no necesitas instalar PostgreSQL, Python ni Node
+directamente en el host para levantar el servicio completo.
+
+### 1. Clonar el repositorio
 
 ```bash
-cp .env.example .env        # primera vez
-docker compose up --build   # DB + backend (Alembic migra al iniciar) + frontend
-
-# App:      http://localhost:5173
-# Swagger:  http://localhost:5000/swagger
-# Health:   curl http://localhost:5000/health/
+git clone https://github.com/jmurcia-syw/TICKET_SYW.git
+cd TICKET_SYW
 ```
 
-### Login
+### 2. Configurar variables de entorno
 
-Login provisional (usuario/contraseña) o Google OAuth2 (`@sywork.net`). Los 4 usuarios
-semilla (`admin`, `coordinador`, `qm`, `resolutor`) comparten la contraseña provisional
-que la migración imprime **una única vez** en el log del backend (rotable por Admin).
+```bash
+cp .env.example .env
+```
+
+Edita `.env` con valores reales (nunca commitear este archivo):
+
+```env
+POSTGRES_DB=sywork_tickets
+POSTGRES_USER=sywork
+POSTGRES_PASSWORD=<contraseña fuerte>
+
+JWT_SECRET=<cadena aleatoria de al menos 32 caracteres>
+
+# console.cloud.google.com → APIs & Services → Credentials → OAuth 2.0 Client
+GOOGLE_CLIENT_ID=tu-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=tu-client-secret
+
+FLASK_ENV=production          # 'development' solo en entornos locales
+FLASK_APP=backend/app.py
+DEV_SKIP_AUTH=false           # SIEMPRE false: la API exige JWT en toda ruta (FR-022)
+```
+
+> `DEV_SKIP_AUTH` es una bandera heredada de versiones tempranas del proyecto — desde la
+> Fase 1 el enforcement de JWT+permisos es real e incondicional en el backend, por lo que
+> esta variable ya no tiene efecto y debe permanecer en `false`.
+
+### 3. Levantar el stack
+
+```bash
+docker compose up --build -d
+```
+
+Esto construye las 3 imágenes y arranca, en orden:
+
+1. **`sywork_db`** (Postgres 16) — espera a estar `healthy` antes de continuar.
+2. **`sywork_backend`** (Flask) — corre `alembic upgrade head` automáticamente al iniciar
+   (12 migraciones) y luego levanta el servidor en `:5000`.
+3. **`sywork_frontend`** (Vite) — sirve la SPA en `:5173`.
+
+```bash
+docker compose ps                       # verificar que los 3 estén "Up"
+docker compose logs -f backend           # seguir logs de arranque / migraciones
+curl http://localhost:5000/health/       # {"status": "ok", "database": {"connected": true}}
+```
+
+- **App**: http://localhost:5173
+- **Swagger / OpenAPI**: http://localhost:5000/swagger
+- **Postgres** (para clientes externos como DBeaver/psql): `localhost:5432`
+
+### 4. Primer login
+
+La primera vez que corre la migración de roles/permisos, el backend **imprime una única
+vez** en el log una contraseña provisional compartida por los 4 usuarios semilla:
+
+```bash
+docker compose logs backend | grep -A2 "PROVISIONAL"
+```
+
+Usuarios semilla (`username` / dominio `@sywork.net`): `admin`, `coordinador`, `qm`,
+`resolutor`. Cualquiera puede iniciar sesión por ese login provisional o por Google OAuth2
+(si configuraste `GOOGLE_CLIENT_ID`/`SECRET`). Un Admin puede rotar contraseñas y dar de
+alta usuarios reales desde la pantalla de Usuarios una vez dentro.
+
+### Detener / reiniciar
+
+```bash
+docker compose down              # detiene y elimina los contenedores (conserva datos)
+docker compose down -v           # además borra el volumen de Postgres (⚠ pierde datos)
+docker compose restart backend   # reiniciar solo un servicio tras editar código
+```
+
+### Despliegue en servidor (on-premise)
+
+El proyecto está pensado para desplegarse on-premise vía Docker Compose, sin dependencias
+de servicios cloud gestionados:
+
+1. Provisionar un host Linux con Docker Engine + Compose v2 instalados.
+2. Clonar el repo y configurar `.env` con secretos de producción (`JWT_SECRET` fuerte,
+   credenciales de Postgres, credenciales OAuth reales, `FLASK_ENV=production`).
+3. `docker compose up --build -d` — igual que en desarrollo; Alembic aplica las
+   migraciones pendientes automáticamente en cada arranque, de forma idempotente.
+4. Colocar un proxy inverso (nginx/Caddy) delante de `:5173` (frontend) y `:5000/api`
+   (backend) para servir bajo un dominio único con TLS. *(Pendiente de definir en este
+   repo — ver `TODO(HOSTING)` en la Constitución.)*
+5. El volumen `postgres_data` persiste los datos entre despliegues; `uploads/` (adjuntos
+   de tickets) también debe persistirse — verifica que el volumen bind `.:/repo` del
+   backend incluya esa carpeta en el host.
+6. Backups: `pg_dump` periódico del volumen `postgres_data` + copia de `uploads/`.
+
+### Desarrollo sin Docker (opcional)
+
+Si prefieres correr el backend o frontend directamente en el host (requiere Postgres
+accesible por separado):
+
+```bash
+# Backend
+cd backend
+python -m venv .venv && source .venv/bin/activate  # o .venv\Scripts\activate en Windows
+pip install -r requirements.txt
+export DATABASE_URL=postgresql://sywork:changeme@localhost:5432/sywork_tickets
+alembic upgrade head
+flask run --host=0.0.0.0 --port=5000
+
+# Frontend (en otra terminal)
+cd frontend
+pnpm install
+pnpm dev   # http://localhost:5173, usa VITE_API_URL apuntando al backend
+```
 
 ### Tests
 
