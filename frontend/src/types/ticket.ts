@@ -50,7 +50,16 @@ export interface TicketListItem {
   client: EntityRef | null
   project: EntityRef | null
   assignee: ResourceRef | null
+  estimated_resolution_minutes: number | null
   created_at: string
+}
+
+/** "125" min → "2h 05m"; null → '—'. Usado en el tablero Kanban. */
+export function formatMinutes(minutes: number | null): string {
+  if (minutes == null) return '—'
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`
 }
 
 export type CommentType =
@@ -144,6 +153,7 @@ export interface TicketFilters {
   severity?: Severity
   ticket_type?: TicketType
   assignee_id?: string
+  escalation_level?: EscalationLevel
   sort?: string
 }
 

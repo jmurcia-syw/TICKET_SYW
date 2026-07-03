@@ -27,7 +27,7 @@ class TicketRepository:
                        client_id: uuid.UUID | None = None, project_id: uuid.UUID | None = None,
                        statuses: list[str] | None = None, priority: str | None = None,
                        severity: str | None = None, ticket_type: str | None = None,
-                       assignee_id: uuid.UUID | None = None,
+                       assignee_id: uuid.UUID | None = None, escalation_level: str | None = None,
                        sort: str = "-created_at") -> tuple[list[Ticket], int]:
         q = self._db.query(TicketModel)
         if search:
@@ -52,6 +52,8 @@ class TicketRepository:
             q = q.filter(TicketModel.ticket_type == ticket_type)
         if assignee_id:
             q = q.filter(TicketModel.assignee_id == assignee_id)
+        if escalation_level:
+            q = q.filter(TicketModel.escalation_level == escalation_level)
         total = q.count()
         order = _SORTS.get(sort, _SORTS["-created_at"])
         models = q.order_by(order).offset((page - 1) * page_size).limit(page_size).all()

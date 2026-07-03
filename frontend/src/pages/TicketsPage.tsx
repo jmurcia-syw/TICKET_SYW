@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Form, Input, Modal, Select, Space, Table, Tooltip, message } from 'antd'
-import { PlusOutlined, EyeOutlined, UserSwitchOutlined } from '@ant-design/icons'
+import { Button, Form, Input, Modal, Row, Col, Select, Space, Table, Tooltip, message } from 'antd'
+import {
+  PlusOutlined, EyeOutlined, UserSwitchOutlined, InboxOutlined, ThunderboltOutlined,
+  ClockCircleOutlined, CheckCircleOutlined, FieldTimeOutlined,
+} from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
@@ -17,9 +20,13 @@ import type { ClientListItem } from '../types/client'
 import type { ProjectListItem } from '../types/project'
 import type { Resource } from '../types/resource'
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
+import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
 import PageToolbar from '../components/common/PageToolbar'
+import StatCard from '../components/common/StatCard'
 import { useAuthStore } from '../store/authStore'
+
+const IN_PROGRESS_STATUSES: TicketStatus[] = ['contacto', 'en_analisis', 'en_ejecucion', 'en_pruebas']
 
 const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))
 const priorityOptions = Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }))
@@ -42,6 +49,7 @@ export default function TicketsPage() {
   const [priorityFilter, setPriorityFilter] = useState<Priority | undefined>()
   const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>()
   const [assigningId, setAssigningId] = useState<string | null>(null)
+  const [stats, setStats] = useState<{ nuevo: number; enProgreso: number; pendienteUsuario: number; resuelto: number } | null>(null)
 
   const [clients, setClients] = useState<ClientListItem[]>([])
   const [projects, setProjects] = useState<ProjectListItem[]>([])
@@ -72,6 +80,18 @@ export default function TicketsPage() {
 
   useEffect(() => { load() }, [load])
 
+  const loadStats = useCallback(async () => {
+    const [nuevo, enProgreso, pendienteUsuario, resuelto] = await Promise.all([
+      ticketService.list({ status: ['nuevo'], page_size: 1 }).then(r => r.total),
+      ticketService.list({ status: IN_PROGRESS_STATUSES, page_size: 1 }).then(r => r.total),
+      ticketService.list({ status: ['pendiente_usuario'], page_size: 1 }).then(r => r.total),
+      ticketService.list({ status: ['resuelto'], page_size: 1 }).then(r => r.total),
+    ])
+    setStats({ nuevo, enProgreso, pendienteUsuario, resuelto })
+  }, [])
+
+  useEffect(() => { loadStats() }, [loadStats])
+
   useEffect(() => {
     clientService.list({ active: true, page_size: 100 }).then(r => setClients(r.items))
     catalogService.list('tools').then(r => setTools(r.items))
@@ -96,6 +116,7 @@ export default function TicketsPage() {
       setFormOpen(false)
       form.resetFields()
       load()
+      loadStats()
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al crear el ticket'
       message.error(msg)
@@ -109,8 +130,8 @@ export default function TicketsPage() {
     { title: 'Cliente', dataIndex: ['client', 'name'], width: 160, ellipsis: true },
     { title: 'Estado', dataIndex: 'status', width: 150,
       render: (s: TicketStatus) => <TicketStatusTag status={s} /> },
-    { title: 'Prioridad', dataIndex: 'priority', width: 100,
-      render: (p: Priority) => PRIORITY_LABELS[p] },
+    { title: 'Prioridad', dataIndex: 'priority', width: 90,
+      render: (p: Priority) => <PriorityBadge priority={p} /> },
     { title: 'Sev.', dataIndex: 'severity', width: 70,
       render: (s: string) => s.toUpperCase() },
     { title: 'Asignado', dataIndex: ['assignee', 'full_name'], width: 160,
@@ -134,6 +155,25 @@ export default function TicketsPage() {
 
   return (
     <div>
+      <Row gutter={16} style={{ marginBottom: 20 }}>
+        <Col xs={12} md={8} lg={4}>
+          <StatCard label="Nuevos" value={stats?.nuevo ?? '—'} icon={<InboxOutlined />} color="blue" sub="Pendientes de triage" />
+        </Col>
+        <Col xs={12} md={8} lg={4}>
+          <StatCard label="En progreso" value={stats?.enProgreso ?? '—'} icon={<ThunderboltOutlined />} color="orange" sub="Contacto → En pruebas" />
+        </Col>
+        <Col xs={12} md={8} lg={4}>
+          <StatCard label="Pend. usuario" value={stats?.pendienteUsuario ?? '—'} icon={<ClockCircleOutlined />} color="magenta" sub="SLA pausado (Fase 4)" />
+        </Col>
+        <Col xs={12} md={8} lg={4}>
+          <StatCard label="Resueltos" value={stats?.resuelto ?? '—'} icon={<CheckCircleOutlined />} color="green" sub="Pendientes de cierre" />
+        </Col>
+        <Col xs={12} md={8} lg={4}>
+          <StatCard label="Vencen hoy" value="—" icon={<FieldTimeOutlined />} color="red" placeholder
+            placeholderHint="Contador de SLA — llega en Fase 4 (Gestión de SLAs)" />
+        </Col>
+      </Row>
+
       <PageToolbar
         filters={<>
           <Input.Search placeholder="Buscar por título o número..." onSearch={setSearch} allowClear style={{ width: 240 }} />

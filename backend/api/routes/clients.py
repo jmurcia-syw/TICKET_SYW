@@ -146,6 +146,8 @@ class ClientList(Resource):
             "active": {"description": "Filtrar por estado (true/false)", "type": "boolean"},
         },
     )
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Listado de clientes", _client_list_out)
     @ns.response(400, "Parámetros inválidos", _error)
     @ns.response(500, "Error interno del servidor", _error)
@@ -168,6 +170,8 @@ class ClientList(Resource):
             return server_error()
 
     @ns.doc("create_client")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_client_input, validate=False)
     @ns.response(201, "Cliente creado", _client_detail_out)
     @ns.response(400, "Datos inválidos", _error)
@@ -211,6 +215,8 @@ class ClientList(Resource):
 @ns.param("client_id", "UUID del cliente")
 class ClientDetail(Resource):
     @ns.doc("get_client")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Detalle del cliente (incluye campos VPN sensibles)", _client_detail_out)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Cliente no encontrado", _error)
@@ -230,6 +236,8 @@ class ClientDetail(Resource):
             return server_error()
 
     @ns.doc("update_client")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_client_update, validate=False)
     @ns.response(200, "Cliente actualizado", _client_detail_out)
     @ns.response(400, "Datos inválidos", _error)
@@ -277,6 +285,8 @@ class ClientDetail(Resource):
 @ns.param("client_id", "UUID del cliente")
 class ClientDeactivate(Resource):
     @ns.doc("deactivate_client")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Cliente desactivado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Cliente no encontrado", _error)
@@ -310,6 +320,8 @@ class ClientDeactivate(Resource):
 @ns.param("client_id", "UUID del cliente")
 class ClientActivate(Resource):
     @ns.doc("activate_client")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Cliente activado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Cliente no encontrado", _error)
@@ -338,6 +350,8 @@ class ClientActivate(Resource):
 @ns.param("client_id", "UUID del cliente")
 class ClientSystems(Resource):
     @ns.doc("list_client_systems")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Portafolio de software del cliente", [_system_out])
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Cliente no encontrado", _error)
@@ -357,6 +371,8 @@ class ClientSystems(Resource):
             return server_error()
 
     @ns.doc("add_client_system")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_system_input, validate=False)
     @ns.response(201, "Sistema agregado", _system_out)
     @ns.response(400, "Datos inválidos", _error)
@@ -395,6 +411,8 @@ class ClientSystems(Resource):
 @ns.param("system_id", "UUID del sistema")
 class ClientSystemDetail(Resource):
     @ns.doc("delete_client_system")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(204, "Sistema eliminado")
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Cliente o sistema no encontrado", _error)

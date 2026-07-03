@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Col, Row, Select, Table, Tag, Tooltip } from 'antd'
-import { ReloadOutlined, UserSwitchOutlined } from '@ant-design/icons'
+import { Button, Card, Col, Row, Select, Table, Tooltip } from 'antd'
+import { ReloadOutlined, UserSwitchOutlined, ApartmentOutlined, InboxOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
 import type { PanelData, PanelRow, TicketStatus } from '../types/ticket'
-import { STATUS_LABELS, PRIORITY_LABELS } from '../types/ticket'
+import { STATUS_LABELS } from '../types/ticket'
 import AssignModal from '../components/tickets/AssignModal'
+import PriorityBadge from '../components/tickets/PriorityBadge'
 import PageToolbar from '../components/common/PageToolbar'
+import { avatarColor, initials, palette, vivid } from '../theme'
 
 const NON_FINAL: TicketStatus[] = [
   'nuevo', 'pre_analisis', 'contacto', 'en_analisis', 'en_ejecucion',
@@ -35,19 +37,40 @@ export default function AssignmentPanelPage() {
   const visibleStatuses = statuses.length ? statuses : NON_FINAL
 
   const matrixColumns: ColumnsType<PanelRow> = [
-    { title: 'Resolutor', dataIndex: ['resource', 'full_name'], fixed: 'left', width: 180 },
+    {
+      title: 'Resolutor', dataIndex: ['resource', 'full_name'], fixed: 'left', width: 190,
+      render: (_: unknown, row: PanelRow) => {
+        const color = avatarColor(row.resource.id)
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', background: color.bg, color: color.text, fontWeight: 700, fontSize: 11,
+            }}>
+              {initials(row.resource.full_name)}
+            </div>
+            <span>{row.resource.full_name}</span>
+          </div>
+        )
+      },
+    },
     ...visibleStatuses.map(s => ({
       title: STATUS_LABELS[s], key: s, width: 110, align: 'center' as const,
       render: (_: unknown, row: PanelRow) => {
         const count = row.counts[s] ?? 0
         return count > 0
-          ? <Button type="link" size="small"
+          ? <Button type="link" size="small" style={{ fontWeight: 700, color: vivid.blue.text }}
               onClick={() => navigate(`/tickets?assignee=${row.resource.id}&status=${s}`)}>{count}</Button>
-          : <span style={{ color: '#ccc' }}>—</span>
+          : <span style={{ color: palette.slate300 }}>—</span>
       },
     })),
     { title: 'Total', dataIndex: 'total', width: 80, align: 'center',
-      render: (v: number) => <strong>{v}</strong> },
+      render: (v: number) => (
+        <span style={{
+          display: 'inline-block', minWidth: 26, padding: '2px 8px', borderRadius: 999,
+          fontWeight: 700, background: vivid.blue.bg, color: vivid.blue.text,
+        }}>{v}</span>
+      ) },
   ]
 
   return (
@@ -63,14 +86,29 @@ export default function AssignmentPanelPage() {
 
       <Row gutter={16}>
         <Col xs={24} xl={14}>
-          <Card title="Carga por resolutor y estado" size="small">
+          <Card
+            size="small"
+            title={<span><ApartmentOutlined style={{ color: vivid.blue.text, marginRight: 8 }} />Carga por resolutor y estado</span>}
+          >
             <Table rowKey={r => r.resource.id} columns={matrixColumns} dataSource={data?.matrix ?? []}
               loading={loading} pagination={false} scroll={{ x: true }} size="small"
               locale={{ emptyText: 'Sin tickets asignados' }} />
           </Card>
         </Col>
         <Col xs={24} xl={10}>
-          <Card title={`Pendientes de triage (NUEVO) — ${data?.unassigned_new.length ?? 0}`} size="small">
+          <Card
+            size="small"
+            title={
+              <span>
+                <InboxOutlined style={{ color: vivid.gold.text, marginRight: 8 }} />
+                Pendientes de triage (NUEVO)
+                <span style={{
+                  marginLeft: 8, padding: '1px 8px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                  background: vivid.gold.bg, color: vivid.gold.text,
+                }}>{data?.unassigned_new.length ?? 0}</span>
+              </span>
+            }
+          >
             <Table
               rowKey="id"
               size="small"
@@ -83,7 +121,7 @@ export default function AssignmentPanelPage() {
                   render: (v: string, t) => <a onClick={() => navigate(`/tickets/${t.id}`)}>{v}</a> },
                 { title: 'Título', dataIndex: 'title', ellipsis: true },
                 { title: 'Prioridad', dataIndex: 'priority', width: 90,
-                  render: (p: keyof typeof PRIORITY_LABELS) => <Tag>{PRIORITY_LABELS[p]}</Tag> },
+                  render: (p: 'critical' | 'high' | 'medium' | 'low') => <PriorityBadge priority={p} /> },
                 { title: 'Cliente', dataIndex: ['client', 'name'], width: 130, ellipsis: true },
                 { title: '', key: 'assign', width: 60,
                   render: (_: unknown, t) => (

@@ -22,6 +22,8 @@ class AssignmentPanel(Resource):
     @ns.doc("get_assignment_panel", params={
         "statuses": {"description": "Filtro de estados (repetible)", "type": "string"},
     })
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @require_permission("assignment_panel", "view")
     def get(self):
         """Matriz resolutor × estado + tickets NUEVOS pendientes de triage (FR-025)"""

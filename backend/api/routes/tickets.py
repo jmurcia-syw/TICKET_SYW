@@ -72,6 +72,144 @@ _close_input = ns.model("TicketCloseInput", {
     "body": fields.String(required=True, description="Descripción de la solución"),
 })
 
+_testing_input = ns.model("TicketTestingInput", {
+    "direction": fields.String(required=True, description="enter | exit"),
+})
+
+_resolution_input = ns.model("TicketResolutionInput", {
+    "accepted": fields.Boolean(required=True, description="true = el usuario acepta la resolución"),
+    "body": fields.String(description="Comentario/evidencia registrado en nombre del usuario"),
+})
+
+_cancel_input = ns.model("TicketCancelInput", {
+    "body": fields.String(required=True, description="Motivo de la cancelación"),
+})
+
+_entity_ref = ns.model("EntityRef", {
+    "id": fields.String(description="UUID"),
+    "name": fields.String(description="Nombre"),
+})
+
+_resource_ref = ns.model("ResourceRef", {
+    "id": fields.String(description="UUID del recurso"),
+    "full_name": fields.String(description="Nombre completo"),
+})
+
+_ticket_out = ns.model("Ticket", {
+    "id": fields.String(description="UUID del ticket"),
+    "ticket_number": fields.String(description="Consecutivo legible", example="TK-000123"),
+    "record_type": fields.String(description="ticket | task (task reservado a Fase 3)"),
+    "ticket_type": fields.String(description="incident | evolutive | preventive"),
+    "title": fields.String(),
+    "status": fields.String(description="Estado FSM actual"),
+    "status_label": fields.String(description="Etiqueta en español"),
+    "priority": fields.String(description="critical | high | medium | low"),
+    "severity": fields.String(description="s1 | s2 | s3 | s4"),
+    "escalation_level": fields.String(description="n1 | n2 | n3 | n4"),
+    "client": fields.Nested(_entity_ref, allow_null=True),
+    "project": fields.Nested(_entity_ref, allow_null=True),
+    "assignee": fields.Nested(_resource_ref, allow_null=True),
+    "estimated_resolution_minutes": fields.Integer(allow_null=True),
+    "created_at": fields.String(description="Fecha de creación ISO-8601"),
+})
+
+_ticket_list_out = ns.model("TicketList", {
+    "items": fields.List(fields.Nested(_ticket_out)),
+    "total": fields.Integer(description="Total de registros"),
+    "page": fields.Integer(description="Página actual"),
+    "page_size": fields.Integer(description="Tamaño de página"),
+})
+
+_attachment_out = ns.model("CommentAttachment", {
+    "id": fields.String(description="UUID del adjunto"),
+    "filename": fields.String(),
+    "content_type": fields.String(),
+    "size_bytes": fields.Integer(),
+})
+
+_comment_out = ns.model("TicketComment", {
+    "id": fields.String(description="UUID del comentario"),
+    "comment_type": fields.String(description="Tipo estructurado (catálogo FR-013)"),
+    "comment_type_label": fields.String(description="Etiqueta en español"),
+    "visibility": fields.String(description="internal | external"),
+    "body": fields.String(),
+    "author_id": fields.String(description="UUID del autor"),
+    "is_automatic": fields.Boolean(description="true si lo generó una asignación (Triage Push)"),
+    "attachments": fields.List(fields.Nested(_attachment_out)),
+    "created_at": fields.String(description="Fecha ISO-8601"),
+})
+
+_transition_out = ns.model("TicketStatusTransition", {
+    "id": fields.String(),
+    "from_status": fields.String(),
+    "to_status": fields.String(),
+    "actor_id": fields.String(description="UUID de quien ejecutó la acción"),
+    "comment_id": fields.String(allow_null=True, description="Comentario que disparó la transición"),
+    "created_at": fields.String(),
+})
+
+_assignment_context_out = ns.model("AssignmentContext", {
+    "assignee_skills": fields.List(fields.String(), description="Códigos de skill del asignado en el momento"),
+    "assignee_open_tickets": fields.Integer(description="Tickets abiertos que tenía el asignado"),
+    "ticket_priority": fields.String(),
+    "ticket_severity": fields.String(),
+})
+
+_assignment_out = ns.model("TicketAssignment", {
+    "id": fields.String(),
+    "assigner_id": fields.String(description="UUID de quien asignó"),
+    "assignee_id": fields.String(description="UUID del recurso asignado"),
+    "resulting_status": fields.String(),
+    "context": fields.Nested(_assignment_context_out, description="Gold Standard Dataset (FR-019)"),
+    "created_at": fields.String(),
+})
+
+_ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
+    "description": fields.String(),
+    "tool_id": fields.String(allow_null=True),
+    "process_id": fields.String(allow_null=True),
+    "resolution_type_id": fields.String(allow_null=True),
+    "related_ticket_id": fields.String(allow_null=True),
+    "created_by": fields.String(description="UUID de quien creó el ticket"),
+    "resolved_at": fields.String(allow_null=True),
+    "resolution_accepted_at": fields.String(allow_null=True),
+    "closed_at": fields.String(allow_null=True),
+    "locked_fields": fields.List(fields.String(), description="Campos no editables en el estado actual (FR-010)"),
+    "close_eligible": fields.Boolean(description="true si acepta cierre (aceptado o 3+ días resuelto)"),
+    "valid_actions": fields.List(fields.String(), description="Triggers FSM ejecutables desde el estado actual"),
+    "comments": fields.List(fields.Nested(_comment_out)),
+    "transitions": fields.List(fields.Nested(_transition_out)),
+    "assignments": fields.List(fields.Nested(_assignment_out)),
+})
+
+_assignment_result_ref = ns.model("AssignmentResult", {
+    "id": fields.String(),
+    "context": fields.Nested(_assignment_context_out),
+})
+
+_assign_result_out = ns.model("TicketAssignResult", {
+    "ticket": fields.Nested(_ticket_detail_out),
+    "assignment": fields.Nested(_assignment_result_ref),
+})
+
+_ticket_after_comment_ref = ns.model("TicketAfterComment", {
+    "status": fields.String(),
+    "status_label": fields.String(),
+    "locked_fields": fields.List(fields.String()),
+    "valid_actions": fields.List(fields.String()),
+})
+
+_comment_result_out = ns.model("TicketCommentResult", {
+    "comment": fields.Nested(_comment_out),
+    "ticket": fields.Nested(_ticket_after_comment_ref),
+})
+
+_status_result_out = ns.model("TicketStatusResult", {
+    "status": fields.String(),
+    "status_label": fields.String(),
+    "locked_fields": fields.List(fields.String()),
+})
+
 
 # ── Serialización ─────────────────────────────────────────────────────────────
 
@@ -120,6 +258,7 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
         "client": {"id": str(client.id), "name": client.name} if client else None,
         "project": {"id": str(project.id), "name": project.name} if project else None,
         "assignee": {"id": str(assignee.id), "full_name": assignee.full_name} if assignee else None,
+        "estimated_resolution_minutes": ticket.estimated_resolution_minutes,
         "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
     }
 
@@ -184,7 +323,25 @@ def _apply_transition(db, ticket: Ticket, trigger: str, actor_id: uuid.UUID,
 
 @ns.route("")
 class TicketList(Resource):
-    @ns.doc("list_tickets")
+    @ns.doc("list_tickets", params={
+        "page": {"description": "Número de página (default: 1)", "type": "integer", "default": 1},
+        "page_size": {"description": "Registros por página, máx 100 (default: 20)", "type": "integer", "default": 20},
+        "search": {"description": "Búsqueda por título o número (TK-000123 o solo dígitos)", "type": "string"},
+        "client_id": {"description": "Filtrar por UUID de cliente", "type": "string"},
+        "project_id": {"description": "Filtrar por UUID de proyecto", "type": "string"},
+        "status": {"description": "Filtrar por estado (repetible, ej. ?status=nuevo&status=contacto)", "type": "string"},
+        "priority": {"description": "critical | high | medium | low", "type": "string"},
+        "severity": {"description": "s1 | s2 | s3 | s4", "type": "string"},
+        "ticket_type": {"description": "incident | evolutive | preventive", "type": "string"},
+        "assignee_id": {"description": "Filtrar por UUID de recurso asignado", "type": "string"},
+        "escalation_level": {"description": "n1 | n2 | n3 | n4", "type": "string"},
+        "sort": {"description": "created_at | -created_at | priority | status (default -created_at)", "type": "string"},
+    })
+    @ns.response(200, "Listado de tickets", _ticket_list_out)
+    @ns.response(400, "Parámetros inválidos", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:view", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "view")
     def get(self):
         """Listado paginado con filtros combinables"""
@@ -206,6 +363,7 @@ class TicketList(Resource):
                 severity=request.args.get("severity") or None,
                 ticket_type=request.args.get("ticket_type") or None,
                 assignee_id=parse_uuid(request.args.get("assignee_id") or "") or None,
+                escalation_level=request.args.get("escalation_level") or None,
                 sort=request.args.get("sort", "-created_at"),
             )
             return {"items": [_ticket_summary(t, db) for t in items],
@@ -215,6 +373,13 @@ class TicketList(Resource):
 
     @ns.doc("create_ticket")
     @ns.expect(_ticket_input, validate=False)
+    @ns.response(201, "Ticket creado (nace en estado NUEVO)", _ticket_detail_out)
+    @ns.response(400, "Datos inválidos o enum desconocido", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:create", _error)
+    @ns.response(404, "Cliente, proyecto o catálogo no encontrado", _error)
+    @ns.response(409, "Cliente/proyecto/catálogo inactivo", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "create")
     def post(self):
         """Crear un ticket (nace en NUEVO con consecutivo, FR-001/002)"""
@@ -263,6 +428,12 @@ class TicketList(Resource):
 @ns.param("ticket_id", "UUID del ticket")
 class TicketDetail(Resource):
     @ns.doc("get_ticket")
+    @ns.response(200, "Detalle del ticket (campos, locked_fields, close_eligible, historiales)", _ticket_detail_out)
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:view", _error)
+    @ns.response(404, "Ticket no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "view")
     def get(self, ticket_id: str):
         """Detalle completo: campos, locked_fields, close_eligible, historiales"""
@@ -276,6 +447,13 @@ class TicketDetail(Resource):
             return server_error()
 
     @ns.doc("update_ticket")
+    @ns.response(200, "Ticket actualizado", _ticket_detail_out)
+    @ns.response(400, "Datos inválidos, campo desconocido o intento de editar `status`", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:edit", _error)
+    @ns.response(404, "Ticket no encontrado", _error)
+    @ns.response(409, "Campo bloqueado por el estado actual (`field_locked`)", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "edit")
     def patch(self, ticket_id: str):
         """Editar campos NO bloqueados por el estado (FR-010). `status` nunca por esta vía."""
@@ -307,6 +485,13 @@ class TicketDetail(Resource):
 class TicketAssign(Resource):
     @ns.doc("assign_ticket")
     @ns.expect(_assign_input, validate=False)
+    @ns.response(200, "Asignación registrada (comentario + transición + notificación atómicos)", _assign_result_out)
+    @ns.response(400, "assignee_id faltante, mode inválido o recurso inactivo", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:assign", _error)
+    @ns.response(404, "Ticket o recurso no encontrado", _error)
+    @ns.response(409, "Transición no permitida desde el estado actual", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "assign")
     def post(self, ticket_id: str):
         """Triage Push (FR-018/019): asignación atómica con Gold Standard Dataset.
@@ -362,8 +547,20 @@ class TicketAssign(Resource):
 @ns.route("/<string:ticket_id>/comments")
 @ns.param("ticket_id", "UUID del ticket")
 class TicketComments(Resource):
-    @ns.doc("add_ticket_comment")
+    @ns.doc("add_ticket_comment", description=(
+        "Acepta `application/json` (sin adjuntos) o `multipart/form-data` con uno o más "
+        "campos `files` (máx 10 MB c/u, tipos permitidos). Los tipos con efecto de "
+        "transición (confirmacion_atencion, solicitud_informacion, termina_analisis, "
+        "solicitud_cierre, respuesta_usuario) mueven el ticket en la misma operación."
+    ))
     @ns.expect(_comment_input, validate=False)
+    @ns.response(201, "Comentario registrado (y transición aplicada si el tipo lo dispara)", _comment_result_out)
+    @ns.response(400, "Tipo inválido, comentario vacío o adjunto no permitido", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso, o ticket no asignado al Resolutor (FR-028)", _error)
+    @ns.response(404, "Ticket no encontrado", _error)
+    @ns.response(409, "Transición no permitida desde el estado actual", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "transition")
     def post(self, ticket_id: str):
         """Comentario tipificado: ejecuta la transición de la matriz atómicamente (FR-014)."""
@@ -441,6 +638,14 @@ class TicketComments(Resource):
 @ns.param("ticket_id", "UUID del ticket")
 class TicketTesting(Resource):
     @ns.doc("toggle_testing")
+    @ns.expect(_testing_input, validate=False)
+    @ns.response(200, "Ticket movido (EN EJECUCIÓN ⇄ EN PRUEBAS)", _status_result_out)
+    @ns.response(400, "direction inválido", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso, o ticket no asignado al Resolutor", _error)
+    @ns.response(404, "Ticket no encontrado", _error)
+    @ns.response(409, "Transición no permitida desde el estado actual", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "transition")
     def post(self, ticket_id: str):
         """EN PRUEBAS versión simple (clarificación Q1): enter | exit"""
@@ -470,6 +675,14 @@ class TicketTesting(Resource):
 @ns.param("ticket_id", "UUID del ticket")
 class TicketResolution(Resource):
     @ns.doc("record_resolution_response")
+    @ns.expect(_resolution_input, validate=False)
+    @ns.response(200, "Respuesta registrada (aceptar habilita el cierre; rechazar vuelve a EN EJECUCIÓN)", _status_result_out)
+    @ns.response(400, "Falta el campo 'accepted'", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:transition", _error)
+    @ns.response(404, "Ticket no encontrado", _error)
+    @ns.response(409, "El ticket no está en estado Resuelto", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "transition")
     def post(self, ticket_id: str):
         """Aceptación/rechazo de la resolución en nombre del usuario (clarificación Q2)."""
@@ -524,6 +737,13 @@ class TicketResolution(Resource):
 class TicketClose(Resource):
     @ns.doc("close_ticket")
     @ns.expect(_close_input, validate=False)
+    @ns.response(200, "Ticket cerrado", _ticket_detail_out)
+    @ns.response(400, "Falta resolution_type_id o body", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso, o ticket no asignado al Resolutor", _error)
+    @ns.response(404, "Ticket o tipo de resolución no encontrado", _error)
+    @ns.response(409, "No elegible para cerrar (falta aceptación o 3+ días)", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "transition")
     def post(self, ticket_id: str):
         """Cierre (FR-012): exige tipo de resolución + descripción; notifica Coordinador y QM."""
@@ -579,6 +799,14 @@ class TicketClose(Resource):
 @ns.param("ticket_id", "UUID del ticket")
 class TicketCancel(Resource):
     @ns.doc("cancel_ticket")
+    @ns.expect(_cancel_input, validate=False)
+    @ns.response(200, "Ticket cancelado", _ticket_detail_out)
+    @ns.response(400, "Falta el motivo de cancelación", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:cancel", _error)
+    @ns.response(404, "Ticket no encontrado", _error)
+    @ns.response(409, "El ticket ya está en un estado final", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "cancel")
     def post(self, ticket_id: str):
         """Cancelar desde cualquier estado no final, con motivo obligatorio."""
@@ -613,6 +841,13 @@ class TicketCancel(Resource):
 @ns.param("attachment_id", "UUID del adjunto")
 class TicketAttachment(Resource):
     @ns.doc("download_attachment")
+    @ns.produces(["application/octet-stream"])
+    @ns.response(200, "Archivo (stream binario con el content-type original)")
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:view", _error)
+    @ns.response(404, "Adjunto no encontrado o ruta inválida", _error)
+    @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "view")
     def get(self, ticket_id: str, attachment_id: str):
         """Descarga autenticada de un adjunto"""

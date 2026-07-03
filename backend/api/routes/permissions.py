@@ -42,6 +42,8 @@ def _permission_to_dict(permission) -> dict:
 @ns.route("")
 class PermissionList(Resource):
     @ns.doc("list_permissions")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Listado de permisos del sistema", _permission_list_out)
     @ns.response(500, "Error interno del servidor", _error)
     def get(self):
@@ -55,6 +57,8 @@ class PermissionList(Resource):
             return server_error()
 
     @ns.doc("create_permission")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_permission_input, validate=False)
     @ns.response(201, "Permiso creado", _permission_out)
     @ns.response(400, "Datos inválidos", _error)
@@ -88,6 +92,8 @@ class PermissionList(Resource):
 @ns.param("permission_id", "UUID del permiso")
 class PermissionDetail(Resource):
     @ns.doc("delete_permission")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(204, "Permiso eliminado correctamente")
     @ns.response(400, "UUID inválido", _error)
     @ns.response(409, "No se puede eliminar: permiso asignado a algún rol", _error)

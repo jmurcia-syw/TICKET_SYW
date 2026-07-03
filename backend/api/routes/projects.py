@@ -125,6 +125,8 @@ class ProjectList(Resource):
             "active": {"description": "Filtrar por estado (true/false)", "type": "boolean"},
         },
     )
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Listado de proyectos", _project_list_out)
     @ns.response(400, "Parámetros inválidos", _error)
     @ns.response(500, "Error interno del servidor", _error)
@@ -155,6 +157,8 @@ class ProjectList(Resource):
             return server_error()
 
     @ns.doc("create_project")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_project_input, validate=False)
     @ns.response(201, "Proyecto creado", _project_out)
     @ns.response(400, "Datos inválidos, fechas mal formateadas o fecha de fin anterior a inicio", _error)
@@ -210,6 +214,8 @@ class ProjectList(Resource):
 @ns.param("project_id", "UUID del proyecto")
 class ProjectDetail(Resource):
     @ns.doc("get_project")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Detalle del proyecto", _project_out)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Proyecto no encontrado", _error)
@@ -230,6 +236,8 @@ class ProjectDetail(Resource):
             return server_error()
 
     @ns.doc("update_project")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_project_update, validate=False)
     @ns.response(200, "Proyecto actualizado", _project_out)
     @ns.response(400, "Datos inválidos", _error)
@@ -274,6 +282,8 @@ class ProjectDetail(Resource):
 @ns.param("project_id", "UUID del proyecto")
 class ProjectDeactivate(Resource):
     @ns.doc("deactivate_project")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Proyecto desactivado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Proyecto no encontrado", _error)
@@ -302,6 +312,8 @@ class ProjectDeactivate(Resource):
 @ns.param("project_id", "UUID del proyecto")
 class ProjectActivate(Resource):
     @ns.doc("activate_project")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Proyecto activado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Proyecto no encontrado", _error)

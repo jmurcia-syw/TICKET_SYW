@@ -86,6 +86,8 @@ class UserList(Resource):
             "active": {"description": "Filtrar por estado (true/false)", "type": "boolean"},
         },
     )
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Listado de usuarios del sistema", _user_list_out)
     @ns.response(400, "Parámetros inválidos", _error)
     @ns.response(500, "Error interno del servidor", _error)
@@ -108,6 +110,8 @@ class UserList(Resource):
             return server_error()
 
     @ns.doc("create_user")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_user_create_input, validate=False)
     @ns.response(201, "Usuario creado, con contraseña provisional en texto plano (única vez)", _user_create_out)
     @ns.response(400, "Datos inválidos o dominio de email incorrecto", _error)
@@ -164,6 +168,8 @@ class UserList(Resource):
 @ns.param("user_id", "UUID del usuario")
 class UserDetail(Resource):
     @ns.doc("get_user")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Detalle del usuario", _user_out)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Usuario no encontrado", _error)
@@ -187,6 +193,8 @@ class UserDetail(Resource):
 @ns.param("user_id", "UUID del usuario")
 class UserRole(Resource):
     @ns.doc("change_role")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_role_input, validate=False)
     @ns.response(200, "Rol actualizado correctamente", _user_out)
     @ns.response(400, "UUID inválido o role_id faltante", _error)
@@ -227,6 +235,8 @@ class UserRole(Resource):
 @ns.param("user_id", "UUID del usuario")
 class UserDeactivate(Resource):
     @ns.doc("deactivate_user")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Usuario desactivado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Usuario no encontrado", _error)
@@ -255,6 +265,8 @@ class UserDeactivate(Resource):
 @ns.param("user_id", "UUID del usuario")
 class UserActivate(Resource):
     @ns.doc("activate_user")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Usuario activado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Usuario no encontrado", _error)

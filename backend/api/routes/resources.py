@@ -215,6 +215,8 @@ class SkillList(Resource):
             },
         },
     )
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Listado de skills", _skill_list_out)
     @ns.response(500, "Error interno del servidor", _error)
     def get(self):
@@ -233,6 +235,8 @@ class SkillList(Resource):
             return server_error()
 
     @ns.doc("create_skill")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_skill_input, validate=False)
     @ns.response(201, "Skill creado", _skill_out)
     @ns.response(400, "Datos inválidos", _error)
@@ -270,6 +274,8 @@ class SkillList(Resource):
 @ns.param("skill_id", "UUID del skill")
 class SkillDetail(Resource):
     @ns.doc("delete_skill")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(204, "Skill eliminado correctamente")
     @ns.response(400, "UUID inválido", _error)
     @ns.response(409, "No se puede eliminar: skill asignado a recursos", _error)
@@ -305,6 +311,8 @@ class ResourceList(Resource):
             "active": {"description": "Filtrar por estado (true/false)", "type": "boolean"},
         },
     )
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Listado de recursos con sus skills", _resource_list_out)
     @ns.response(400, "Parámetros inválidos", _error)
     @ns.response(500, "Error interno del servidor", _error)
@@ -330,6 +338,8 @@ class ResourceList(Resource):
             return server_error()
 
     @ns.doc("create_resource")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_resource_input, validate=False)
     @ns.response(201, "Recurso creado", _resource_out)
     @ns.response(400, "Datos inválidos o email fuera de dominio @sywork.net", _error)
@@ -380,6 +390,8 @@ class ResourceList(Resource):
 @ns.param("resource_id", "UUID del recurso")
 class ResourceDetail(Resource):
     @ns.doc("get_resource")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Detalle del recurso", _resource_out)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Recurso no encontrado", _error)
@@ -399,6 +411,8 @@ class ResourceDetail(Resource):
             return server_error()
 
     @ns.doc("update_resource")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_resource_update, validate=False)
     @ns.response(200, "Recurso actualizado", _resource_out)
     @ns.response(400, "Datos inválidos", _error)
@@ -435,6 +449,8 @@ class ResourceDetail(Resource):
 @ns.param("resource_id", "UUID del recurso")
 class ResourceSkills(Resource):
     @ns.doc("update_resource_skills")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_skills_update, validate=False)
     @ns.response(200, "Skills actualizados (reemplaza lista completa)", _resource_out)
     @ns.response(400, "UUID inválido o cuerpo incorrecto", _error)
@@ -463,6 +479,8 @@ class ResourceSkills(Resource):
 @ns.param("resource_id", "UUID del recurso")
 class ResourceDeactivate(Resource):
     @ns.doc("deactivate_resource")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Recurso desactivado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Recurso no encontrado", _error)
@@ -486,6 +504,8 @@ class ResourceDeactivate(Resource):
 @ns.param("resource_id", "UUID del recurso")
 class ResourceActivate(Resource):
     @ns.doc("activate_resource")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Recurso activado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Recurso no encontrado", _error)
