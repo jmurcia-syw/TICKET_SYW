@@ -74,6 +74,8 @@ class RoleList(Resource):
             "active": {"description": "Filtrar por estado (true/false)", "type": "boolean"},
         },
     )
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Listado de roles con sus permisos", _role_list_out)
     @ns.response(500, "Error interno del servidor", _error)
     def get(self):
@@ -95,6 +97,8 @@ class RoleList(Resource):
             return server_error()
 
     @ns.doc("create_role")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_role_input, validate=False)
     @ns.response(201, "Rol creado", _role_out)
     @ns.response(400, "Datos inválidos", _error)
@@ -125,6 +129,8 @@ class RoleList(Resource):
 @ns.param("role_id", "UUID del rol")
 class RoleDetail(Resource):
     @ns.doc("get_role")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Detalle del rol", _role_out)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Rol no encontrado", _error)
@@ -145,6 +151,8 @@ class RoleDetail(Resource):
             return server_error()
 
     @ns.doc("update_role")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_role_update, validate=False)
     @ns.response(200, "Rol actualizado", _role_out)
     @ns.response(400, "Datos inválidos", _error)
@@ -186,6 +194,8 @@ class RoleDetail(Resource):
 @ns.param("role_id", "UUID del rol")
 class RolePermissions(Resource):
     @ns.doc("replace_role_permissions")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_permissions_update, validate=False)
     @ns.response(200, "Permisos actualizados (reemplaza lista completa)", _role_out)
     @ns.response(400, "UUID inválido o cuerpo incorrecto", _error)
@@ -215,6 +225,8 @@ class RolePermissions(Resource):
 @ns.param("role_id", "UUID del rol")
 class RoleDeactivate(Resource):
     @ns.doc("deactivate_role")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Rol desactivado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Rol no encontrado", _error)
@@ -246,6 +258,8 @@ class RoleDeactivate(Resource):
 @ns.param("role_id", "UUID del rol")
 class RoleActivate(Resource):
     @ns.doc("activate_role")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Rol activado", _status_result)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Rol no encontrado", _error)

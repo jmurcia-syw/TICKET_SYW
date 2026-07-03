@@ -25,6 +25,8 @@ class NotificationList(Resource):
         "page": {"type": "integer", "default": 1},
         "page_size": {"type": "integer", "default": 20},
     })
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     # Toda cuenta autenticada ve SUS notificaciones; tickets:view lo tienen los 4 roles seed
     @require_permission("tickets", "view")
     def get(self):
@@ -58,6 +60,8 @@ class NotificationList(Resource):
 @ns.route("/read")
 class NotificationsRead(Resource):
     @ns.doc("mark_notifications_read")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_read_input, validate=False)
     @require_permission("tickets", "view")
     def patch(self):

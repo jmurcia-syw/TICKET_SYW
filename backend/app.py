@@ -41,9 +41,9 @@ def create_app() -> Flask:
         doc="/swagger",
     )
 
-    # ── Auth blueprint (OAuth2 + JWT — mantiene blueprint puro) ──────────────
-    from backend.api.routes.auth import auth_bp
-    app.register_blueprint(auth_bp)
+    # ── Auth (login provisional + Google OAuth2 + /me) ─────────────────────────
+    from backend.api.routes.auth import ns as ns_auth
+    api.add_namespace(ns_auth)
 
     # ── Maestros — namespaces con Swagger completo ────────────────────────────
     from backend.api.routes.clients import ns as ns_clients

@@ -34,6 +34,8 @@ def _validate_catalog(catalog: str):
 @ns.param("catalog", "tools | processes | resolution-types")
 class CatalogList(Resource):
     @ns.doc("list_catalog", params={"active": {"description": "true/false/all (default true)", "type": "string"}})
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Valores del catálogo", [_catalog_out])
     @ns.response(404, "Catálogo desconocido", _error)
     @require_permission("catalogs", "view")
@@ -51,6 +53,8 @@ class CatalogList(Resource):
             return server_error()
 
     @ns.doc("create_catalog_value")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_catalog_input, validate=False)
     @ns.response(201, "Valor creado", _catalog_out)
     @ns.response(409, "Nombre duplicado", _error)
@@ -77,6 +81,8 @@ class CatalogList(Resource):
 @ns.param("catalog", "tools | processes | resolution-types")
 class CatalogDeactivate(Resource):
     @ns.doc("deactivate_catalog_value")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Valor desactivado", _catalog_out)
     @ns.response(409, "Valor en uso por tickets abiertos", _error)
     @require_permission("catalogs", "deactivate")
@@ -107,6 +113,8 @@ class CatalogDeactivate(Resource):
 @ns.param("catalog", "tools | processes | resolution-types")
 class CatalogActivate(Resource):
     @ns.doc("activate_catalog_value")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(200, "Valor activado", _catalog_out)
     @require_permission("catalogs", "deactivate")
     def patch(self, catalog: str, item_id: str):
