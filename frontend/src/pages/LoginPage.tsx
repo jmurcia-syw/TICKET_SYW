@@ -4,6 +4,7 @@ import { GoogleOutlined, LockOutlined, UserOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { authService } from '../services/authService'
+import logo from '../assets/logo-sywork.jpg'
 
 const { Title, Text } = Typography
 
@@ -46,7 +47,8 @@ export default function LoginPage() {
       <Card style={{ width: 380 }}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div style={{ textAlign: 'center' }}>
-            <Title level={3} style={{ margin: 0 }}>SYWork Tickets</Title>
+            <img src={logo} alt="SyWork" style={{ height: 64, marginBottom: 16 }} />
+            <Title level={3} style={{ margin: 0 }}>SyWork Desk</Title>
             <Text type="secondary">Inicia sesión con tu cuenta @sywork.net</Text>
           </div>
 

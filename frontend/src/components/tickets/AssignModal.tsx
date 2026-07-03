@@ -122,8 +122,8 @@ export default function AssignModal({ ticketId, onClose, onAssigned, forcedMode 
               onClick={() => setSelected(r.id)}
               style={{
                 cursor: 'pointer', borderRadius: 10, padding: 12,
-                border: `2px solid ${isSelected ? palette.teal600 : palette.slate200}`,
-                background: isSelected ? palette.teal50 : '#fff',
+                border: `2px solid ${isSelected ? palette.brandRed500 : palette.slate200}`,
+                background: isSelected ? palette.brandRed50 : '#fff',
                 position: 'relative',
               }}
             >
