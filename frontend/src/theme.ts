@@ -27,6 +27,65 @@ export const STATUS_COLORS = {
   inactive: palette.slate400,
 }
 
+// Paleta viva para Tickets (Dashboard, Triage, Detalle) — chips con fondo suave
+// y texto saturado, inspirada en docs/PROPUESTA_VISUAL.html.
+export const vivid = {
+  blue: { bg: '#E6F4FF', text: '#0958D9' },
+  gold: { bg: '#FFF7E6', text: '#D48806' },
+  purple: { bg: '#F9F0FF', text: '#531DAB' },
+  magenta: { bg: '#FFF0F6', text: '#C41D7F' },
+  green: { bg: '#F6FFED', text: '#389E0D' },
+  gray: { bg: '#F5F5F5', text: '#595959' },
+  red: { bg: '#FFF1F0', text: '#CF1322' },
+  cyan: { bg: '#E6FFFB', text: '#08979C' },
+  orange: { bg: '#FFF2E8', text: '#D4380D' },
+}
+
+/** Chip suave (fondo pastel + texto saturado) por estado del ticket. */
+export const TICKET_STATUS_CHIP: Record<string, { bg: string; text: string }> = {
+  nuevo: vivid.blue,
+  pre_analisis: vivid.cyan,
+  contacto: vivid.gold,
+  en_analisis: vivid.purple,
+  en_ejecucion: vivid.orange,
+  en_pruebas: vivid.magenta,
+  pendiente_usuario: vivid.red,
+  resuelto: vivid.green,
+  cerrado: vivid.gray,
+  cancelado: vivid.gray,
+}
+
+/** Badge sólido por prioridad (fondo saturado + texto blanco/oscuro), estilo p1..p4. */
+export const PRIORITY_CHIP: Record<string, { bg: string; text: string }> = {
+  critical: { bg: '#FF4D4F', text: '#FFFFFF' },
+  high: { bg: '#FA8C16', text: '#FFFFFF' },
+  medium: { bg: '#FADB14', text: '#262626' },
+  low: { bg: '#D9D9D9', text: '#595959' },
+}
+
+/** Paleta de avatares (autores de comentarios, resolutores) — determinística por texto. */
+const AVATAR_PALETTE = [
+  { bg: '#BAE0FF', text: '#0958D9' },
+  { bg: '#D9F7BE', text: '#237804' },
+  { bg: '#EFDBFF', text: '#531DAB' },
+  { bg: '#FFF1F0', text: '#A8071A' },
+  { bg: '#FFE7BA', text: '#AD4E00' },
+  { bg: '#FFD6E7', text: '#C41D7F' },
+]
+
+export function avatarColor(seed: string | null | undefined): { bg: string; text: string } {
+  if (!seed) return AVATAR_PALETTE[0]
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length]
+}
+
+export function initials(fullName: string | null | undefined): string {
+  if (!fullName) return '?'
+  const parts = fullName.trim().split(/\s+/)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || fullName[0].toUpperCase()
+}
+
 const ROLE_COLOR_PALETTE = [palette.slate800, palette.teal600, palette.amber600, palette.slate500, palette.green600, palette.red600]
 
 /** Asigna un color determinístico a un nombre de rol, sin depender de una lista fija de roles. */
