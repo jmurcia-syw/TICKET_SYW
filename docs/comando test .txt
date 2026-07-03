@@ -8,6 +8,7 @@ npx skills add https://github.com/wshobson/agents --skill error-handling-pattern
 npx skills add https://github.com/vercel-labs/agent-skills --skill vercel-react-best-practices
 npx skills add https://github.com/zelinewang/claudemem --skill claudemem                     --global
 npx skills add https://github.com/mksglu/claude-context-mode --skill context-mode
+npx skills add https://github.com/dammyjay93/interface-design --skill interface-design
 
 global 
 npx skills add https://github.com/anthropics/skills --skill docx
