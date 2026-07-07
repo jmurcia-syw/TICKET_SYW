@@ -120,11 +120,10 @@ sin ningún administrador de por medio.
 
 ## Final Phase: Polish & Cross-Cutting Concerns
 
-- [ ] T022 Ejecutar `quickstart.md` completo (los 3 escenarios) de punta a punta — **Escenario 3
-  validado en el entorno real del usuario**: correo recibido, cambio de contraseña con el link
-  completado con éxito. Falta confirmar: que el mismo link ya no funcione si se reutiliza;
-  Escenario 1 (US2, instalación limpia con contraseña semilla fija) y Escenario 2 (US1, botón
-  de reseteo por Admin) end-to-end
+- [X] T022 Ejecutar `quickstart.md` completo (los 3 escenarios) de punta a punta — **validado por
+  el usuario en su entorno real** (Docker/Postgres): Escenario 1 (US2, contraseña semilla fija),
+  Escenario 2 (US1, reseteo por Admin) y Escenario 3 (US3, recuperación por email, incluida la
+  no-reutilización del token) confirmados funcionando
 - [X] T023 [P] Revisar que ningún log/documento adicional (fuera de `docs/credenciales_dev.txt`,
   ya acordado) exponga la contraseña semilla o credenciales SMTP
 - [X] T024 [P] Actualizar `README.md` / `docs/GUIA_DESPLIEGUE_SYWORK_TICKETS.txt` si mencionan
