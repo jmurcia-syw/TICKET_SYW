@@ -1,0 +1,16 @@
+CREDENCIALES DE USUARIOS SEMILLA — SOLO DESARROLLO
+====================================================
+
+Estas credenciales aplican ÚNICAMENTE a instalaciones de Desarrollo (FLASK_ENV distinto de
+"production"). En instalaciones de producción, la migración 009 genera una contraseña
+aleatoria e impredecible por instalación — NUNCA la contraseña fija de este archivo.
+
+La contraseña está codificada en base64 (NO es cifrado, es solo ofuscación visual).
+Para decodificarla: echo "<valor>" | base64 -d   (o cualquier decodificador base64 estándar)
+
+Usuario/email                          | Rol          | Contraseña (base64)
+----------------------------------------|--------------|----------------------
+admin / admin@sywork.net                | Admin        | U3lXb3JrX0RldjIwMjYh
+coordinador / coordinador@sywork.net    | Coordinador  | U3lXb3JrX0RldjIwMjYh
+qm / qm@sywork.net                      | QM           | U3lXb3JrX0RldjIwMjYh
+resolutor / resolutor@sywork.net        | Resolutor    | U3lXb3JrX0RldjIwMjYh

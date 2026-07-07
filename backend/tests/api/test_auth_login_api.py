@@ -71,3 +71,69 @@ def test_me_returns_role_and_permissions_for_logged_in_user(client, db_session, 
     body = resp.get_json()
     assert body["user"]["email"] == user.email
     assert body["user"]["role"]["name"] == "Resolutor"
+
+
+def test_forgot_password_existing_email_returns_generic_message(anon_client, db_session, unique_name):
+    user = _make_login_user(db_session, unique_name)
+    resp = anon_client.post("/api/auth/forgot-password", json={"email": user.email})
+    assert resp.status_code == 200
+    assert "message" in resp.get_json()
+
+
+def test_forgot_password_unknown_email_returns_same_generic_message(anon_client):
+    known = anon_client.post("/api/auth/forgot-password", json={"email": "nadie@sywork.net"})
+    assert known.status_code == 200
+    assert "message" in known.get_json()
+
+
+def test_forgot_password_missing_email_returns_400(anon_client):
+    resp = anon_client.post("/api/auth/forgot-password", json={})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "validation_error"
+
+
+def test_reset_password_with_valid_token_succeeds(anon_client, db_session, unique_name):
+    user = _make_login_user(db_session, unique_name)
+    token, expires_at = _auth_svc.generate_reset_token()
+    UserRepository(db_session).set_reset_token(user.id, token, expires_at)
+
+    resp = anon_client.post("/api/auth/reset-password", json={"token": token, "new_password": "NuevaClave2026!"})
+    assert resp.status_code == 200
+
+    login = anon_client.post("/api/auth/login", json={
+        "username_or_email": user.username, "password": "NuevaClave2026!",
+    })
+    assert login.status_code == 200
+
+    # El token es de un solo uso: reintentarlo debe fallar
+    reuse = anon_client.post("/api/auth/reset-password", json={"token": token, "new_password": "OtraClave2026!"})
+    assert reuse.status_code == 400
+
+
+def test_reset_password_with_expired_token_returns_400(anon_client, db_session, unique_name):
+    import datetime as dt
+    user = _make_login_user(db_session, unique_name)
+    token = "expired-token-" + unique_name
+    UserRepository(db_session).set_reset_token(user.id, token, dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=1))
+
+    resp = anon_client.post("/api/auth/reset-password", json={"token": token, "new_password": "NuevaClave2026!"})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "invalid_token"
+
+
+def test_reset_password_with_unknown_token_returns_400(anon_client):
+    resp = anon_client.post("/api/auth/reset-password", json={"token": "no-existe", "new_password": "NuevaClave2026!"})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "invalid_token"
+
+
+def test_reset_password_rejected_for_inactive_account(anon_client, db_session, unique_name):
+    user = _make_login_user(db_session, unique_name)
+    token, expires_at = _auth_svc.generate_reset_token()
+    repo = UserRepository(db_session)
+    repo.set_reset_token(user.id, token, expires_at)
+    repo.set_active(user.id, False)
+
+    resp = anon_client.post("/api/auth/reset-password", json={"token": token, "new_password": "NuevaClave2026!"})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "invalid_token"

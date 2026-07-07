@@ -20,4 +20,7 @@ export const userService = {
 
   activate: (id: string) =>
     apiClient.patch<{ id: string; active: boolean }>(`/api/users/${id}/activate`).then(r => r.data),
+
+  resetPassword: (id: string) =>
+    apiClient.patch<{ id: string; provisional_password: string }>(`/api/users/${id}/reset-password`).then(r => r.data),
 }

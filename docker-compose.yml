@@ -35,6 +35,12 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-not-set}
       FLASK_ENV: ${FLASK_ENV:-development}
       DEV_SKIP_AUTH: ${DEV_SKIP_AUTH:-false}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-no-reply@sywork.net}
     ports:
       - "5000:5000"
     volumes:

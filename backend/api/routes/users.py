@@ -60,6 +60,11 @@ _user_create_out = ns.model("UserCreateResult", {
     "provisional_password": fields.String(description="Contraseña provisional en texto plano — se muestra una única vez"),
 })
 
+_reset_password_out = ns.model("UserResetPasswordResult", {
+    "id": fields.String(description="UUID del usuario"),
+    "provisional_password": fields.String(description="Contraseña temporal en texto plano — se muestra una única vez"),
+})
+
 
 def _user_to_dict(user) -> dict:
     return {
@@ -291,8 +296,35 @@ class UserActivate(Resource):
             return server_error()
 
 
+@ns.route("/<string:user_id>/reset-password")
+@ns.param("user_id", "UUID del usuario")
+class UserResetPassword(Resource):
+    @ns.doc("reset_user_password")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.response(200, "Contraseña temporal generada, en texto plano (única vez)", _reset_password_out)
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(404, "Usuario no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def patch(self, user_id: str):
+        """Restablecer la contraseña de un usuario generando una nueva temporal (Admin)."""
+        uid = parse_uuid(user_id)
+        if not uid:
+            return {"error": "validation_error", "message": "ID de usuario invalido"}, 400
+        try:
+            db = get_db()
+            repo = UserRepository(db)
+            provisional_password = secrets.token_urlsafe(9)
+            updated = repo.set_password(uid, _auth_svc.hash_password(provisional_password))
+            if not updated:
+                return {"error": "not_found", "message": "Usuario no encontrado"}, 404
+            return {"id": user_id, "provisional_password": provisional_password}, 200
+        except Exception:
+            return server_error()
+
+
 # ── Enforcement FR-022 (spec 002): JWT + permiso por módulo/acción ─────────────
 from backend.api.middleware.rbac import enforce_module as _enforce
 
-for _cls in (UserList, UserDetail, UserRole, UserDeactivate, UserActivate):
+for _cls in (UserList, UserDetail, UserRole, UserDeactivate, UserActivate, UserResetPassword):
     _cls.method_decorators = [_enforce("users")]

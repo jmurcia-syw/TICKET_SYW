@@ -6,6 +6,7 @@ API, siguiendo /api-design-principles ("Documentation: Use OpenAPI/Swagger for
 interactive docs"). Rutas públicas (sin JWT): /login y /google — son el punto de
 entrada para obtenerlo. /me sí lo exige.
 """
+import logging
 import os
 
 from flask import g, request
@@ -19,8 +20,10 @@ from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.repositories.role_repo import RoleRepository
 from backend.infra.database import get_db
 from backend.domain.services.auth_service import AuthService
+from backend.infra.email.mailer import send_password_reset_email
 
 ns = Namespace("auth", description="Login provisional, Google OAuth2 y sesión actual", path="/api/auth")
+_logger = logging.getLogger(__name__)
 
 ALLOWED_DOMAIN = "sywork.net"
 _auth_svc = AuthService()
@@ -50,6 +53,19 @@ _user_out = ns.model("AuthUser", {
 _login_input = ns.model("LoginInput", {
     "username_or_email": fields.String(required=True, description="Username o email @sywork.net", example="coordinador"),
     "password": fields.String(required=True, description="Contraseña"),
+})
+
+_forgot_password_input = ns.model("ForgotPasswordInput", {
+    "email": fields.String(required=True, description="Email @sywork.net de la cuenta"),
+})
+
+_message_out = ns.model("MessageResponse", {
+    "message": fields.String(description="Mensaje genérico de resultado"),
+})
+
+_reset_password_input = ns.model("ResetPasswordInput", {
+    "token": fields.String(required=True, description="Token recibido por correo"),
+    "new_password": fields.String(required=True, description="Nueva contraseña"),
 })
 
 _google_input = ns.model("GoogleLoginInput", {
@@ -148,6 +164,67 @@ class AuthGoogle(Resource):
         repo.update_last_login(user.id)
         token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.name})
         return {"access_token": token, "user": _user_payload(user, db)}, 200
+
+
+_FORGOT_PASSWORD_MESSAGE = "Si el correo está registrado, recibirás un enlace para restablecer tu contraseña."
+
+
+@ns.route("/forgot-password")
+class AuthForgotPassword(Resource):
+    @ns.doc("forgot_password", security=None)
+    @ns.expect(_forgot_password_input, validate=False)
+    @ns.response(200, "Solicitud procesada (mensaje genérico, exista o no la cuenta)", _message_out)
+    @ns.response(400, "Falta el email", _error)
+    def post(self):
+        """Solicitar recuperación de contraseña por email (ruta pública, FR-009).
+
+        Responde siempre el mismo mensaje genérico, exista o no la cuenta, para no revelar
+        qué correos están registrados (FR-009 spec 003).
+        """
+        data = request.get_json(silent=True) or {}
+        email = (data.get("email") or "").strip().lower()
+        if not email:
+            return {"error": "validation_error", "message": "El campo 'email' es requerido"}, 400
+
+        db = get_db()
+        repo = UserRepository(db)
+        user = repo.get_by_email(email)
+        if user and user.active:
+            token, expires_at = _auth_svc.generate_reset_token()
+            repo.set_reset_token(user.id, token, expires_at)
+            try:
+                send_password_reset_email(user.email, token)
+            except Exception:
+                # No se revela al usuario si el envío falló (mismo mensaje genérico),
+                # pero queda registrado en el log del backend para poder diagnosticarlo.
+                _logger.exception("Fallo al enviar el correo de recuperación a %s", user.email)
+
+        return {"message": _FORGOT_PASSWORD_MESSAGE}, 200
+
+
+@ns.route("/reset-password")
+class AuthResetPassword(Resource):
+    @ns.doc("reset_password", security=None)
+    @ns.expect(_reset_password_input, validate=False)
+    @ns.response(200, "Contraseña actualizada correctamente", _message_out)
+    @ns.response(400, "Token inválido, expirado, ya usado, o cuenta inactiva", _error)
+    def post(self):
+        """Completar la recuperación de contraseña con el token recibido por correo (ruta pública)."""
+        data = request.get_json(silent=True) or {}
+        token = data.get("token") or ""
+        new_password = data.get("new_password") or ""
+        if not token or not new_password:
+            return {"error": "validation_error", "message": "token y new_password son requeridos"}, 400
+
+        db = get_db()
+        repo = UserRepository(db)
+        user = repo.get_by_reset_token(token)
+        if not _auth_svc.is_reset_token_valid(user, token):
+            return {"error": "invalid_token", "message": "El enlace no es válido o ya expiró"}, 400
+
+        repo.set_password(user.id, _auth_svc.hash_password(new_password))
+        repo.clear_reset_token(user.id)
+        return {"message": "Contraseña actualizada correctamente"}, 200
 
 
 @ns.route("/me")

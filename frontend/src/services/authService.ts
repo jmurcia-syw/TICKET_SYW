@@ -19,4 +19,10 @@ export const authService = {
 
   me: () =>
     apiClient.get<MeResponse>('/api/auth/me').then(r => r.data),
+
+  forgotPassword: (email: string) =>
+    apiClient.post<{ message: string }>('/api/auth/forgot-password', { email }).then(r => r.data),
+
+  resetPassword: (token: string, new_password: string) =>
+    apiClient.post<{ message: string }>('/api/auth/reset-password', { token, new_password }).then(r => r.data),
 }
