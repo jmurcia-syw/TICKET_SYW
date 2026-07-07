@@ -68,6 +68,31 @@ class UserRepository:
         self._db.query(UserModel).filter(UserModel.id == user_id).update({"last_login_at": func.now()})
         self._db.commit()
 
+    def set_password(self, user_id: uuid.UUID, password_hash: str) -> Optional[User]:
+        model = self._db.get(UserModel, user_id)
+        if not model:
+            return None
+        model.password_hash = password_hash
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def set_reset_token(self, user_id: uuid.UUID, token: str, expires_at) -> None:
+        self._db.query(UserModel).filter(UserModel.id == user_id).update(
+            {"reset_token": token, "reset_token_expires_at": expires_at}
+        )
+        self._db.commit()
+
+    def get_by_reset_token(self, token: str) -> Optional[User]:
+        model = self._db.query(UserModel).filter(UserModel.reset_token == token).first()
+        return model.to_entity() if model else None
+
+    def clear_reset_token(self, user_id: uuid.UUID) -> None:
+        self._db.query(UserModel).filter(UserModel.id == user_id).update(
+            {"reset_token": None, "reset_token_expires_at": None}
+        )
+        self._db.commit()
+
     def count_active_admins(self) -> int:
         return (
             self._db.query(UserModel)

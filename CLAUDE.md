@@ -11,6 +11,14 @@ shell commands, and other important information, read the current plan:
 **Quickstart**: specs/002-fase1-tickets/quickstart.md
 **Constitution**: .specify/memory/constitution.md
 
+**Sub-feature en diseño**: Reseteo de contraseñas y credenciales semilla
+**Spec**: specs/003-reseteo-contrasenas/spec.md
+**Plan**: specs/003-reseteo-contrasenas/plan.md
+**Research**: specs/003-reseteo-contrasenas/research.md
+**Data model**: specs/003-reseteo-contrasenas/data-model.md
+**Contracts**: specs/003-reseteo-contrasenas/contracts/
+**Quickstart**: specs/003-reseteo-contrasenas/quickstart.md
+
 **Previous feature (completada)**: Fase 0 — Maestros
 **Spec anterior**: specs/001-fase0-maestros/spec.md
 **Data model maestros**: specs/001-fase0-maestros/data-model.md

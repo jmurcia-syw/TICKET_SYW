@@ -194,8 +194,13 @@ curl http://localhost:5000/health/       # {"status": "ok", "database": {"connec
 
 ### 4. Primer login
 
-La primera vez que corre la migración de roles/permisos, el backend **imprime una única
-vez** en el log una contraseña provisional compartida por los 4 usuarios semilla:
+En instalaciones de **Desarrollo** (`FLASK_ENV` distinto de `production`, el default), los 4
+usuarios semilla quedan con una contraseña **fija** (la misma en cada instalación), documentada
+en [`docs/credenciales_dev.txt`](docs/credenciales_dev.txt) (codificada en base64 — no es
+cifrado, solo evita mostrarla a simple vista).
+
+En instalaciones de **producción** (`FLASK_ENV=production`), el backend sigue **imprimiendo
+una única vez** en el log una contraseña aleatoria compartida por los 4 usuarios semilla:
 
 ```bash
 docker compose logs backend | grep -A2 "PROVISIONAL"
@@ -203,8 +208,11 @@ docker compose logs backend | grep -A2 "PROVISIONAL"
 
 Usuarios semilla (`username` / dominio `@sywork.net`): `admin`, `coordinador`, `qm`,
 `resolutor`. Cualquiera puede iniciar sesión por ese login provisional o por Google OAuth2
-(si configuraste `GOOGLE_CLIENT_ID`/`SECRET`). Un Admin puede rotar contraseñas y dar de
-alta usuarios reales desde la pantalla de Usuarios una vez dentro.
+(si configuraste `GOOGLE_CLIENT_ID`/`SECRET`). Un Admin puede resetear la contraseña de
+cualquier usuario (botón de llave en la pantalla de Usuarios) y dar de alta usuarios reales
+desde ahí. Un usuario también puede recuperar su propia contraseña con el link "¿Olvidaste tu
+contraseña?" en el login, si el backend tiene `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD`
+configurados en `.env`.
 
 ### Detener / reiniciar
 

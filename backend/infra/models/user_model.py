@@ -19,6 +19,8 @@ class UserModel(Base):
     google_sub = Column(Text, nullable=True, unique=True)
     last_login_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    reset_token = Column(Text, nullable=True, unique=True)
+    reset_token_expires_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     role = relationship("RoleModel", lazy="joined")
 
@@ -37,6 +39,8 @@ class UserModel(Base):
             password_hash=self.password_hash,
             last_login_at=self.last_login_at,
             created_at=self.created_at,
+            reset_token=self.reset_token,
+            reset_token_expires_at=self.reset_token_expires_at,
         )
 
     @classmethod

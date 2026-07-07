@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Button, Card, Divider, Form, Input, Space, Typography, message } from 'antd'
-import { GoogleOutlined, LockOutlined, UserOutlined } from '@ant-design/icons'
+import { Button, Card, Divider, Form, Input, Modal, Space, Typography, message } from 'antd'
+import { GoogleOutlined, LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { authService } from '../services/authService'
@@ -17,9 +17,26 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const { setAuth, isAuthenticated } = useAuthStore()
   const [loading, setLoading] = useState(false)
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotForm] = Form.useForm<{ email: string }>()
 
   if (isAuthenticated()) {
     navigate('/dashboard', { replace: true })
+  }
+
+  const handleForgotPassword = async ({ email }: { email: string }) => {
+    setForgotLoading(true)
+    try {
+      const { message: msg } = await authService.forgotPassword(email)
+      message.success(msg)
+      setForgotOpen(false)
+      forgotForm.resetFields()
+    } catch {
+      message.error('No se pudo procesar la solicitud, intenta de nuevo')
+    } finally {
+      setForgotLoading(false)
+    }
   }
 
   const handleSubmit = async (values: LoginFormValues) => {
@@ -74,6 +91,12 @@ export default function LoginPage() {
             </Form.Item>
           </Form>
 
+          <div style={{ textAlign: 'center' }}>
+            <Button type="link" size="small" onClick={() => setForgotOpen(true)}>
+              ¿Olvidaste tu contraseña?
+            </Button>
+          </div>
+
           <Divider style={{ margin: 0 }}>o</Divider>
 
           <Button icon={<GoogleOutlined />} block onClick={handleGoogleLogin}>
@@ -81,6 +104,25 @@ export default function LoginPage() {
           </Button>
         </Space>
       </Card>
+
+      <Modal
+        title="Recuperar contraseña"
+        open={forgotOpen}
+        onCancel={() => setForgotOpen(false)}
+        onOk={() => forgotForm.submit()}
+        okText="Enviar"
+        confirmLoading={forgotLoading}
+      >
+        <Form form={forgotForm} layout="vertical" onFinish={handleForgotPassword}>
+          <Form.Item
+            name="email"
+            label="Correo @sywork.net"
+            rules={[{ required: true, message: 'El correo es requerido' }]}
+          >
+            <Input prefix={<MailOutlined />} placeholder="correo@sywork.net" autoFocus />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }

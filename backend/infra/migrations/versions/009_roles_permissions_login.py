@@ -4,6 +4,7 @@ Revision ID: 009
 Revises: 008
 Create Date: 2026-07-01
 """
+import os
 import secrets
 import uuid
 
@@ -16,6 +17,11 @@ revision = "009"
 down_revision = "008"
 branch_labels = None
 depends_on = None
+
+# Contraseña fija para los 4 usuarios semilla en Desarrollo (nunca en producción — ver
+# docs/credenciales_dev.txt). Evita que cada instalación nueva quede con una contraseña
+# aleatoria irrecuperable si se pierde el log del contenedor backend.
+SEED_PASSWORD_DEV = "SyWork_Dev2026!"
 
 MODULES = ["clients", "projects", "resources", "skills", "users", "roles"]
 ACTIONS = ["view", "create", "edit", "deactivate"]
@@ -125,7 +131,9 @@ def upgrade() -> None:
         )
 
     # ── seed the 4 provisional-login users (one shared provisional password) ──
-    provisional_password = secrets.token_urlsafe(9)
+    provisional_password = (
+        SEED_PASSWORD_DEV if os.environ.get("FLASK_ENV") != "production" else secrets.token_urlsafe(9)
+    )
     password_hash = generate_password_hash(provisional_password)
     for email, username, role_name in SEED_USERS:
         bind.execute(

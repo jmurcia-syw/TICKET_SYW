@@ -133,3 +133,29 @@ def test_create_user_missing_fields_returns_400(client):
     resp = client.post("/api/users", json={"email": "a@sywork.net"})
     assert resp.status_code == 400
     assert resp.get_json()["error"] == "validation_error"
+
+
+def test_reset_password_returns_new_working_password(client, resolver_user):
+    resp = client.patch(f"/api/users/{resolver_user.id}/reset-password")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["id"] == str(resolver_user.id)
+    assert isinstance(body["provisional_password"], str) and len(body["provisional_password"]) > 8
+
+    login = client.post("/api/auth/login", json={
+        "username_or_email": resolver_user.username,
+        "password": body["provisional_password"],
+    })
+    assert login.status_code == 200
+
+
+def test_reset_password_unknown_user_returns_404(client):
+    resp = client.patch("/api/users/00000000-0000-0000-0000-000000000099/reset-password")
+    assert resp.status_code == 404
+    assert resp.get_json()["error"] == "not_found"
+
+
+def test_reset_password_invalid_uuid_returns_400(client):
+    resp = client.patch("/api/users/not-a-uuid/reset-password")
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "validation_error"
