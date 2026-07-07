@@ -1,14 +1,14 @@
 # Quickstart: Fase 1 — Tickets
 
-**Prerequisitos**: `docker compose up -d` (Postgres + backend + frontend), migración
-`011_create_tickets.py` aplicada (el backend la ejecuta al arrancar), usuarios semilla de
-Fase 0 con contraseña provisional conocida. Referencias: [contracts/tickets.md](contracts/tickets.md),
-[data-model.md](data-model.md).
+**Prerequisitos**: `docker compose up -d` (Postgres + backend + frontend), migraciones
+`011_create_tickets.py`...`013_dynamic_record_type.py` aplicadas (el backend las ejecuta al
+arrancar), usuarios semilla de Fase 0 con contraseña provisional conocida. Referencias:
+[contracts/tickets.md](contracts/tickets.md), [data-model.md](data-model.md).
 
 Verificación rápida del arranque:
 
 ```bash
-docker exec sywork_backend alembic current          # → 011 (head)
+docker exec sywork_backend alembic current          # → 013 (head)
 curl -s http://localhost:5000/health/ | head -1     # → status ok
 docker exec sywork_backend python -m pytest tests/ -q
 ```
@@ -86,6 +86,19 @@ Como el Resolutor asignado, recorrer SOLO con comentarios tipificados:
 2. Desactivar un proceso en uso por un ticket abierto → 409 con conteo.
 3. Desactivar uno sin uso → desaparece de selectores; tickets viejos conservan el valor.
 
+## Escenario 7 — Catálogo dinámico de tipo de registro (FR-029/FR-030)
+
+1. Como Coordinador, abrir Catálogos → pestaña "Tipo de registro" → ver `Ticket` y `Tarea`
+   sembrados y activos (`GET /api/catalogs/record-types`).
+2. Agregar un tercer valor (ej. "Ticket urgente") → aparece en el catálogo, demostrando que
+   ya no es una lista fija en código sino administrable como los demás.
+3. Crear un ticket nuevo sin especificar `record_type_id` → se crea con el valor "Ticket" por
+   defecto.
+4. Intentar crear un ticket con `record_type_id` = id de "Tarea" (por API directa) → rechazado
+   con `409 record_type_not_allowed` (FR-030): el catálogo lo permite pero el dominio no.
+5. Desactivar "Ticket" mientras haya tickets abiertos referenciándolo → `409 in_use` (mismo
+   comportamiento que los demás catálogos).
+
 ## Checklist de validación
 
 - [ ] Enforcement JWT+permisos activo en TODAS las rutas (maestros incluidos) — 401/403 correctos
@@ -99,4 +112,6 @@ Como el Resolutor asignado, recorrer SOLO con comentarios tipificados:
 - [ ] Panel de Asignación: conteos correctos, asignación inline, < 2 s con 500 tickets
 - [ ] Notificaciones: campana con no-leídas, marcar leídas, eventos FR-023/024
 - [ ] Catálogos administrables con bloqueo por uso
+- [ ] Catálogo `record-types` dinámico: CRUD igual a los demás; dominio bloquea
+      `record_type_id` distinto de "Ticket" (FR-030)
 - [ ] Tests: dominio (FSM completa) + API contra Postgres en verde

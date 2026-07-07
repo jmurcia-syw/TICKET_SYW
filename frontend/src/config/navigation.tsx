@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { TeamOutlined, ProjectOutlined, UserOutlined, SettingOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined, AppstoreOutlined } from '@ant-design/icons'
+import { TeamOutlined, ProjectOutlined, UserOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined, AppstoreOutlined } from '@ant-design/icons'
 import type { Permission } from '../types/api'
 
 export interface NavLeaf {
@@ -16,9 +16,8 @@ export const maestrosGroupIcon = <DatabaseOutlined />
 export const maestrosNavItems: NavLeaf[] = [
   { key: '/clients', icon: <TeamOutlined />, label: 'Clientes', module: 'clients' },
   { key: '/projects', icon: <ProjectOutlined />, label: 'Proyectos', module: 'projects' },
-  { key: '/resources', icon: <UserOutlined />, label: 'Recursos', module: 'resources' },
+  { key: '/team', icon: <UserOutlined />, label: 'Equipo', module: 'resources' },
   { key: '/skills', icon: <StarOutlined />, label: 'Skills', module: 'skills' },
-  { key: '/users', icon: <SettingOutlined />, label: 'Usuarios', module: 'users' },
   { key: '/roles', icon: <SafetyCertificateOutlined />, label: 'Roles y Permisos', module: 'roles' },
 ]
 

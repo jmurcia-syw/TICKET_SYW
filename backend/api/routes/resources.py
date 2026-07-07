@@ -2,6 +2,7 @@ from datetime import date
 
 from flask_restx import Namespace, Resource, fields
 from backend.infra.repositories.resource_repo import ResourceRepository, SkillRepository, CompensationRepository
+from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.database import get_db
 from backend.domain.entities.resource import Resource as ResourceEntity, Skill
 from backend.domain.services.skill_service import SkillService, SkillBusinessError
@@ -98,6 +99,7 @@ _resource_input = ns.model("ResourceInput", {
 
 _resource_update = ns.model("ResourceUpdate", {
     "full_name": fields.String(description="Nuevo nombre completo"),
+    "user_id": fields.String(description="Vincular (o null para desvincular) una cuenta de acceso existente sin cuenta propia"),
     "notes": fields.String(description="Notas internas"),
     "identification": fields.String(description="Número de identificación"),
     "nationality": fields.String(description="Nacionalidad"),
@@ -386,6 +388,40 @@ class ResourceList(Resource):
             return server_error()
 
 
+@ns.route("/resources/me")
+class ResourceMe(Resource):
+    @ns.doc("get_my_resource", security="Bearer")
+    @ns.response(200, "Recurso vinculado a la cuenta autenticada", _resource_out)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(404, "La cuenta autenticada no tiene un recurso vinculado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def get(self):
+        """Recurso vinculado al usuario autenticado (autoservicio "Mi Perfil").
+
+        Sin gate de permiso de módulo a propósito: cualquier cuenta activa puede ver
+        su propio perfil, independientemente de si tiene `resources:view`."""
+        from flask import g
+        from backend.api.middleware.auth import jwt_required_active
+
+        @jwt_required_active
+        def _inner():
+            try:
+                db = get_db()
+                resource = ResourceRepository(db).get_by_user_id(g.current_user.id)
+                if not resource:
+                    return {"error": "not_found", "message": "Tu cuenta no tiene un perfil de recurso asociado"}, 404
+                return _resource_to_dict(resource), 200
+            except Exception:
+                return server_error()
+
+        try:
+            return _inner()
+        except Exception:
+            # Token ausente/invalido: flask-restx interceptaria la excepcion de
+            # flask-jwt-extended como 500; se mapea explicitamente a 401 (FR-023)
+            return {"error": "unauthorized", "message": "Acceso denegado"}, 401
+
+
 @ns.route("/resources/<string:resource_id>")
 @ns.param("resource_id", "UUID del recurso")
 class ResourceDetail(Resource):
@@ -416,10 +452,15 @@ class ResourceDetail(Resource):
     @ns.expect(_resource_update, validate=False)
     @ns.response(200, "Recurso actualizado", _resource_out)
     @ns.response(400, "Datos inválidos", _error)
-    @ns.response(404, "Recurso no encontrado", _error)
+    @ns.response(404, "Recurso o usuario a vincular no encontrado", _error)
+    @ns.response(409, "El usuario indicado ya está vinculado a otro recurso", _error)
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, resource_id: str):
-        """Actualizar campos de un recurso (PATCH parcial). Para skills usar /skills, para estado usar /activate o /deactivate."""
+        """Actualizar campos de un recurso (PATCH parcial). Para skills usar /skills, para estado usar /activate o /deactivate.
+
+        `user_id` permite vincular (o, con `null`, desvincular) una cuenta de acceso
+        existente a un recurso que aún no tiene una — el caso inverso de crear el recurso
+        ya vinculado en `POST /resources`."""
         from flask import request
         uid = parse_uuid(resource_id)
         if not uid:
@@ -434,6 +475,20 @@ class ResourceDetail(Resource):
             if not resource:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
             allowed = {k: v for k, v in data.items() if k in ("full_name", "notes")}
+            if "user_id" in data:
+                if data["user_id"]:
+                    new_user_id = parse_uuid(data["user_id"])
+                    if not new_user_id:
+                        return {"error": "validation_error", "message": "user_id invalido"}, 400
+                    if not UserRepository(db).get_by_id(new_user_id):
+                        return {"error": "not_found", "message": "Usuario no encontrado"}, 404
+                    linked_to = repo.get_by_user_id(new_user_id)
+                    if linked_to and linked_to.id != uid:
+                        return {"error": "user_already_linked",
+                                "message": f"Ese usuario ya está vinculado al recurso '{linked_to.full_name}'"}, 409
+                    allowed["user_id"] = new_user_id
+                else:
+                    allowed["user_id"] = None
             profile, profile_error = _parse_profile_fields(data, repo, resource_id=uid)
             if profile_error:
                 message, status = profile_error

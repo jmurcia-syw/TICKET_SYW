@@ -2,7 +2,7 @@ import { Layout, Menu, Typography, Tag, Space, Button, Tooltip } from 'antd'
 import { LogoutOutlined } from '@ant-design/icons'
 import { useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { palette, roleColor } from '../theme'
+import { palette, roleColor, avatarColor, initials } from '../theme'
 import { getVisibleNavItems, getVisibleTicketNavItems, maestrosGroupIcon, MAESTROS_GROUP_KEY } from '../config/navigation'
 import NotificationBell from '../components/common/NotificationBell'
 import logo from '../assets/logo-sywork.jpg'
@@ -12,7 +12,8 @@ const { Header, Sider, Content } = Layout
 export default function DashboardPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { role, username, email, permissions, logout } = useAuthStore()
+  const { role, username, email, userId, permissions, logout } = useAuthStore()
+  const avatar = avatarColor(userId)
 
   const visibleMaestros = getVisibleNavItems(permissions)
   const visibleTickets = getVisibleTicketNavItems(permissions)
@@ -48,7 +49,21 @@ export default function DashboardPage() {
         <Space>
           <NotificationBell />
           <Tag color={roleColor(role?.name)}>{role?.name ?? '—'}</Tag>
-          <Typography.Text style={{ color: '#fff' }}>{username ?? email}</Typography.Text>
+          <Tooltip title="Ver mi perfil">
+            <div
+              onClick={() => navigate('/me')}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+            >
+              <div style={{
+                width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', background: avatar.bg, color: avatar.text,
+                fontWeight: 700, fontSize: 11, flexShrink: 0,
+              }}>
+                {initials(username)}
+              </div>
+              <Typography.Text style={{ color: '#fff' }}>{username ?? email}</Typography.Text>
+            </div>
+          </Tooltip>
           <Tooltip title="Cerrar sesión">
             <Button
               type="text"

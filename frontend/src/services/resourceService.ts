@@ -9,6 +9,9 @@ export const resourceService = {
   get: (id: string) =>
     apiClient.get<Resource>(`/api/resources/${id}`).then(r => r.data),
 
+  me: () =>
+    apiClient.get<Resource>('/api/resources/me').then(r => r.data),
+
   create: (data: ResourceFormData) =>
     apiClient.post<Resource>('/api/resources', data).then(r => r.data),
 

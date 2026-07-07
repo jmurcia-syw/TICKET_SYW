@@ -5,10 +5,11 @@ import { catalogService } from '../services/catalogService'
 import type { CatalogItem, CatalogName } from '../types/catalog'
 import { CATALOG_LABELS } from '../types/catalog'
 import StatusTag from '../components/common/StatusTag'
+import { clientColumnFilter, clientTextColumnFilter } from '../components/common/columnFilters'
 import { useAuthStore } from '../store/authStore'
 import { palette } from '../theme'
 
-const CATALOGS: CatalogName[] = ['tools', 'processes', 'resolution-types']
+const CATALOGS: CatalogName[] = ['tools', 'processes', 'resolution-types', 'record-types']
 
 function CatalogCard({ catalog }: { catalog: CatalogName }) {
   const { hasPermission } = useAuthStore()
@@ -57,8 +58,17 @@ function CatalogCard({ catalog }: { catalog: CatalogName }) {
       <Table
         rowKey="id" size="small" loading={loading} dataSource={items} pagination={false}
         columns={[
-          { title: 'Nombre', dataIndex: 'name' },
-          { title: 'Estado', dataIndex: 'active', width: 90, render: (v: boolean) => <StatusTag active={v} /> },
+          {
+            title: 'Nombre', dataIndex: 'name',
+            ...clientTextColumnFilter<CatalogItem>('Buscar nombre...', r => r.name),
+          },
+          {
+            title: 'Estado', dataIndex: 'active', width: 90, render: (v: boolean) => <StatusTag active={v} />,
+            ...clientColumnFilter<CatalogItem>(
+              [{ text: 'Activo', value: 'true' }, { text: 'Inactivo', value: 'false' }],
+              (value, record) => String(record.active) === value,
+            ),
+          },
           ...(canDeactivate ? [{
             title: '', key: 'toggle', width: 60,
             render: (_: unknown, item: CatalogItem) => (

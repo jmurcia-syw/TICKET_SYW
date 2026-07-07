@@ -53,6 +53,8 @@ _ticket_input = ns.model("TicketInput", {
     "project_id": fields.String(description="Opcional: proyecto activo del cliente"),
     "tool_id": fields.String(description="Catálogo herramienta"),
     "process_id": fields.String(description="Catálogo proceso"),
+    "record_type_id": fields.String(description="Catálogo tipo de registro (default: valor "
+                                                  "'Ticket'; 'Tarea' rechazado, reservado Fase 3)"),
     "escalation_level": fields.String(description="n1..n4 (default n2)"),
     "related_ticket_id": fields.String(description="Ticket relacionado"),
 })
@@ -98,7 +100,7 @@ _resource_ref = ns.model("ResourceRef", {
 _ticket_out = ns.model("Ticket", {
     "id": fields.String(description="UUID del ticket"),
     "ticket_number": fields.String(description="Consecutivo legible", example="TK-000123"),
-    "record_type": fields.String(description="ticket | task (task reservado a Fase 3)"),
+    "record_type_id": fields.String(description="UUID del catálogo tipo de registro (Ticket/Tarea)"),
     "ticket_type": fields.String(description="incident | evolutive | preventive"),
     "title": fields.String(),
     "status": fields.String(description="Estado FSM actual"),
@@ -247,7 +249,7 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
     return {
         "id": str(ticket.id),
         "ticket_number": ticket.number_display,
-        "record_type": ticket.record_type,
+        "record_type_id": str(ticket.record_type_id) if ticket.record_type_id else None,
         "ticket_type": ticket.ticket_type,
         "title": ticket.title,
         "status": ticket.status,
@@ -378,7 +380,7 @@ class TicketList(Resource):
     @ns.response(401, "No autenticado", _error)
     @ns.response(403, "Sin permiso tickets:create", _error)
     @ns.response(404, "Cliente, proyecto o catálogo no encontrado", _error)
-    @ns.response(409, "Cliente/proyecto/catálogo inactivo", _error)
+    @ns.response(409, "Cliente/proyecto/catálogo inactivo, o record_type_id no permitido (record_type_not_allowed)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "create")
     def post(self):
@@ -395,6 +397,7 @@ class TicketList(Resource):
         project_id = parse_uuid(data["project_id"]) if data.get("project_id") else None
         tool_id = parse_uuid(data["tool_id"]) if data.get("tool_id") else None
         process_id = parse_uuid(data["process_id"]) if data.get("process_id") else None
+        record_type_id = parse_uuid(data["record_type_id"]) if data.get("record_type_id") else None
         related_id = parse_uuid(data["related_ticket_id"]) if data.get("related_ticket_id") else None
         try:
             db = get_db()
@@ -407,6 +410,8 @@ class TicketList(Resource):
                 processes_repo=CatalogRepository(db, "processes"),
                 tickets_repo=TicketRepository(db),
             )
+            resolved_record_type_id = _svc.resolve_record_type(
+                record_type_id, CatalogRepository(db, "record-types"))
             ticket = Ticket(
                 id=uuid.uuid4(), ticket_number=0,  # lo asigna la secuencia
                 title=str(data["title"]).strip(), description=str(data["description"]).strip(),
@@ -414,6 +419,7 @@ class TicketList(Resource):
                 severity=data["severity"], client_id=client_id,
                 escalation_level=data.get("escalation_level") or "n2",
                 project_id=project_id, tool_id=tool_id, process_id=process_id,
+                record_type_id=resolved_record_type_id,
                 related_ticket_id=related_id, created_by=g.current_user.id,
             )
             created = TicketRepository(db).create(ticket)

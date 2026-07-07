@@ -62,7 +62,7 @@ class TicketRepository:
     def create(self, ticket: Ticket) -> Ticket:
         model = TicketModel(
             id=ticket.id,
-            record_type=ticket.record_type,
+            record_type_id=ticket.record_type_id,
             ticket_type=ticket.ticket_type,
             title=ticket.title,
             description=ticket.description,

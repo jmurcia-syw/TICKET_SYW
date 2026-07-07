@@ -1,8 +1,12 @@
 import type { ThemeConfig } from 'antd'
 
-// Sala de control: grafito/pizarra neutro + el rojo/carbón de marca de SyWork
-// (extraído de docs/iconoSW.jpg: S roja #EB3037, W carbón #353336). El acento
-// teal queda como respaldo (algunos componentes de tickets aún lo referencian).
+// Sala de control: grafito/pizarra neutro + acento terracota (naranja apagado,
+// estilo Claude) en la UI (botones, links, menú). El logo y
+// `brandRed*`/`brandCharcoal` (extraídos de docs/iconoSW.jpg: S roja #EB3037,
+// W carbón #353336) se mantienen intactos — siguen usándose en
+// ROLE_COLOR_PALETTE y quedan disponibles para acentos puntuales cerca del
+// logo. El acento teal queda como respaldo (algunos componentes de tickets
+// aún lo referencian).
 export const palette = {
   slate50: '#F8FAFC',
   slate100: '#F1F5F9',
@@ -21,12 +25,18 @@ export const palette = {
   green600: '#16A34A',
   amber600: '#D97706',
   red600: '#DC2626',
-  // Marca SyWork (docs/iconoSW.jpg)
+  // Marca SyWork (docs/iconoSW.jpg) — logo y ROLE_COLOR_PALETTE
   brandRed50: '#FDECEC',
   brandRed500: '#EB3037',
   brandRed600: '#D42229',
   brandRed700: '#B01B21',
   brandCharcoal: '#353336',
+  // Acento terracota de la UI (botones, links, menú) — apagado a propósito
+  // para no chocar con los naranjas vivos ya usados (prioridad "Alta",
+  // chip de estado "En Ejecución", colorWarning ámbar).
+  brandOrange50: '#FBEDE7',
+  brandOrange500: '#D97757',
+  brandOrange600: '#B85C3E',
 }
 
 export const STATUS_COLORS = {
@@ -107,8 +117,8 @@ export function roleColor(name: string | null | undefined): string {
 
 export const theme: ThemeConfig = {
   token: {
-    colorPrimary: palette.brandRed500,
-    colorLink: palette.brandRed600,
+    colorPrimary: palette.brandOrange500,
+    colorLink: palette.brandOrange600,
     colorSuccess: palette.green600,
     colorWarning: palette.amber600,
     colorError: palette.red600,
@@ -129,8 +139,8 @@ export const theme: ThemeConfig = {
     },
     Menu: {
       itemBg: 'transparent',
-      itemSelectedBg: palette.brandRed50,
-      itemSelectedColor: palette.brandRed600,
+      itemSelectedBg: palette.brandOrange50,
+      itemSelectedColor: palette.brandOrange600,
       itemHoverBg: palette.slate100,
     },
     Table: {

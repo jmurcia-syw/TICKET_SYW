@@ -68,6 +68,30 @@ class TicketService:
         if related_ticket_id and not tickets_repo.get_by_id(related_ticket_id):
             raise TicketValidationError("not_found", "El ticket relacionado no existe", status_code=404)
 
+    def resolve_record_type(self, record_type_id: Optional[uuid.UUID], record_types_repo) -> uuid.UUID:
+        """Resuelve el catálogo dinámico de tipo de registro (FR-029) y aplica el bloqueo
+        de dominio: solo el valor "Ticket" puede usarse para crear en esta fase, "Tarea"
+        queda reservado para Fase 3 (FR-030) aunque el catálogo ya lo tenga sembrado."""
+        if record_type_id is None:
+            item = record_types_repo.get_by_name("Ticket")
+            if not item:
+                raise TicketBusinessError(
+                    "record_type_not_found",
+                    "El catálogo de tipo de registro no tiene sembrado el valor 'Ticket'")
+            return uuid.UUID(item["id"])
+        item = record_types_repo.get_by_id(record_type_id)
+        if not item:
+            raise TicketValidationError(
+                "not_found", "Valor de tipo de registro no encontrado", status_code=404)
+        if not item["active"]:
+            raise TicketBusinessError("catalog_inactive", "El valor de tipo de registro está inactivo")
+        if item["name"] != "Ticket":
+            raise TicketBusinessError(
+                "record_type_not_allowed",
+                "En esta fase solo se pueden crear tickets con tipo de registro 'Ticket' "
+                "('Tarea' queda reservado para Fase 3)")
+        return uuid.UUID(item["id"])
+
     def validate_patch(self, ticket: Ticket, data: dict) -> dict:
         """Filtra los campos del PATCH: rechaza status, campos desconocidos y bloqueados."""
         if "status" in data:

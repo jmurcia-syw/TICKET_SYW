@@ -27,10 +27,15 @@ class ResolutionTypeCatalogModel(_CatalogMixin, Base):
     __tablename__ = "catalog_resolution_types"
 
 
+class RecordTypeCatalogModel(_CatalogMixin, Base):
+    __tablename__ = "catalog_record_types"
+
+
 CATALOG_MODELS = {
     "tools": ToolCatalogModel,
     "processes": ProcessCatalogModel,
     "resolution-types": ResolutionTypeCatalogModel,
+    "record-types": RecordTypeCatalogModel,
 }
 
 # columna de tickets que referencia cada catálogo (para el bloqueo por uso)
@@ -38,4 +43,5 @@ CATALOG_TICKET_COLUMN = {
     "tools": "tool_id",
     "processes": "process_id",
     "resolution-types": "resolution_type_id",
+    "record-types": "record_type_id",
 }

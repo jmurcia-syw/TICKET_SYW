@@ -39,7 +39,7 @@ export interface ResourceRef {
 export interface TicketListItem {
   id: string
   ticket_number: string
-  record_type: 'ticket' | 'task'
+  record_type_id: string
   ticket_type: TicketType
   title: string
   status: TicketStatus
@@ -138,6 +138,7 @@ export interface TicketFormData {
   project_id?: string | null
   tool_id?: string | null
   process_id?: string | null
+  record_type_id?: string | null
   escalation_level?: EscalationLevel
   related_ticket_id?: string | null
 }

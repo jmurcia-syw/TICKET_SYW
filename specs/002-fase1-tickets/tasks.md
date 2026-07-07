@@ -221,6 +221,57 @@ adjuntos, bloqueos y negativos. **Independent Test**: Escenario 4 del quickstart
 
 ---
 
+## Phase 8: Amendment 2026-07-06 — Catálogo dinámico de tipo de registro (FR-029/FR-030)
+
+**Goal**: convertir `record_type` (Ticket/Tarea) de CHECK constraint fijo a catálogo
+administrable `catalog_record_types`, sin desbloquear la creación de tickets tipo "Tarea"
+(sigue reservada a Fase 3). **Independent Test**: Escenario 7 del quickstart.
+
+- [X] T045 [P] Migración `backend/infra/migrations/versions/013_dynamic_record_type.py`:
+  crea `catalog_record_types` (misma forma que los otros 3 catálogos), la siembra con
+  `Ticket`/`Tarea`, agrega `tickets.record_type_id UUID NOT NULL FK
+  catalog_record_types(id)`, backfill 1:1 desde la columna vieja `record_type`
+  (`'ticket'` → id de "Ticket"), y elimina la columna vieja `record_type` + su CHECK en la
+  misma migración
+- [X] T046 [P] `backend/infra/models/catalog_model.py`: agregar `RecordTypeCatalogModel`
+  (tabla `catalog_record_types`) y registrarlo en `CATALOG_MODELS["record-types"]` /
+  `CATALOG_TICKET_COLUMN["record-types"] = "record_type_id"`
+- [X] T047 `backend/infra/models/ticket_model.py`: reemplazar columna `record_type` (Text)
+  por `record_type_id` (UUID, FK `catalog_record_types.id`); actualizar `to_entity()`
+  (depende de T045)
+- [X] T048 [US1] `backend/domain/entities/ticket.py`: reemplazar `record_type: str` por
+  `record_type_id: UUID` en la entidad `Ticket` (depende de T047)
+- [X] T049 [US1] `backend/domain/services/ticket_service.py`: en `create()`, resolver
+  `record_type_id` por defecto al valor "Ticket" del catálogo cuando no se especifica, y
+  validar que el valor resuelto sea "Ticket" — cualquier otro (incluida "Tarea") se
+  rechaza con 409 `record_type_not_allowed` (FR-030) (depende de T048)
+- [X] T050 [P] [US1] `backend/api/routes/tickets.py`: actualizar `_ticket_summary` /
+  `_ticket_detail` para serializar `record_type_id` (uuid) en vez de `record_type`
+  (string); actualizar el modelo Swagger de tickets (depende de T049)
+- [X] T051 [P] [US1] Tests API `backend/tests/api/test_record_type_catalog.py`:
+  `GET /api/catalogs/record-types` devuelve Ticket/Tarea sembrados; crear ticket sin
+  `record_type_id` usa el default "Ticket"; crear con `record_type_id` de "Tarea" → 409
+  `record_type_not_allowed`; desactivar "Ticket" en uso por tickets abiertos → 409 `in_use`
+  (mismo comportamiento que los demás catálogos) (depende de T050)
+- [X] T052 [P] [US1] `frontend/src/types/ticket.ts`: reemplazar `record_type: string` por
+  `record_type_id: string`
+- [X] T053 [US1] `frontend/src/services/ticketService.ts`: el payload de creación admite
+  `record_type_id` opcional (default resuelto por backend) (depende de T052)
+- [X] T054 [US1] `frontend/src/pages/CatalogsPage.tsx`: agregar pestaña "Tipo de registro"
+  reutilizando el componente genérico de catálogos ya usado para Herramienta/Proceso/Tipo
+  de resolución (depende de T046)
+- [X] T055 [P] Ejecutar Escenario 7 de `quickstart.md` contra el stack Docker; verificar que
+  `docs/MER.md` (sección Fase 1) sigue reflejando `record_type_id` tras la migración real —
+  migración `013` aplicada (`alembic current` → head), `catalog_record_types` sembrado con
+  Ticket/Tarea, `tickets.record_type_id` NOT NULL + FK confirmados por consulta directa a
+  Postgres; suite completa `docker exec sywork_backend python -m pytest tests/ -q` →
+  176 passed (incluye los 5 de `test_record_type_catalog.py`)
+
+**Checkpoint Amendment**: completo. Migración real aplicada y verificada, suite de tests en
+verde contra Postgres real (176 passed), typecheck frontend limpio.
+
+---
+
 ## Dependencies & Execution Order
 
 ```
@@ -230,10 +281,14 @@ US1 → US2 (T024 → T026; T025∥ → T026; T027∥; T028 → T029 → T030)
 US1+US2 → US3 (T031 → T032 → T033; T034∥ → T035 → T036)
 US2 → US4 (T037 → {T038,T039})
 Todo → Phase 7 (T040-T044)
+Phase 7 → Phase 8 (T045∥T046 → T047 → T048 → T049 → T050 → T051; T052 → T053; T046 → T054∥; T055 al final)
 ```
 
 - US1 es el MVP; US2 depende de US1 (tickets existentes); US3 depende de US2 (tickets
   asignados); US4 depende de US2 (asignación inline reutiliza AssignModal).
+- Phase 8 es una enmienda posterior al cierre de Fase 1: toca el mismo campo de
+  clasificación de US1 (registro de tickets), por eso se etiqueta `[US1]` en vez de abrir
+  una user story nueva.
 
 ## Parallel Example: Phase 2
 
@@ -249,3 +304,6 @@ T009 (storage) ∥ T013 (tests enf.) ∥ T014 (tests FSM) — archivos independi
 3. Cada checkpoint valida su escenario del quickstart antes de avanzar.
 4. El enforcement (T010-T013) va en Foundational a propósito: si rompe algo de Fase 0,
    se detecta antes de construir encima.
+5. Phase 8 (T045-T055) es una enmienda acotada sobre una feature ya cerrada: correr T045
+   (migración) primero contra una copia/backup de datos si hay tickets reales en
+   producción, porque hace backfill + DROP de columna en la misma migración.

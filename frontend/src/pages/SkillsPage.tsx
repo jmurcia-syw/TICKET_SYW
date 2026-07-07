@@ -7,6 +7,7 @@ import type { Skill } from '../types/resource'
 import ConfirmationModal from '../components/common/ConfirmationModal'
 import StatusTag from '../components/common/StatusTag'
 import PageToolbar from '../components/common/PageToolbar'
+import { clientColumnFilter, clientTextColumnFilter } from '../components/common/columnFilters'
 import { useAuthStore } from '../store/authStore'
 
 interface SkillFormData {
@@ -65,9 +66,21 @@ export default function SkillsPage() {
   }
 
   const columns: ColumnsType<Skill> = [
-    { title: 'Código', dataIndex: 'code', sorter: (a, b) => a.code.localeCompare(b.code) },
-    { title: 'Nombre', dataIndex: 'label' },
-    { title: 'Estado', dataIndex: 'active', render: (v: boolean) => <StatusTag active={v ?? true} /> },
+    {
+      title: 'Código', dataIndex: 'code', sorter: (a, b) => a.code.localeCompare(b.code),
+      ...clientTextColumnFilter<Skill>('Buscar código...', r => r.code),
+    },
+    {
+      title: 'Nombre', dataIndex: 'label',
+      ...clientTextColumnFilter<Skill>('Buscar nombre...', r => r.label),
+    },
+    {
+      title: 'Estado', dataIndex: 'active', render: (v: boolean) => <StatusTag active={v ?? true} />,
+      ...clientColumnFilter<Skill>(
+        [{ text: 'Activo', value: 'true' }, { text: 'Inactivo', value: 'false' }],
+        (value, record) => String(record.active ?? true) === value,
+      ),
+    },
     {
       title: 'Acciones', key: 'actions',
       render: (_: unknown, r: Skill) => (

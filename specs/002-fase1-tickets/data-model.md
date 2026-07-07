@@ -2,7 +2,9 @@
 
 **Date**: 2026-07-02 | **Feature**: specs/002-fase1-tickets
 
-Extiende el MER de Fase 0 (`docs/MER.md`). Migración: `011_create_tickets.py`.
+Extiende el MER de Fase 0 (`docs/MER.md`). Migraciones: `011_create_tickets.py`,
+`012_tickets_rls.py`, `013_dynamic_record_type.py` (catálogo dinámico de tipo de registro,
+amendment 2026-07-06).
 
 ## Entidades
 
@@ -12,7 +14,7 @@ Extiende el MER de Fase 0 (`docs/MER.md`). Migración: `011_create_tickets.py`.
 |---------|------|-------------|-------------|
 | id | UUID | PK, gen_random_uuid() | Identificador |
 | ticket_number | BIGINT | NOT NULL, UNIQUE, secuencia `ticket_number_seq` | Consecutivo global; se muestra `TK-000123` |
-| record_type | TEXT | NOT NULL, CHECK IN ('ticket','task'), default 'ticket' | Tipo de registro (Tarea reservado Fase 3) |
+| record_type_id | UUID | NOT NULL, FK catalog_record_types(id) | Tipo de registro (Ticket/Tarea); dominio bloquea crear con "Tarea" (reservado Fase 3, FR-030) |
 | ticket_type | TEXT | NOT NULL, CHECK IN ('incident','evolutive','preventive') | Tipo |
 | title | TEXT | NOT NULL | Título |
 | description | TEXT | NOT NULL | Descripción |
@@ -41,6 +43,9 @@ Panel de Asignación, `(ticket_number)` UNIQUE.
 
 **Reglas de negocio**:
 - Nace siempre en `nuevo` (FR-002); el estado SOLO cambia vía FSM (nunca PATCH directo)
+- `record_type_id` referencia `catalog_record_types`, administrable como los demás catálogos
+  (FR-029); el dominio valida en creación que resuelva al valor "Ticket" — cualquier otro
+  valor activo del catálogo (incluida "Tarea") se rechaza en esta fase (FR-030)
 - `resolution_type_id` + comentario "Descripción solución" obligatorios para cerrar (FR-012)
 - Bloqueos de campos por estado (FR-010) — mapa `FIELD_LOCKS` en dominio, expuesto como
   `locked_fields` en el detalle
@@ -118,9 +123,9 @@ disparan transición se ejecutan atómicamente con ella (Decisión 2 de research
 
 **Índice**: `(user_id, read)`.
 
-### catalog_tools / catalog_processes / catalog_resolution_types
+### catalog_tools / catalog_processes / catalog_resolution_types / catalog_record_types
 
-Estructura común (3 tablas):
+Estructura común (4 tablas):
 
 | Columna | Tipo | Constraints |
 |---------|------|-------------|
@@ -131,7 +136,9 @@ Estructura común (3 tablas):
 
 **Seed inicial**: tools = JDE, Oracle Fusion, OTM, Otro; processes = Finanzas, Logística,
 Manufactura, Integraciones, Otro; resolution_types = Solución definitiva, Workaround,
-Configuración, Datos, No es incidente, Sin respuesta de usuario.
+Configuración, Datos, No es incidente, Sin respuesta de usuario; record_types = Ticket,
+Tarea (ambos activos y administrables desde el CRUD genérico de catálogos, pero el dominio
+de creación de tickets en esta fase solo acepta el valor "Ticket" — FR-030).
 
 ## Permisos nuevos (seed en migración 011)
 
@@ -140,6 +147,9 @@ Configuración, Datos, No es incidente, Sin respuesta de usuario.
 | tickets | view, create, edit, assign, transition, cancel | todas | todas | todas menos cancel | view, create, transition (solo asignados — regla en dominio) |
 | assignment_panel | view | ✓ | ✓ | ✓ | — |
 | catalogs | view, create, deactivate | ✓ | ✓ | view | view |
+
+`catalogs` aplica a los 4 catálogos por igual (`tools`, `processes`, `resolution-types`,
+`record-types`) — mismo permiso, sin distinción por tipo de catálogo.
 
 ## Diagrama de relaciones (delta sobre docs/MER.md)
 
@@ -153,6 +163,7 @@ clients (1) ──── (N) tickets (N) ──── (0..1) projects
                      ├── (N) ticket_assignments [append-only, JSONB context]
                      └── (N) notifications ──── (1) users [destinatario]
 tickets (N) ──── (0..1) catalog_tools / catalog_processes / catalog_resolution_types
+tickets (N) ──── (1) catalog_record_types [record_type_id]
 ```
 
 ## FSM — transiciones codificadas (fuente: Excel + clarificaciones)
