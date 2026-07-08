@@ -125,7 +125,7 @@ independientemente.
 - [X] T020 [P] Swagger revisado: `_ticket_input`/`_ticket_detail_out` (`client_contact_id`),
   nuevas respuestas 404/409 documentadas en `POST`/`PATCH /api/tickets` y `GET
   /api/client-contacts` según `contracts/tickets-delta.md`
-- [ ] T021 Ejecutado `quickstart.md` (Escenarios 1-6) contra Docker real: creación con/sin
+- [X] T021 Ejecutado `quickstart.md` (Escenarios 1-6) contra Docker real: creación con/sin
   Encargado, autoservicio sin cambios, edición/corrección posterior, bloqueo por origen automático
   y por estado, limpieza al cambiar Cliente, Resolutor puede listar Encargados sin 403
 - [X] T022 [P] Validación dirigida únicamente (directriz explícita del solicitante — NO correr la
