@@ -35,10 +35,13 @@ const severityOptions = Object.entries(SEVERITY_LABELS).map(([value, label]) => 
 const typeOptions = Object.entries(TICKET_TYPE_LABELS).map(([value, label]) => ({ value, label }))
 
 export default function TicketsPage() {
-  const { hasPermission } = useAuthStore()
+  const { hasPermission, role } = useAuthStore()
   const navigate = useNavigate()
   const canCreate = hasPermission('tickets', 'create')
   const canAssign = hasPermission('tickets', 'assign')
+  /** Encargado (Fase 2.1 US3): alta simplificada (solo título/descripción), sin acceso a
+   * catálogos/clientes/recursos internos — el backend ya filtra su listado a lo propio. */
+  const isEncargado = role?.name === 'Encargado'
 
   const [tickets, setTickets] = useState<TicketListItem[]>([])
   const [total, setTotal] = useState(0)
@@ -97,6 +100,7 @@ export default function TicketsPage() {
   useEffect(() => { loadStats() }, [loadStats])
 
   useEffect(() => {
+    if (isEncargado) return  // sin permiso sobre clients/catalogs/resources — alta simplificada
     clientService.list({ active: true, page_size: 100 }).then(r => setClients(r.items))
     catalogService.list('tools').then(r => setTools(r.items))
     catalogService.list('processes').then(r => setProcesses(r.items))
@@ -108,7 +112,7 @@ export default function TicketsPage() {
       setRecordTypes(creatable)
       if (creatable[0]) form.setFieldValue('record_type_id', creatable[0].id)
     })
-  }, [form])
+  }, [form, isEncargado])
 
   useEffect(() => {
     if (selectedClientId) {
@@ -181,7 +185,9 @@ export default function TicketsPage() {
       render: (_: unknown, t: TicketListItem) => (
         <Space>
           <Tooltip title="Ver detalle">
-            <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/tickets/${t.id}`)} />
+            <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/tickets/${t.id}`, {
+              state: { from: { pathname: '/tickets', label: 'Tickets' } },
+            })} />
           </Tooltip>
           {canAssign && (t.status === 'nuevo' || t.status === 'pre_analisis') && (
             <Tooltip title="Asignar (Triage)">
@@ -215,21 +221,23 @@ export default function TicketsPage() {
       </Row>
 
       <PageToolbar
-        filters={<>
-          <Input.Search placeholder="Buscar por título o número..." onSearch={setSearch} allowClear style={{ width: 240 }} />
-          <Select mode="multiple" placeholder="Estados" allowClear style={{ minWidth: 180 }}
-            value={statusFilter} onChange={setStatusFilter} options={statusOptions} maxTagCount={2} />
-          <Select placeholder="Cliente" allowClear showSearch optionFilterProp="label" style={{ width: 170 }}
-            onChange={setClientFilter} options={clients.map(c => ({ value: c.id, label: c.name }))} />
-          <Select placeholder="Prioridad" allowClear style={{ width: 120 }}
-            onChange={setPriorityFilter} options={priorityOptions} />
-          <Select placeholder="Asignado" allowClear showSearch optionFilterProp="label" style={{ width: 160 }}
-            onChange={setAssigneeFilter} options={resources.map(r => ({ value: r.id, label: r.full_name }))} />
-        </>}
+        filters={isEncargado
+          ? <Input.Search placeholder="Buscar por título o número..." onSearch={setSearch} allowClear style={{ width: 240 }} />
+          : <>
+              <Input.Search placeholder="Buscar por título o número..." onSearch={setSearch} allowClear style={{ width: 240 }} />
+              <Select mode="multiple" placeholder="Estados" allowClear style={{ minWidth: 180 }}
+                value={statusFilter} onChange={setStatusFilter} options={statusOptions} maxTagCount={2} />
+              <Select placeholder="Cliente" allowClear showSearch optionFilterProp="label" style={{ width: 170 }}
+                onChange={setClientFilter} options={clients.map(c => ({ value: c.id, label: c.name }))} />
+              <Select placeholder="Prioridad" allowClear style={{ width: 120 }}
+                onChange={setPriorityFilter} options={priorityOptions} />
+              <Select placeholder="Asignado" allowClear showSearch optionFilterProp="label" style={{ width: 160 }}
+                onChange={setAssigneeFilter} options={resources.map(r => ({ value: r.id, label: r.full_name }))} />
+            </>}
         action={canCreate && (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => {
             form.resetFields()
-            if (recordTypes[0]) form.setFieldValue('record_type_id', recordTypes[0].id)
+            if (!isEncargado && recordTypes[0]) form.setFieldValue('record_type_id', recordTypes[0].id)
             setFormOpen(true)
           }}>
             Nuevo ticket
@@ -241,56 +249,58 @@ export default function TicketsPage() {
         pagination={{ current: page, total, pageSize: 20 }} onChange={handleTableChange} />
 
       <Modal title="Nuevo ticket" open={formOpen} onCancel={() => setFormOpen(false)}
-        onOk={() => form.submit()} okText="Crear ticket" width={640}>
+        onOk={() => form.submit()} okText="Crear ticket" width={isEncargado ? 480 : 640}>
         <Form form={form} layout="vertical" onFinish={handleCreate}
-          initialValues={{ ticket_type: 'incident', priority: 'medium', severity: 's3', escalation_level: 'n2' }}>
+          initialValues={isEncargado ? {} : { ticket_type: 'incident', priority: 'medium', severity: 's3', escalation_level: 'n2' }}>
           <Form.Item name="title" label="Título" rules={[{ required: true, message: 'El título es requerido' }]}>
             <Input />
           </Form.Item>
           <Form.Item name="description" label="Descripción" rules={[{ required: true, message: 'La descripción es requerida' }]}>
             <Input.TextArea rows={3} />
           </Form.Item>
-          <Space style={{ display: 'flex' }} align="start">
-            <Form.Item name="client_id" label="Cliente" rules={[{ required: true, message: 'El cliente es requerido' }]}>
-              <Select showSearch optionFilterProp="label" placeholder="Cliente" style={{ width: 260 }}
-                options={clients.map(c => ({ value: c.id, label: c.name }))} />
-            </Form.Item>
-            <Form.Item name="project_id" label="Proyecto (opcional)">
-              <Select allowClear placeholder={selectedClientId ? 'Proyecto' : 'Elige cliente primero'}
-                disabled={!selectedClientId} style={{ width: 260 }}
-                options={projects.map(p => ({ value: p.id, label: p.name }))} />
-            </Form.Item>
-          </Space>
-          <Space style={{ display: 'flex' }} align="start" wrap>
-            <Form.Item name="record_type_id" label="Tipo de registro"
-              rules={[{ required: true, message: 'Selecciona el tipo de registro' }]}>
-              <Select style={{ width: 130 }}
-                options={recordTypes.map(rt => ({ value: rt.id, label: rt.name }))} />
-            </Form.Item>
-            <Form.Item name="ticket_type" label="Tipo" rules={[{ required: true }]}>
-              <Select style={{ width: 130 }} options={typeOptions} />
-            </Form.Item>
-            <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}>
-              <Select style={{ width: 110 }} options={priorityOptions} />
-            </Form.Item>
-            <Form.Item name="severity" label="Severidad" rules={[{ required: true }]}>
-              <Select style={{ width: 100 }} options={severityOptions} />
-            </Form.Item>
-            <Form.Item name="escalation_level" label="Nivel">
-              <Select style={{ width: 90 }}
-                options={['n1', 'n2', 'n3', 'n4'].map(v => ({ value: v, label: v.toUpperCase() }))} />
-            </Form.Item>
-          </Space>
-          <Space style={{ display: 'flex' }} align="start">
-            <Form.Item name="tool_id" label="Herramienta">
-              <Select allowClear placeholder="Herramienta" style={{ width: 200 }}
-                options={tools.map(t => ({ value: t.id, label: t.name }))} />
-            </Form.Item>
-            <Form.Item name="process_id" label="Proceso">
-              <Select allowClear placeholder="Proceso" style={{ width: 200 }}
-                options={processes.map(p => ({ value: p.id, label: p.name }))} />
-            </Form.Item>
-          </Space>
+          {!isEncargado && <>
+            <Space style={{ display: 'flex' }} align="start">
+              <Form.Item name="client_id" label="Cliente" rules={[{ required: true, message: 'El cliente es requerido' }]}>
+                <Select showSearch optionFilterProp="label" placeholder="Cliente" style={{ width: 260 }}
+                  options={clients.map(c => ({ value: c.id, label: c.name }))} />
+              </Form.Item>
+              <Form.Item name="project_id" label="Proyecto (opcional)">
+                <Select allowClear placeholder={selectedClientId ? 'Proyecto' : 'Elige cliente primero'}
+                  disabled={!selectedClientId} style={{ width: 260 }}
+                  options={projects.map(p => ({ value: p.id, label: p.name }))} />
+              </Form.Item>
+            </Space>
+            <Space style={{ display: 'flex' }} align="start" wrap>
+              <Form.Item name="record_type_id" label="Tipo de registro"
+                rules={[{ required: true, message: 'Selecciona el tipo de registro' }]}>
+                <Select style={{ width: 130 }}
+                  options={recordTypes.map(rt => ({ value: rt.id, label: rt.name }))} />
+              </Form.Item>
+              <Form.Item name="ticket_type" label="Tipo" rules={[{ required: true }]}>
+                <Select style={{ width: 130 }} options={typeOptions} />
+              </Form.Item>
+              <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}>
+                <Select style={{ width: 110 }} options={priorityOptions} />
+              </Form.Item>
+              <Form.Item name="severity" label="Severidad" rules={[{ required: true }]}>
+                <Select style={{ width: 100 }} options={severityOptions} />
+              </Form.Item>
+              <Form.Item name="escalation_level" label="Nivel">
+                <Select style={{ width: 90 }}
+                  options={['n1', 'n2', 'n3', 'n4'].map(v => ({ value: v, label: v.toUpperCase() }))} />
+              </Form.Item>
+            </Space>
+            <Space style={{ display: 'flex' }} align="start">
+              <Form.Item name="tool_id" label="Herramienta">
+                <Select allowClear placeholder="Herramienta" style={{ width: 200 }}
+                  options={tools.map(t => ({ value: t.id, label: t.name }))} />
+              </Form.Item>
+              <Form.Item name="process_id" label="Proceso">
+                <Select allowClear placeholder="Proceso" style={{ width: 200 }}
+                  options={processes.map(p => ({ value: p.id, label: p.name }))} />
+              </Form.Item>
+            </Space>
+          </>}
         </Form>
       </Modal>
 

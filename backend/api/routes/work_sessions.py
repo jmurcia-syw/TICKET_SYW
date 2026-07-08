@@ -33,7 +33,10 @@ _error = error_model(ns, "WorkSessionError")
 _work_session_input = ns.model("WorkSessionInput", {
     "ticket_id": fields.String(required=True),
     "work_date": fields.String(required=True, description="ISO-8601 (YYYY-MM-DD)"),
-    "duration_minutes": fields.Integer(required=True),
+    "duration_minutes": fields.Integer(description="Requerido si no se envían started_at/ended_at"),
+    "started_at": fields.String(description="ISO-8601 con hora; si viene junto con ended_at, "
+                                             "la duración se calcula y se ignora duration_minutes"),
+    "ended_at": fields.String(description="ISO-8601 con hora"),
     "note": fields.String(),
     "resource_id": fields.String(description="Solo Admin (work_sessions:manage_all): registrar "
                                               "en nombre de otro recurso"),
@@ -41,6 +44,8 @@ _work_session_input = ns.model("WorkSessionInput", {
 
 _work_session_patch_input = ns.model("WorkSessionPatchInput", {
     "duration_minutes": fields.Integer(),
+    "started_at": fields.String(),
+    "ended_at": fields.String(),
     "note": fields.String(),
 })
 
@@ -52,6 +57,8 @@ _work_session_out = ns.model("WorkSession", {
     "ticket_number": fields.String(),
     "work_date": fields.String(),
     "duration_minutes": fields.Integer(),
+    "started_at": fields.String(allow_null=True),
+    "ended_at": fields.String(allow_null=True),
     "note": fields.String(allow_null=True),
     "created_by": fields.String(),
     "updated_by": fields.String(allow_null=True),
@@ -81,6 +88,16 @@ def _parse_date(value: str, field_name: str) -> date:
                           status_code=400)
 
 
+def _parse_datetime(value, field_name: str):
+    if value is None:
+        return None
+    try:
+        return datetime.fromisoformat(str(value))
+    except ValueError:
+        raise DomainError("validation_error", f"'{field_name}' debe ser una fecha/hora ISO-8601 válida",
+                          status_code=400)
+
+
 def _serialize(ws, db) -> dict:
     resource = ResourceRepository(db).get_by_id(ws.resource_id)
     ticket = TicketRepository(db).get_by_id(ws.ticket_id)
@@ -92,6 +109,8 @@ def _serialize(ws, db) -> dict:
         "ticket_number": ticket.number_display if ticket else None,
         "work_date": ws.work_date.isoformat(),
         "duration_minutes": ws.duration_minutes,
+        "started_at": ws.started_at.isoformat() if ws.started_at else None,
+        "ended_at": ws.ended_at.isoformat() if ws.ended_at else None,
         "note": ws.note,
         "created_by": str(ws.created_by),
         "updated_by": str(ws.updated_by) if ws.updated_by else None,
@@ -157,16 +176,18 @@ class WorkSessionList(Resource):
         data = request.get_json(silent=True)
         if not data:
             return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
-        for field_name in ("ticket_id", "work_date", "duration_minutes"):
+        for field_name in ("ticket_id", "work_date"):
             if data.get(field_name) is None:
                 return {"error": "validation_error", "message": f"El campo '{field_name}' es requerido"}, 400
         ticket_id = parse_uuid(data["ticket_id"])
         if not ticket_id:
             return {"error": "validation_error", "message": "ticket_id inválido"}, 400
-        try:
-            duration_minutes = int(data["duration_minutes"])
-        except (TypeError, ValueError):
-            return {"error": "validation_error", "message": "duration_minutes debe ser un entero"}, 400
+        duration_minutes = None
+        if data.get("duration_minutes") is not None:
+            try:
+                duration_minutes = int(data["duration_minutes"])
+            except (TypeError, ValueError):
+                return {"error": "validation_error", "message": "duration_minutes debe ser un entero"}, 400
 
         db = get_db()
         allow_any = current_user_has("work_sessions", "manage_all")
@@ -181,6 +202,8 @@ class WorkSessionList(Resource):
             resource_id = own.id
         try:
             work_date = _parse_date(data["work_date"], "work_date")
+            started_at = _parse_datetime(data.get("started_at"), "started_at")
+            ended_at = _parse_datetime(data.get("ended_at"), "ended_at")
             ticket = TicketRepository(db).get_by_id(ticket_id)
             if not ticket:
                 return {"error": "not_found", "message": "Ticket no encontrado"}, 404
@@ -188,7 +211,8 @@ class WorkSessionList(Resource):
                 resource_id=resource_id, ticket=ticket, work_date=work_date,
                 duration_minutes=duration_minutes, created_by=g.current_user.id,
                 work_sessions_repo=WorkSessionRepository(db), tickets_repo=TicketRepository(db),
-                note=data.get("note"), allow_any=allow_any,
+                note=data.get("note"), started_at=started_at, ended_at=ended_at,
+                allow_any=allow_any,
             )
             return _serialize(created, db), 201, {"Location": f"/api/work-sessions/{created.id}"}
         except DomainError as e:
@@ -299,9 +323,12 @@ class WorkSessionDetail(Resource):
             except (TypeError, ValueError):
                 return {"error": "validation_error", "message": "duration_minutes debe ser un entero"}, 400
         try:
+            started_at = _parse_datetime(data.get("started_at"), "started_at")
+            ended_at = _parse_datetime(data.get("ended_at"), "ended_at")
             updated = _svc.update(
                 existing=existing, actor_id=g.current_user.id, work_sessions_repo=repo,
-                duration_minutes=duration_minutes, note=data.get("note"), allow_any=allow_any,
+                duration_minutes=duration_minutes, note=data.get("note"),
+                started_at=started_at, ended_at=ended_at, allow_any=allow_any,
             )
             return _serialize(updated, db), 200
         except DomainError as e:

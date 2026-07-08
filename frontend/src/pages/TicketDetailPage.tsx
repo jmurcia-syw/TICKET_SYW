@@ -1,26 +1,27 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Card, Col, Descriptions, Divider, InputNumber, Row, Select, Space, Spin, Tag, Tooltip, message } from 'antd'
 import {
-  ArrowLeftOutlined, UserSwitchOutlined, SaveOutlined, ClockCircleOutlined,
+  UserSwitchOutlined, SaveOutlined, ClockCircleOutlined,
   FieldTimeOutlined, PlayCircleOutlined,
 } from '@ant-design/icons'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
 import { catalogService } from '../services/catalogService'
 import type { TicketDetail, Priority, Severity } from '../types/ticket'
-import { PRIORITY_LABELS, SEVERITY_LABELS, TICKET_TYPE_LABELS } from '../types/ticket'
+import { PRIORITY_LABELS, SEVERITY_LABELS, TICKET_TYPE_LABELS, formatMinutes } from '../types/ticket'
 import type { CatalogItem } from '../types/catalog'
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import CommentThread from '../components/tickets/CommentThread'
 import CommentComposer from '../components/tickets/CommentComposer'
 import AssignModal from '../components/tickets/AssignModal'
+import TicketWorkSessions from '../components/worksessions/TicketWorkSessions'
+import TicketBreadcrumb from '../components/tickets/TicketBreadcrumb'
 import { useAuthStore } from '../store/authStore'
 import { palette, vivid } from '../theme'
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const { hasPermission } = useAuthStore()
   const canAssign = hasPermission('tickets', 'assign')
   const canEdit = hasPermission('tickets', 'edit')
@@ -29,7 +30,7 @@ export default function TicketDetailPage() {
   const [resolutionTypes, setResolutionTypes] = useState<CatalogItem[]>([])
   const [recordTypes, setRecordTypes] = useState<CatalogItem[]>([])
   const [assignOpen, setAssignOpen] = useState(false)
-  const [estimate, setEstimate] = useState<number | null>(null)
+  const [estimateHours, setEstimateHours] = useState<number | null>(null)
   const [priority, setPriority] = useState<Priority>()
   const [severity, setSeverity] = useState<Severity>()
 
@@ -37,7 +38,9 @@ export default function TicketDetailPage() {
     if (!id) return
     const data = await ticketService.get(id)
     setTicket(data)
-    setEstimate(data.estimated_resolution_minutes)
+    setEstimateHours(
+      data.estimated_resolution_minutes != null ? data.estimated_resolution_minutes / 60 : null,
+    )
     setPriority(data.priority)
     setSeverity(data.severity)
   }, [id])
@@ -55,7 +58,9 @@ export default function TicketDetailPage() {
   const saveEditable = async () => {
     try {
       const payload: Record<string, unknown> = {}
-      if (!locked.has('estimated_resolution_minutes')) payload.estimated_resolution_minutes = estimate
+      if (!locked.has('estimated_resolution_minutes')) {
+        payload.estimated_resolution_minutes = estimateHours != null ? Math.round(estimateHours * 60) : null
+      }
       if (!locked.has('priority')) payload.priority = priority
       if (!locked.has('severity')) payload.severity = severity
       await ticketService.update(ticket.id, payload)
@@ -70,7 +75,7 @@ export default function TicketDetailPage() {
   return (
     <div>
       <Space style={{ marginBottom: 16 }} wrap align="center">
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/tickets')}>Volver</Button>
+        <TicketBreadcrumb />
         <span style={{ fontSize: 12, fontWeight: 700, color: vivid.blue.text, letterSpacing: 0.4 }}>
           {ticket.ticket_number}
         </span>
@@ -142,6 +147,11 @@ export default function TicketDetailPage() {
           <Card title="Clasificación" size="small" style={{ marginTop: 16 }}>
             <Descriptions column={1} size="small">
               <Descriptions.Item label="Cliente">{ticket.client?.name}</Descriptions.Item>
+              {ticket.requester?.is_encargado && (
+                <Descriptions.Item label="Encargado solicitante">
+                  <Tag color={vivid.purple.text}>{ticket.requester.name}</Tag>
+                </Descriptions.Item>
+              )}
               <Descriptions.Item label="Proyecto">{ticket.project?.name ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="Tipo de registro">
                 {recordTypes.find(rt => rt.id === ticket.record_type_id)?.name ?? '—'}
@@ -161,10 +171,13 @@ export default function TicketDetailPage() {
                       options={Object.entries(SEVERITY_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
                   : ticket.severity.toUpperCase()}
               </Descriptions.Item>
-              <Descriptions.Item label="Tiempo estimado (min)">
+              <Descriptions.Item label="Tiempo estimado de solución">
                 {canEdit && !locked.has('estimated_resolution_minutes')
-                  ? <InputNumber size="small" min={0} value={estimate} onChange={setEstimate} />
-                  : (ticket.estimated_resolution_minutes ?? '—')}
+                  ? <InputNumber size="small" min={0} step={0.5} addonAfter="h"
+                      value={estimateHours} onChange={setEstimateHours} />
+                  : (ticket.estimated_resolution_minutes != null
+                      ? formatMinutes(ticket.estimated_resolution_minutes)
+                      : 'Sin estimar')}
               </Descriptions.Item>
               <Descriptions.Item label="Creado">{new Date(ticket.created_at).toLocaleString('es-CO')}</Descriptions.Item>
               {ticket.resolved_at && (
@@ -195,6 +208,15 @@ export default function TicketDetailPage() {
           </Card>
         </Col>
       </Row>
+
+      <Card title="Registros de tiempo" size="small" style={{ marginTop: 16 }}>
+        <TicketWorkSessions
+          ticketId={ticket.id}
+          ticketNumber={ticket.ticket_number}
+          ticketTitle={ticket.title}
+          estimatedMinutes={ticket.estimated_resolution_minutes}
+        />
+      </Card>
 
       <AssignModal ticketId={assignOpen ? ticket.id : null}
         onClose={() => setAssignOpen(false)} onAssigned={load} />

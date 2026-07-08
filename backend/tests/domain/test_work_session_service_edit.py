@@ -15,6 +15,8 @@ class FakeWorkSession:
         self.resource_id = resource_id or uuid.uuid4()
         self.work_date = work_date
         self.duration_minutes = duration_minutes
+        self.started_at = None
+        self.ended_at = None
 
 
 class FakeWorkSessionsRepo:
@@ -26,7 +28,8 @@ class FakeWorkSessionsRepo:
     def sum_minutes_for_day(self, resource_id, work_date, exclude_id=None):
         return self._existing_minutes
 
-    def update(self, work_session_id, actor_id, duration_minutes=None, note=None):
+    def update(self, work_session_id, actor_id, duration_minutes=None, note=None,
+              started_at=None, ended_at=None):
         self.updated = (work_session_id, actor_id, duration_minutes, note)
         return "updated-result"
 

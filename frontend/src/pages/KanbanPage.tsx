@@ -233,7 +233,9 @@ export default function KanbanPage() {
                                 ref={dragProvided.innerRef}
                                 {...dragProvided.draggableProps}
                                 {...dragProvided.dragHandleProps}
-                                onClick={() => !dragSnapshot.isDragging && navigate(`/tickets/${t.id}`)}
+                                onClick={() => !dragSnapshot.isDragging && navigate(`/tickets/${t.id}`, {
+                                  state: { from: { pathname: '/kanban', label: 'Kanban' } },
+                                })}
                                 style={{
                                   cursor: canDrag ? 'grab' : 'pointer', borderRadius: 10, padding: 10,
                                   border: `1px solid ${palette.slate200}`, background: '#fff',

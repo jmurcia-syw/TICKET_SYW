@@ -6,6 +6,8 @@ export interface WorkSessionListItem {
   ticket_number: string | null
   work_date: string
   duration_minutes: number
+  started_at: string | null
+  ended_at: string | null
   note: string | null
   created_by: string
   updated_by: string | null
@@ -16,7 +18,9 @@ export interface WorkSessionListItem {
 export interface WorkSessionFormData {
   ticket_id: string
   work_date: string
-  duration_minutes: number
+  duration_minutes?: number
+  started_at?: string
+  ended_at?: string
   note?: string
   resource_id?: string
 }

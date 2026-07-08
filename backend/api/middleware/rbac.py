@@ -51,6 +51,24 @@ def require_permission(module: str, action: str):
     return decorator
 
 
+def require_authenticated():
+    """JWT + usuario activo, sin exigir un permiso puntual — para endpoints que resuelven el
+    permiso condicionalmente adentro (ej. `tickets:view` vs `tickets:view_own`, Fase 2.1)."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            protected = jwt_required_active(lambda: None)
+            try:
+                denied = protected()
+            except Exception:
+                return _UNAUTHORIZED
+            if denied is not None:
+                return denied
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 def _action_for_request() -> str:
     from flask import request
     path = request.path.rstrip("/")

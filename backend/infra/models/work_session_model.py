@@ -15,6 +15,8 @@ class WorkSessionModel(Base):
     work_date = Column(Date, nullable=False)
     duration_minutes = Column(Integer, nullable=False)
     note = Column(Text, nullable=True)
+    started_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    ended_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     updated_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
@@ -30,6 +32,8 @@ class WorkSessionModel(Base):
             duration_minutes=self.duration_minutes,
             note=self.note,
             created_by=self.created_by,
+            started_at=self.started_at,
+            ended_at=self.ended_at,
             updated_by=self.updated_by,
             created_at=self.created_at,
             updated_at=self.updated_at,
@@ -45,6 +49,8 @@ class WorkSessionModel(Base):
             duration_minutes=work_session.duration_minutes,
             note=work_session.note,
             created_by=work_session.created_by,
+            started_at=work_session.started_at,
+            ended_at=work_session.ended_at,
             updated_by=work_session.updated_by,
         )
 

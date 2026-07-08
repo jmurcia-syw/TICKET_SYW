@@ -4,7 +4,9 @@ import { useAuthStore } from '../../store/authStore'
 
 interface Props {
   children: ReactNode
-  requiredPermission?: { module: string; action: string }
+  /** `action` acepta una sola acción o una lista de alternativas (cualquiera habilita el
+   * acceso) — ej. Tickets: `['view', 'view_own']` para Coordinador/Resolutor vs Encargado. */
+  requiredPermission?: { module: string; action: string | string[] }
 }
 
 export default function ProtectedRoute({ children, requiredPermission }: Props) {
@@ -14,8 +16,11 @@ export default function ProtectedRoute({ children, requiredPermission }: Props) 
     return <Navigate to="/login" replace />
   }
 
-  if (requiredPermission && !hasPermission(requiredPermission.module, requiredPermission.action)) {
-    return <Navigate to="/dashboard" replace />
+  if (requiredPermission) {
+    const actions = Array.isArray(requiredPermission.action) ? requiredPermission.action : [requiredPermission.action]
+    if (!actions.some(action => hasPermission(requiredPermission.module, action))) {
+      return <Navigate to="/dashboard" replace />
+    }
   }
 
   return <>{children}</>

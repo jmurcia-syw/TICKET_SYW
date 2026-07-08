@@ -1,7 +1,7 @@
 from flask import g, request
 from flask_restx import Namespace, Resource, fields
 
-from backend.api.middleware.rbac import require_permission
+from backend.api.middleware.rbac import require_authenticated, current_user_has
 from backend.api.routes._shared import parse_uuid, error_model, server_error
 from backend.infra.database import get_db
 from backend.infra.repositories.notification_repo import NotificationRepository
@@ -27,10 +27,13 @@ class NotificationList(Resource):
     })
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
     @ns.response(403, "Sin el permiso requerido", _error)
-    # Toda cuenta autenticada ve SUS notificaciones; tickets:view lo tienen los 4 roles seed
-    @require_permission("tickets", "view")
+    # Toda cuenta autenticada ve SUS notificaciones; alcanza con tener algún permiso sobre
+    # tickets (view para los roles internos, view_own para Encargado, Fase 2.1).
+    @require_authenticated()
     def get(self):
         """Notificaciones del usuario autenticado (propias, nunca de otros)"""
+        if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")):
+            return {"error": "forbidden", "message": "Acceso denegado"}, 403
         try:
             page = max(1, int(request.args.get("page", 1)))
             page_size = min(max(1, int(request.args.get("page_size", 20))), 100)
@@ -63,9 +66,11 @@ class NotificationsRead(Resource):
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
     @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_read_input, validate=False)
-    @require_permission("tickets", "view")
+    @require_authenticated()
     def patch(self):
         """Marcar notificaciones propias como leídas ({ids: [...]} o {all: true})"""
+        if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")):
+            return {"error": "forbidden", "message": "Acceso denegado"}, 403
         data = request.get_json(silent=True) or {}
         mark_all = bool(data.get("all"))
         ids = [parse_uuid(str(i)) for i in data.get("ids", [])]

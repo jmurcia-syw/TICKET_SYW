@@ -21,7 +21,8 @@ export const workSessionService = {
   create: (data: WorkSessionFormData) =>
     apiClient.post<WorkSessionListItem>('/api/work-sessions', data).then(r => r.data),
 
-  update: (id: string, data: Partial<Pick<WorkSessionFormData, 'duration_minutes' | 'note'>>) =>
+  update: (id: string, data: Partial<Pick<WorkSessionFormData,
+    'duration_minutes' | 'note' | 'started_at' | 'ended_at'>>) =>
     apiClient.patch<WorkSessionListItem>(`/api/work-sessions/${id}`, data).then(r => r.data),
 
   remove: (id: string) =>
