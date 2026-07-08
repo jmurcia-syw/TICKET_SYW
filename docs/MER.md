@@ -305,3 +305,52 @@ esquema real pero faltaban en el MER.
 `catalog_record_types`, sembrada con "Ticket"/"Tarea"), siguiendo el patrón de los demás
 catálogos. El dominio (`TicketService.resolve_record_type`) sigue rechazando la creación de
 tickets con el valor "Tarea" — el catálogo dinámico no desbloquea Fase 3 (FR-029/FR-030).
+
+---
+
+# Ampliación Fase 2 — Registro diario de tiempos (2026-07-07, migraciones 015-017)
+
+```mermaid
+erDiagram
+    resources ||--o{ work_sessions : "recurso"
+    tickets ||--o{ work_sessions : ""
+    users ||--o{ work_sessions : "created_by/updated_by"
+    work_sessions ||--o{ work_session_edits : "append-only"
+    users ||--o{ work_session_edits : "edited_by"
+
+    work_sessions {
+        uuid id PK
+        uuid resource_id FK "inmutable tras la creación"
+        uuid ticket_id FK
+        date work_date "no futura"
+        int duration_minutes "CHECK > 0"
+        text note "nullable"
+        uuid created_by FK
+        uuid updated_by FK "nullable"
+        timestamptz deleted_at "soft-delete, nullable"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    work_session_edits {
+        uuid id PK
+        uuid work_session_id FK
+        text action "created|updated|deleted"
+        jsonb previous_values "nullable"
+        jsonb new_values "nullable"
+        uuid edited_by FK
+        timestamptz edited_at
+    }
+```
+
+**Reglas Fase 2**: `work_sessions` es el registro atómico de tiempo trabajado por un recurso
+sobre un ticket de Fase 1 (entidad `WorkSession` ya anticipada en Constitución §II); el borrado
+es soft-delete (`deleted_at`) para que `work_session_edits` conserve una referencia válida al
+padre. `work_session_edits` es append-only (mismo patrón que `ticket_status_transitions`/
+`ticket_assignments`): toda alta/edición/borrado genera exactamente una fila. RLS habilitado en
+ambas tablas (migración 016, mismo patrón app-level que `012_tickets_rls.py`); permisos: módulo
+`work_sessions` con 4 acciones (`view_own`, `manage`, `view_all`, `manage_all`) — un recurso ve
+y gestiona solo sus propios registros salvo Coordinador/QM (`view_all`) o Admin (`manage_all`).
+Reglas de negocio en `backend/domain/services/work_session_service.py`: máximo 1440 minutos
+(24h) por recurso/día, ventana de edición de 7 días corridos, sin fechas futuras, sin registrar
+contra tickets `cerrado` salvo Admin.

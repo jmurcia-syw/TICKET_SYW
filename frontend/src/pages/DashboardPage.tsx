@@ -3,7 +3,7 @@ import { LogoutOutlined } from '@ant-design/icons'
 import { useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { palette, roleColor, avatarColor, initials } from '../theme'
-import { getVisibleNavItems, getVisibleTicketNavItems, maestrosGroupIcon, MAESTROS_GROUP_KEY } from '../config/navigation'
+import { getVisibleNavItems, getVisibleTicketNavItems, getVisibleWorkSessionNavItems, maestrosGroupIcon, MAESTROS_GROUP_KEY } from '../config/navigation'
 import NotificationBell from '../components/common/NotificationBell'
 import logo from '../assets/logo-sywork.jpg'
 
@@ -17,8 +17,10 @@ export default function DashboardPage() {
 
   const visibleMaestros = getVisibleNavItems(permissions)
   const visibleTickets = getVisibleTicketNavItems(permissions)
+  const visibleWorkSessions = getVisibleWorkSessionNavItems(permissions)
   const menuItems = [
     ...visibleTickets.map(({ key, icon, label }) => ({ key, icon, label })),
+    ...visibleWorkSessions.map(({ key, icon, label }) => ({ key, icon, label })),
     ...(visibleMaestros.length > 0
       ? [{
           key: MAESTROS_GROUP_KEY,

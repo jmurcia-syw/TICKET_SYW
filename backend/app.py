@@ -71,6 +71,11 @@ def create_app() -> Flask:
     api.add_namespace(ns_notifications)
     api.add_namespace(ns_panel)
 
+    # ── Fase 2 — Registro diario de tiempos ────────────────────────────────────
+    from backend.api.routes.work_sessions import ns as ns_work_sessions
+
+    api.add_namespace(ns_work_sessions)
+
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")
 

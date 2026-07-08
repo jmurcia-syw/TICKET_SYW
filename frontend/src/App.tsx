@@ -15,6 +15,8 @@ import TicketDetailPage from './pages/TicketDetailPage'
 import AssignmentPanelPage from './pages/AssignmentPanelPage'
 import CatalogsPage from './pages/CatalogsPage'
 import MyProfilePage from './pages/MyProfilePage'
+import WorkSessionsPage from './pages/WorkSessionsPage'
+import TimeReportPage from './pages/TimeReportPage'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import { theme } from './theme'
 
@@ -39,6 +41,8 @@ function AppRoutes() {
         <Route path="kanban" element={<ProtectedRoute requiredPermission={{ module: 'tickets', action: 'view' }}><KanbanPage /></ProtectedRoute>} />
         <Route path="assignment-panel" element={<ProtectedRoute requiredPermission={{ module: 'assignment_panel', action: 'view' }}><AssignmentPanelPage /></ProtectedRoute>} />
         <Route path="catalogs" element={<ProtectedRoute requiredPermission={{ module: 'catalogs', action: 'view' }}><CatalogsPage /></ProtectedRoute>} />
+        <Route path="registro-tiempos" element={<ProtectedRoute requiredPermission={{ module: 'work_sessions', action: 'view_own' }}><WorkSessionsPage /></ProtectedRoute>} />
+        <Route path="reporte-tiempos" element={<ProtectedRoute requiredPermission={{ module: 'work_sessions', action: 'view_own' }}><TimeReportPage /></ProtectedRoute>} />
         <Route path="clients" element={<ProtectedRoute requiredPermission={{ module: 'clients', action: 'view' }}><ClientsPage /></ProtectedRoute>} />
         <Route path="projects" element={<ProtectedRoute requiredPermission={{ module: 'projects', action: 'view' }}><ProjectsPage /></ProtectedRoute>} />
         <Route path="team" element={<ProtectedRoute requiredPermission={{ module: 'resources', action: 'view' }}><TeamPage /></ProtectedRoute>} />
