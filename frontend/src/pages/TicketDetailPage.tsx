@@ -27,6 +27,7 @@ export default function TicketDetailPage() {
 
   const [ticket, setTicket] = useState<TicketDetail | null>(null)
   const [resolutionTypes, setResolutionTypes] = useState<CatalogItem[]>([])
+  const [recordTypes, setRecordTypes] = useState<CatalogItem[]>([])
   const [assignOpen, setAssignOpen] = useState(false)
   const [estimate, setEstimate] = useState<number | null>(null)
   const [priority, setPriority] = useState<Priority>()
@@ -44,6 +45,7 @@ export default function TicketDetailPage() {
   useEffect(() => { load() }, [load])
   useEffect(() => {
     catalogService.list('resolution-types').then(r => setResolutionTypes(r.items))
+    catalogService.list('record-types', 'all').then(r => setRecordTypes(r.items))
   }, [])
 
   if (!ticket) return <Spin style={{ display: 'block', margin: '80px auto' }} />
@@ -141,6 +143,9 @@ export default function TicketDetailPage() {
             <Descriptions column={1} size="small">
               <Descriptions.Item label="Cliente">{ticket.client?.name}</Descriptions.Item>
               <Descriptions.Item label="Proyecto">{ticket.project?.name ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="Tipo de registro">
+                {recordTypes.find(rt => rt.id === ticket.record_type_id)?.name ?? '—'}
+              </Descriptions.Item>
               <Descriptions.Item label="Tipo">{TICKET_TYPE_LABELS[ticket.ticket_type]}</Descriptions.Item>
               <Descriptions.Item label="Nivel de escalamiento">{ticket.escalation_level.toUpperCase()}</Descriptions.Item>
               <Descriptions.Item label="Asignado">{ticket.assignee?.full_name ?? 'Sin asignar'}</Descriptions.Item>

@@ -155,3 +155,72 @@ SPA React). Sin proyectos nuevos. Las únicas piezas estructurales nuevas son
 ## Complexity Tracking
 
 > Sin violaciones a la Constitución — tabla vacía.
+
+---
+
+## Amendment 2026-07-06 — Catálogo dinámico de tipo de registro
+
+**Input**: Cambio de spec (FR-029/FR-030, spec.md sesión 2026-07-06) — el campo
+`record_type` (Ticket/Tarea) pasa de CHECK constraint fijo a catálogo administrable
+`catalog_record_types`, siguiendo el mismo patrón que `catalog_tools`/`catalog_processes`/
+`catalog_resolution_types`. El dominio sigue bloqueando la creación de tickets con "Tarea"
+(reservado Fase 3) — solo el catálogo se vuelve dinámico.
+
+### Technical Context (delta)
+
+- Nueva migración `013_dynamic_record_type.py`: crea `catalog_record_types` (misma forma que
+  los otros 3 catálogos: `id`, `name` UNIQUE, `active`, `created_at`), la siembra con
+  `Ticket`/`Tarea`, agrega columna `tickets.record_type_id UUID NOT NULL FK
+  catalog_record_types(id)`, hace backfill de las filas existentes (`record_type='ticket'` →
+  id de "Ticket"; no deberían existir filas `'task'` porque el dominio nunca las permitió) y
+  elimina la columna vieja `record_type` junto con su CHECK constraint en la misma migración.
+- Sin dependencias nuevas: reutiliza el mecanismo genérico de catálogos ya existente
+  (`CATALOG_MODELS` / `CATALOG_TICKET_COLUMN` en `backend/infra/models/catalog_model.py`,
+  ruta genérica `backend/api/routes/catalogs.py`).
+- Cambios de código acotados: `TicketModel` (columna), `Ticket` entity + `TicketService`
+  (validación FR-030: rechazar `record_type_id` que no resuelva a "Ticket"), serialización en
+  `backend/api/routes/tickets.py::_ticket_summary` (`record_type` string → `record_type_id`
+  uuid), frontend (`types/ticket.ts`, `services/ticketService.ts`, formulario de nuevo
+  ticket, `CatalogsPage.tsx` agrega pestaña "Tipo de registro" con el mismo componente
+  genérico de catálogos).
+
+### Constitution Check (re-evaluación)
+
+| Principio | Estado | Verificación |
+|-----------|--------|--------------|
+| I. API-First; contrato antes de código | PASS | `contracts/tickets.md` y `contracts/notifications-catalogs.md` ya actualizados (`record_type_id`, slug `record-types`) antes de tocar código |
+| II. Clean Architecture 3 capas | PASS | Regla FR-030 vive en `TicketService` (dominio), no en la ruta ni en el frontend |
+| III. TS strict / type hints Python | PASS | Sin cambio de patrón — mismo tipado que `tool_id`/`process_id` |
+| IV. JWT + RLS doble protección | PASS | El catálogo nuevo cae bajo el permiso genérico `catalogs:*` ya protegido; sin superficie nueva de auth |
+| V. Gobernanza de librerías | PASS | Cero dependencias nuevas |
+| VI. AI-Native | N/A | No aplica a este cambio |
+| FSM: solo transiciones definidas | N/A | `record_type_id` no participa en la FSM de estados |
+
+**Resultado**: PASS sin violaciones. Complexity Tracking vacío.
+
+### Project Structure (delta)
+
+```text
+backend/
+├── infra/
+│   ├── models/catalog_model.py     + RecordTypeCatalogModel; CATALOG_MODELS["record-types"]
+│   ├── models/ticket_model.py      record_type (TEXT) → record_type_id (UUID FK)
+│   └── migrations/versions/
+│       └── 013_dynamic_record_type.py   catálogo + seed + backfill + drop columna vieja
+├── domain/
+│   ├── entities/ticket.py          record_type → record_type_id
+│   └── services/ticket_service.py  valida record_type_id resuelve a "Ticket" (FR-030)
+└── api/routes/tickets.py           _ticket_summary: "record_type" → "record_type_id"
+
+frontend/src/
+├── types/ticket.ts                 record_type → record_type_id
+├── services/ticketService.ts       payload de creación incluye record_type_id (default)
+└── pages/CatalogsPage.tsx          pestaña "Tipo de registro" (mismo componente genérico)
+```
+
+**Structure Decision**: sin piezas estructurales nuevas — extensión directa del patrón de
+catálogos ya existente; no se crean carpetas ni módulos nuevos.
+
+### Complexity Tracking (amendment)
+
+> Sin violaciones — tabla vacía.

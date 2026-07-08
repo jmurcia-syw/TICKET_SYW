@@ -42,6 +42,42 @@ def test_deactivate_then_activate_resource_roundtrip(client, unique_name):
     assert activated.get_json() == {"id": rid, "active": True}
 
 
+def test_patch_links_existing_user_to_resource(client, unique_name, resolver_user):
+    """Recurso ya creado sin cuenta -> vincular una cuenta existente vía PATCH."""
+    resource = _make_resource(client, unique_name)
+    rid = resource["id"]
+
+    patched = client.patch(f"/api/resources/{rid}", json={"user_id": str(resolver_user.id)})
+    assert patched.status_code == 200
+    assert patched.get_json()["user_id"] == str(resolver_user.id)
+
+
+def test_patch_rejects_user_id_already_linked_to_another_resource(client, unique_name, resolver_user):
+    first = _make_resource(client, unique_name)
+    client.patch(f"/api/resources/{first['id']}", json={"user_id": str(resolver_user.id)})
+
+    second = _make_resource(client, f"{unique_name}b")
+    resp = client.patch(f"/api/resources/{second['id']}", json={"user_id": str(resolver_user.id)})
+    assert resp.status_code == 409
+    assert resp.get_json()["error"] == "user_already_linked"
+
+
+def test_patch_unlinks_user_with_null(client, unique_name, resolver_user):
+    resource = _make_resource(client, unique_name)
+    rid = resource["id"]
+    client.patch(f"/api/resources/{rid}", json={"user_id": str(resolver_user.id)})
+
+    unlinked = client.patch(f"/api/resources/{rid}", json={"user_id": None})
+    assert unlinked.status_code == 200
+    assert unlinked.get_json()["user_id"] is None
+
+
+def test_patch_rejects_unknown_user_id(client, unique_name):
+    resource = _make_resource(client, unique_name)
+    resp = client.patch(f"/api/resources/{resource['id']}", json={"user_id": "00000000-0000-0000-0000-000000000099"})
+    assert resp.status_code == 404
+
+
 def test_resource_email_outside_domain_rejected(client, unique_name):
     resp = client.post("/api/resources", json={"full_name": "Bad Email", "email": f"{unique_name}@gmail.com"})
     assert resp.status_code == 400

@@ -8,7 +8,8 @@ from backend.infra.models.catalog_model import CATALOG_MODELS, CATALOG_TICKET_CO
 from backend.infra.repositories.catalog_repo import CatalogRepository
 from backend.infra.repositories.ticket_repo import TicketRepository
 
-ns = Namespace("catalogs", description="Catálogos de tickets (herramienta, proceso, tipo de resolución)",
+ns = Namespace("catalogs",
+               description="Catálogos de tickets (herramienta, proceso, tipo de resolución, tipo de registro)",
                path="/api/catalogs")
 
 _error = error_model(ns, "CatalogError")
@@ -31,7 +32,7 @@ def _validate_catalog(catalog: str):
 
 
 @ns.route("/<string:catalog>")
-@ns.param("catalog", "tools | processes | resolution-types")
+@ns.param("catalog", "tools | processes | resolution-types | record-types")
 class CatalogList(Resource):
     @ns.doc("list_catalog", params={"active": {"description": "true/false/all (default true)", "type": "string"}})
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
@@ -78,7 +79,7 @@ class CatalogList(Resource):
 
 
 @ns.route("/<string:catalog>/<string:item_id>/deactivate")
-@ns.param("catalog", "tools | processes | resolution-types")
+@ns.param("catalog", "tools | processes | resolution-types | record-types")
 class CatalogDeactivate(Resource):
     @ns.doc("deactivate_catalog_value")
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
@@ -110,7 +111,7 @@ class CatalogDeactivate(Resource):
 
 
 @ns.route("/<string:catalog>/<string:item_id>/activate")
-@ns.param("catalog", "tools | processes | resolution-types")
+@ns.param("catalog", "tools | processes | resolution-types | record-types")
 class CatalogActivate(Resource):
     @ns.doc("activate_catalog_value")
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)

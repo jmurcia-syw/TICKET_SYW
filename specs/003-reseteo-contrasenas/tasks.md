@@ -65,9 +65,10 @@ Desarrollo, documentada. **Independent Test**: Escenario 1 de `quickstart.md`.
   `provisional_password` a `SEED_PASSWORD_DEV if os.environ.get("FLASK_ENV") != "production" else secrets.token_urlsafe(9)`
 - [X] T008 [P] [US2] Crear `docs/credenciales_dev.txt` con la tabla de los 4 usuarios semilla
   (usuario/email, rol, contraseña en base64: `U3lXb3JrX0RldjIwMjYh`)
-- [ ] T009 [US2] Verificar en un entorno limpio (`docker compose down -v && docker compose up --build`)
+- [X] T009 [US2] Verificar en un entorno limpio (`docker compose down -v && docker compose up --build`)
   que los 4 usuarios semilla quedan con la contraseña fija; repetir con `FLASK_ENV=production` y
-  confirmar que sigue siendo aleatoria — depende de T007
+  confirmar que sigue siendo aleatoria — depende de T007 — **cubierto por la validación de T022**
+  (Escenario 1 confirmado por el usuario en su entorno Docker real)
 
 **Checkpoint**: Escenario 1 de `quickstart.md` pasa completo — cero dependencia de logs para
 instalar en un equipo nuevo.

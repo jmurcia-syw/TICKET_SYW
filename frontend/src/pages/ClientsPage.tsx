@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Button, Divider, Form, Input, InputNumber, Modal, Select, Space, Table, Tooltip, message } from 'antd'
 import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined, EyeInvisibleOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
+import type { ColumnsType, TableProps } from 'antd/es/table'
 import { clientService } from '../services/clientService'
 import type { ClientListItem, ClientDetail, ClientFormData, ClientSystem, ClientSystemFormData } from '../types/client'
 import ConfirmationModal from '../components/common/ConfirmationModal'
 import StatusTag from '../components/common/StatusTag'
 import PageToolbar from '../components/common/PageToolbar'
+import { textColumnFilter, serverColumnFilter } from '../components/common/columnFilters'
 import { palette } from '../theme'
 import { useAuthStore } from '../store/authStore'
+
+const ACTIVE_FILTER_OPTIONS = [{ text: 'Activo', value: 'true' }, { text: 'Inactivo', value: 'false' }]
 
 export default function ClientsPage() {
   const { hasPermission, role } = useAuthStore()
@@ -19,6 +22,7 @@ export default function ClientsPage() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [activeFilter, setActiveFilter] = useState<boolean | undefined>()
   const [loading, setLoading] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -33,7 +37,7 @@ export default function ClientsPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await clientService.list({ page, page_size: 20, search: search || undefined })
+      const res = await clientService.list({ page, page_size: 20, search: search || undefined, active: activeFilter })
       setClients(res.items)
       setTotal(res.total)
     } finally {
@@ -41,7 +45,13 @@ export default function ClientsPage() {
     }
   }
 
-  useEffect(() => { load() }, [page, search])
+  useEffect(() => { load() }, [page, search, activeFilter])
+
+  const handleTableChange: TableProps<ClientListItem>['onChange'] = (pagination, filters) => {
+    setPage(pagination.current || 1)
+    const activeValue = filters.active?.[0] as string | undefined
+    setActiveFilter(activeValue === undefined ? undefined : activeValue === 'true')
+  }
 
   const openCreate = () => { form.resetFields(); setEditingId(null); setFormOpen(true) }
   const openEdit = (c: ClientListItem) => { form.setFieldsValue(c); setEditingId(c.id); setFormOpen(true) }
@@ -109,12 +119,16 @@ export default function ClientsPage() {
   }
 
   const columns: ColumnsType<ClientListItem> = [
-    { title: 'Nombre', dataIndex: 'name', sorter: true },
+    {
+      title: 'Nombre', dataIndex: 'name', sorter: true, key: 'name',
+      ...textColumnFilter('Buscar cliente...', search, setSearch),
+    },
     { title: 'Contacto', dataIndex: 'contact_name' },
     { title: 'Email', dataIndex: 'contact_email' },
     {
-      title: 'Estado', dataIndex: 'active',
+      title: 'Estado', dataIndex: 'active', key: 'active',
       render: (v: boolean) => <StatusTag active={v} />,
+      ...serverColumnFilter(ACTIVE_FILTER_OPTIONS, activeFilter === undefined ? undefined : String(activeFilter)),
     },
     {
       title: 'Acciones', key: 'actions',
@@ -142,7 +156,8 @@ export default function ClientsPage() {
         columns={columns}
         dataSource={clients}
         loading={loading}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage }}
+        pagination={{ current: page, total, pageSize: 20 }}
+        onChange={handleTableChange}
       />
 
       <Modal title={editingId ? 'Editar cliente' : 'Nuevo cliente'} open={formOpen} onCancel={() => setFormOpen(false)} onOk={() => form.submit()} okText="Guardar">

@@ -31,10 +31,10 @@ usuario autenticado. **Response 200**: `{ "updated": n }`.
 
 ---
 
-## Catálogos (herramienta, proceso, tipo de resolución)
+## Catálogos (herramienta, proceso, tipo de resolución, tipo de registro)
 
 Base: `/api/catalogs/{catalog}` donde `{catalog}` ∈ `tools`, `processes`,
-`resolution-types`.
+`resolution-types`, `record-types`.
 
 ### GET /api/catalogs/{catalog} — permiso `catalogs:view`
 
@@ -51,6 +51,11 @@ Body: `{ "name": "..." }`. Nombre único por catálogo → 409 si duplicado.
 No se puede desactivar un valor en uso por tickets abiertos (no finales) → 409
 `in_use` con el conteo. Valores desactivados no aparecen en selectores de tickets nuevos;
 los tickets existentes conservan la referencia.
+
+Nota `record-types`: se siembra con `Ticket` y `Tarea`, ambos administrables como cualquier
+otro catálogo. Independientemente de qué valores estén activos aquí, la creación de tickets
+en esta fase solo acepta el valor "Ticket" (regla de dominio, FR-030) — el catálogo dinámico
+no habilita por sí solo la funcionalidad de Tareas.
 
 ---
 

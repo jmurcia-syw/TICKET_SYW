@@ -22,7 +22,7 @@ Lista paginada. Query params: `page`, `page_size` (máx 100), `search` (título 
   "items": [
     {
       "id": "uuid", "ticket_number": "TK-000123", "title": "...",
-      "record_type": "ticket", "ticket_type": "incident",
+      "record_type_id": "uuid", "ticket_type": "incident",
       "status": "contacto", "priority": "high", "severity": "s2",
       "escalation_level": "n2",
       "client": {"id": "uuid", "name": "..."},
@@ -38,13 +38,16 @@ Lista paginada. Query params: `page`, `page_size` (máx 100), `search` (título 
 ## POST /api/tickets — permiso `tickets:create`
 
 Body: `{ title*, description*, ticket_type*, priority*, severity*, client_id*, project_id,
-tool_id, process_id, escalation_level (default n2), related_ticket_id }`.
-Valida: cliente activo; proyecto activo y del cliente; catálogos activos.
+tool_id, process_id, record_type_id (default: valor "Ticket" del catálogo),
+escalation_level (default n2), related_ticket_id }`.
+Valida: cliente activo; proyecto activo y del cliente; catálogos activos; `record_type_id`
+DEBE resolver al valor "Ticket" en esta fase — cualquier otro valor del catálogo (incluida
+"Tarea") es rechazado (FR-030, reservado Fase 3).
 
 **Response 201**: detalle completo (ver GET /{id}) con `status: "nuevo"` y `ticket_number`
 asignado. Header `Location`.
 Errores: 400 validación, 404 cliente/proyecto/catálogo inexistente, 409 cliente/proyecto
-inactivo.
+inactivo, 409 `record_type_not_allowed` si `record_type_id` no es "Ticket".
 
 ## GET /api/tickets/{id} — permiso `tickets:view`
 

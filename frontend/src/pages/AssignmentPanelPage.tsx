@@ -4,17 +4,20 @@ import { ReloadOutlined, UserSwitchOutlined, ApartmentOutlined, InboxOutlined } 
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
-import type { PanelData, PanelRow, TicketStatus } from '../types/ticket'
-import { STATUS_LABELS } from '../types/ticket'
+import type { PanelData, PanelRow, TicketStatus, Priority } from '../types/ticket'
+import { STATUS_LABELS, PRIORITY_LABELS } from '../types/ticket'
 import AssignModal from '../components/tickets/AssignModal'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import PageToolbar from '../components/common/PageToolbar'
+import { clientColumnFilter, clientTextColumnFilter } from '../components/common/columnFilters'
 import { avatarColor, initials, palette, vivid } from '../theme'
 
 const NON_FINAL: TicketStatus[] = [
   'nuevo', 'pre_analisis', 'contacto', 'en_analisis', 'en_ejecucion',
   'en_pruebas', 'pendiente_usuario', 'resuelto',
 ]
+
+type UnassignedTicket = PanelData['unassigned_new'][number]
 
 export default function AssignmentPanelPage() {
   const [data, setData] = useState<PanelData | null>(null)
@@ -39,6 +42,7 @@ export default function AssignmentPanelPage() {
   const matrixColumns: ColumnsType<PanelRow> = [
     {
       title: 'Resolutor', dataIndex: ['resource', 'full_name'], fixed: 'left', width: 190,
+      ...clientTextColumnFilter<PanelRow>('Buscar resolutor...', r => r.resource.full_name),
       render: (_: unknown, row: PanelRow) => {
         const color = avatarColor(row.resource.id)
         return (
@@ -116,13 +120,26 @@ export default function AssignmentPanelPage() {
               dataSource={data?.unassigned_new ?? []}
               pagination={{ pageSize: 8 }}
               locale={{ emptyText: 'No hay tickets nuevos sin asignar 🎉' }}
-              columns={[
+              columns={([
                 { title: 'Número', dataIndex: 'ticket_number', width: 100,
                   render: (v: string, t) => <a onClick={() => navigate(`/tickets/${t.id}`)}>{v}</a> },
-                { title: 'Título', dataIndex: 'title', ellipsis: true },
-                { title: 'Prioridad', dataIndex: 'priority', width: 90,
-                  render: (p: 'critical' | 'high' | 'medium' | 'low') => <PriorityBadge priority={p} /> },
-                { title: 'Cliente', dataIndex: ['client', 'name'], width: 130, ellipsis: true },
+                {
+                  title: 'Título', dataIndex: 'title', ellipsis: true,
+                  ...clientTextColumnFilter<UnassignedTicket>('Buscar título...', r => r.title),
+                },
+                {
+                  title: 'Prioridad', dataIndex: 'priority', width: 90,
+                  render: (p: Priority) => <PriorityBadge priority={p} />,
+                  ...clientColumnFilter<UnassignedTicket>(
+                    Object.entries(PRIORITY_LABELS).map(([value, text]) => ({ text, value })),
+                    (value, record) => record.priority === value,
+                  ),
+                },
+                {
+                  title: 'Cliente', dataIndex: ['client', 'name'], width: 130, ellipsis: true,
+                  ...clientTextColumnFilter<UnassignedTicket>(
+                    'Buscar cliente...', r => r.client?.name ?? ''),
+                },
                 { title: '', key: 'assign', width: 60,
                   render: (_: unknown, t) => (
                     <Tooltip title="Asignar">
@@ -130,7 +147,7 @@ export default function AssignmentPanelPage() {
                         onClick={() => setAssigningId(t.id)} />
                     </Tooltip>
                   ) },
-              ]}
+              ] satisfies ColumnsType<UnassignedTicket>)}
             />
           </Card>
         </Col>

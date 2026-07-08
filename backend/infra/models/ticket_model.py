@@ -12,7 +12,7 @@ class TicketModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
     ticket_number = Column(BigInteger, nullable=False, unique=True,
                            server_default=text("nextval('ticket_number_seq')"))
-    record_type = Column(Text, nullable=False, default="ticket")
+    record_type_id = Column(UUID(as_uuid=True), ForeignKey("catalog_record_types.id"), nullable=False)
     ticket_type = Column(Text, nullable=False)
     title = Column(Text, nullable=False)
     description = Column(Text, nullable=False)
@@ -39,7 +39,7 @@ class TicketModel(Base):
         return Ticket(
             id=self.id,
             ticket_number=self.ticket_number,
-            record_type=self.record_type,
+            record_type_id=self.record_type_id,
             ticket_type=self.ticket_type,
             title=self.title,
             description=self.description,

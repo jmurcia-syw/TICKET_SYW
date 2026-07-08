@@ -1,4 +1,4 @@
-export type CatalogName = 'tools' | 'processes' | 'resolution-types'
+export type CatalogName = 'tools' | 'processes' | 'resolution-types' | 'record-types'
 
 export interface CatalogItem {
   id: string
@@ -10,4 +10,5 @@ export const CATALOG_LABELS: Record<CatalogName, string> = {
   tools: 'Herramientas',
   processes: 'Procesos',
   'resolution-types': 'Tipos de resolución',
+  'record-types': 'Tipo de registro',
 }

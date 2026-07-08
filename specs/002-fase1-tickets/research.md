@@ -123,3 +123,30 @@ de escritura/transición, que se aplica en dominio + API.
 
 **Alternatives considered**: RLS de lectura por asignado (rompe la base de conocimiento);
 sin RLS (pierde la doble protección del Principio IV).
+
+## Decisión 10 — Migrar `record_type` de CHECK fijo a catálogo FK (2026-07-06)
+
+**Decision**: Reemplazar la columna `tickets.record_type` (TEXT + CHECK IN ('ticket','task'))
+por `tickets.record_type_id` (UUID, FK `catalog_record_types(id)`), reutilizando el mismo
+mecanismo genérico de catálogos (`CATALOG_MODELS`, ruta `/api/catalogs/{catalog}`) ya usado
+por herramienta/proceso/tipo de resolución. La migración `013_dynamic_record_type.py` crea la
+tabla, la siembra con Ticket/Tarea, hace backfill 1:1 de las filas existentes (todas
+`'ticket'`, porque el dominio nunca permitió crear `'task'`) y elimina la columna y el CHECK
+viejos en la misma migración (sin fase de coexistencia: no hay filas `'task'` reales que
+migrar con ambigüedad).
+
+**Rationale**: Consistencia con el patrón ya validado en Fase 1 para herramienta/proceso/tipo
+de resolución — un catálogo administrable es más flexible que un CHECK constraint y no
+requiere una migración de esquema para agregar/desactivar valores en el futuro. Además el
+mecanismo de "bloqueo por uso" (no desactivar valor referenciado por tickets abiertos) ya
+existe y se reutiliza gratis.
+
+**Alternatives considered**: mantener el CHECK y agregar una tabla de metadatos aparte
+(duplica la fuente de verdad, dos lugares para el mismo valor); migración en dos pasos con
+columna nueva nullable + backfill diferido + drop en una migración posterior (innecesario
+aquí porque no hay usuarios activos de "Tarea" que gestionar con cuidado — el dominio la
+bloqueó desde el día uno).
+
+**Regla que NO cambia**: el dominio (`TicketService.create`) sigue rechazando cualquier
+`record_type_id` que no resuelva al valor "Ticket" (FR-030) — el catálogo dinámico solo
+afecta la administración de valores, no desbloquea la creación de Tareas.

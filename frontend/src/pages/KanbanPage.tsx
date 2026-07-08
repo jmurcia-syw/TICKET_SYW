@@ -215,7 +215,7 @@ export default function KanbanPage() {
                         style={{
                           display: 'flex', flexDirection: 'column', gap: 8, minHeight: 80,
                           maxHeight: 'calc(100vh - 260px)', overflowY: 'auto', padding: 2,
-                          background: snapshot.isDraggingOver ? palette.brandRed50 : 'transparent',
+                          background: snapshot.isDraggingOver ? palette.brandOrange50 : 'transparent',
                           borderRadius: 8, transition: 'background 0.15s',
                         }}
                       >

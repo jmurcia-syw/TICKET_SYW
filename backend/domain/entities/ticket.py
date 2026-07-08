@@ -10,7 +10,6 @@ STATUSES = (
     "en_pruebas", "pendiente_usuario", "resuelto", "cerrado", "cancelado",
 )
 FINAL_STATUSES = ("cerrado", "cancelado")
-RECORD_TYPES = ("ticket", "task")  # task reservado para Fase 3
 TICKET_TYPES = ("incident", "evolutive", "preventive")
 PRIORITIES = ("critical", "high", "medium", "low")
 SEVERITIES = ("s1", "s2", "s3", "s4")
@@ -25,7 +24,7 @@ STATUS_LABELS = {
 
 # Bloqueo de campos por estado (FR-010) — única fuente de verdad.
 # Campos listados = NO editables via PATCH mientras el ticket esté en ese estado.
-_BASE_LOCKED = {"status", "ticket_number", "record_type", "created_by"}
+_BASE_LOCKED = {"status", "ticket_number", "record_type_id", "created_by"}
 FIELD_LOCKS: dict[str, set[str]] = {
     "nuevo": set(),
     "pre_analisis": set(),
@@ -61,7 +60,7 @@ class Ticket:
     severity: str
     client_id: uuid.UUID
     created_by: uuid.UUID
-    record_type: str = "ticket"
+    record_type_id: Optional[uuid.UUID] = None
     status: str = "nuevo"
     escalation_level: str = "n2"
     project_id: Optional[uuid.UUID] = None

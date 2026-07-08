@@ -9,6 +9,7 @@ import ConfirmationModal from '../components/common/ConfirmationModal'
 import StatusTag from '../components/common/StatusTag'
 import PageToolbar from '../components/common/PageToolbar'
 import PermissionMatrix from '../components/roles/PermissionMatrix'
+import { clientColumnFilter, clientTextColumnFilter } from '../components/common/columnFilters'
 import { palette } from '../theme'
 
 export default function RolesPermissionsPage() {
@@ -88,10 +89,19 @@ export default function RolesPermissionsPage() {
   }
 
   const columns: ColumnsType<RoleDetail> = [
-    { title: 'Nombre', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
+    {
+      title: 'Nombre', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name),
+      ...clientTextColumnFilter<RoleDetail>('Buscar nombre...', r => r.name),
+    },
     { title: 'Descripción', dataIndex: 'description' },
     { title: 'Permisos', dataIndex: 'permissions', render: (p: RoleDetail['permissions']) => p.length },
-    { title: 'Estado', dataIndex: 'active', render: (v: boolean) => <StatusTag active={v} /> },
+    {
+      title: 'Estado', dataIndex: 'active', render: (v: boolean) => <StatusTag active={v} />,
+      ...clientColumnFilter<RoleDetail>(
+        [{ text: 'Activo', value: 'true' }, { text: 'Inactivo', value: 'false' }],
+        (value, record) => String(record.active) === value,
+      ),
+    },
     {
       title: 'Acciones', key: 'actions',
       render: (_: unknown, r: RoleDetail) => (

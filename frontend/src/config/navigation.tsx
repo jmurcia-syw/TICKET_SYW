@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { TeamOutlined, ProjectOutlined, UserOutlined, SettingOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined, AppstoreOutlined } from '@ant-design/icons'
+import { TeamOutlined, ProjectOutlined, UserOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined, AppstoreOutlined, ClockCircleOutlined, BarChartOutlined } from '@ant-design/icons'
 import type { Permission } from '../types/api'
 
 export interface NavLeaf {
@@ -16,9 +16,8 @@ export const maestrosGroupIcon = <DatabaseOutlined />
 export const maestrosNavItems: NavLeaf[] = [
   { key: '/clients', icon: <TeamOutlined />, label: 'Clientes', module: 'clients' },
   { key: '/projects', icon: <ProjectOutlined />, label: 'Proyectos', module: 'projects' },
-  { key: '/resources', icon: <UserOutlined />, label: 'Recursos', module: 'resources' },
+  { key: '/team', icon: <UserOutlined />, label: 'Equipo', module: 'resources' },
   { key: '/skills', icon: <StarOutlined />, label: 'Skills', module: 'skills' },
-  { key: '/users', icon: <SettingOutlined />, label: 'Usuarios', module: 'users' },
   { key: '/roles', icon: <SafetyCertificateOutlined />, label: 'Roles y Permisos', module: 'roles' },
 ]
 
@@ -28,6 +27,12 @@ export const ticketsNavItems: NavLeaf[] = [
   { key: '/kanban', icon: <AppstoreOutlined />, label: 'Kanban', module: 'tickets' },
   { key: '/assignment-panel', icon: <DashboardOutlined />, label: 'Panel de Asignación', module: 'assignment_panel' },
   { key: '/catalogs', icon: <TagsOutlined />, label: 'Catálogos', module: 'catalogs' },
+]
+
+/** Ítems de la Fase 2 — Registro de tiempos (van junto a los de Tickets). */
+export const workSessionsNavItems: NavLeaf[] = [
+  { key: '/registro-tiempos', icon: <ClockCircleOutlined />, label: 'Registro de Tiempos', module: 'work_sessions' },
+  { key: '/reporte-tiempos', icon: <BarChartOutlined />, label: 'Reporte de Tiempos', module: 'work_sessions' },
 ]
 
 /** Filtra los items de navegación por los permisos `view` que tiene el usuario autenticado. */
@@ -40,5 +45,13 @@ export function getVisibleNavItems(permissions: Permission[]): NavLeaf[] {
 export function getVisibleTicketNavItems(permissions: Permission[]): NavLeaf[] {
   return ticketsNavItems.filter(item =>
     permissions.some(p => p.module === item.module && p.action === 'view')
+  )
+}
+
+/** work_sessions no usa la acción 'view' — cualquier permiso del módulo (view_own incluido,
+ * que todos los roles internos tienen) habilita ver estas pantallas. */
+export function getVisibleWorkSessionNavItems(permissions: Permission[]): NavLeaf[] {
+  return workSessionsNavItems.filter(item =>
+    permissions.some(p => p.module === item.module)
   )
 }

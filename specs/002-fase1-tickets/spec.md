@@ -29,6 +29,16 @@ tiempo estimado de resolución, registro relacionado, niveles de escalamiento N1
   JWT + permisos en TODAS las rutas de la API (tickets Y maestros), cerrando la deuda
   diferida de Fase 0 (FR-017 de la spec 001).
 
+### Session 2026-07-06
+
+- Q: ¿El campo "tipo de registro" (Ticket/Tarea) sigue siendo un valor fijo (CHECK
+  constraint) o pasa a ser un catálogo administrable? → A: Pasa a ser un catálogo dinámico
+  (`catalog_record_types`), con la misma mecánica CRUD que herramienta/proceso/tipo de
+  resolución (`catalogs:view/create/deactivate`), sembrado con los valores "Ticket" y
+  "Tarea". La restricción de dominio que bloquea crear tickets con valor "Tarea" (reservado
+  para Fase 3) se mantiene sin cambios: solo el catálogo se vuelve administrable, no se
+  desbloquea la funcionalidad de Tareas en esta fase.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Registro y consulta de tickets (Priority: P1)
@@ -185,8 +195,11 @@ asignar desde el panel produce el mismo efecto que asignar desde el detalle.
   corresponde a un proyecto específico (soporte general).
 - Cliente o proyecto desactivado después de creado el ticket → el ticket conserva la
   referencia y sigue siendo gestionable; solo se bloquea usarlos en tickets nuevos.
-- Campos de clasificación (herramienta, proceso) con valores fuera del catálogo → rechazar;
-  los catálogos son administrables, no texto libre.
+- Campos de clasificación (herramienta, proceso, tipo de registro) con valores fuera del
+  catálogo → rechazar; los catálogos son administrables, no texto libre.
+- Intentar crear un ticket con tipo de registro "Tarea" → rechazado por el dominio
+  (reservado para Fase 3, FR-030), aun cuando el catálogo ya tenga el valor sembrado y
+  administrable.
 
 **Asignación**
 - Asignar a un resolutor inactivo → rechazar con mensaje claro.
@@ -223,9 +236,11 @@ asignar desde el panel produce el mismo efecto que asignar desde el detalle.
 
 - **FR-001**: El sistema DEBE permitir crear tickets manualmente con: título, descripción,
   cliente (obligatorio), proyecto (opcional, solo proyectos activos del cliente), tipo de
-  registro (Ticket; el valor Tarea queda reservado para Fase 3), tipo (Incidente, Evolutivo,
-  Preventivo), prioridad, severidad, herramienta (catálogo: JDE, Fusion, etc.), proceso
-  (catálogo), y nivel de escalamiento (N1-N4, default N2).
+  registro (catálogo administrable, sembrado con Ticket/Tarea — ver FR-029/FR-030; en esta
+  fase el dominio solo permite crear con el valor Ticket, Tarea queda reservado para
+  Fase 3), tipo (Incidente, Evolutivo, Preventivo), prioridad, severidad, herramienta
+  (catálogo: JDE, Fusion, etc.), proceso (catálogo), y nivel de escalamiento (N1-N4,
+  default N2).
 - **FR-002**: Todo ticket DEBE nacer en estado NUEVO con número consecutivo único visible
   (formato legible para humanos) y fecha/hora de creación.
 - **FR-003**: El sistema DEBE ofrecer un listado paginado de tickets con filtros combinables
@@ -233,9 +248,9 @@ asignar desde el panel produce el mismo efecto que asignar desde el detalle.
   texto en título/número, con ordenamiento por columna.
 - **FR-004**: El campo "registro relacionado" DEBE permitir vincular un ticket con otro
   existente (relación visible en ambos sentidos).
-- **FR-005**: Los catálogos de herramienta y proceso DEBEN ser administrables (crear/
-  desactivar valores) por Admin y Coordinador; los demás campos de clasificación usan listas
-  fijas (tipo, prioridad, severidad, escalamiento).
+- **FR-005**: Los catálogos de herramienta, proceso y tipo de registro DEBEN ser
+  administrables (crear/desactivar valores) por Admin y Coordinador; los demás campos de
+  clasificación usan listas fijas (tipo, prioridad, severidad, escalamiento).
 - **FR-006**: El detalle del ticket DEBE mostrar el historial completo: comentarios (con tipo,
   autor, fecha, adjuntos) y cambios de estado (de qué estado a cuál, quién, cuándo, comentario
   que lo disparó).
@@ -345,10 +360,22 @@ asignar desde el panel produce el mismo efecto que asignar desde el detalle.
 - **FR-028**: Un Resolutor NO PUEDE ejecutar transiciones sobre tickets no asignados a él
   (validación en backend, no solo UI).
 
+**Catálogo de tipo de registro**
+
+- **FR-029**: El catálogo de "tipo de registro" (valores Ticket, Tarea) DEBE ser administrable
+  por Admin y Coordinador con la misma mecánica que herramienta/proceso/tipo de resolución
+  (`catalogs:view/create/deactivate`, mismo endpoint genérico `/api/catalogs/{catalog}`); no
+  se puede desactivar un valor en uso por tickets abiertos (no finales).
+- **FR-030**: Aun siendo el catálogo dinámico, el dominio DEBE seguir bloqueando la creación
+  de tickets con el valor "Tarea" en esta fase (reservado para Fase 3, FR-001); el intento
+  DEBE rechazarse con mensaje en español, independientemente de que el valor esté activo en
+  el catálogo.
+
 ### Key Entities
 
 - **Ticket**: Registro central. Número consecutivo único, título, descripción, tipo de
-  registro (Ticket/Tarea), tipo (Incidente/Evolutivo/Preventivo), prioridad, severidad,
+  registro (FK catálogo `RecordTypeCatalog`, valores Ticket/Tarea; el dominio solo permite
+  crear con Ticket en esta fase), tipo (Incidente/Evolutivo/Preventivo), prioridad, severidad,
   estado (9+CANCELADO), herramienta (FK catálogo), proceso (FK catálogo), cliente (FK),
   proyecto (FK opcional), resolutor asignado (FK Resource opcional), nivel de escalamiento
   (N1-N4), tiempo estimado de resolución, tipo de resolución (catálogo, solo al cerrar),
@@ -364,8 +391,9 @@ asignar desde el panel produce el mismo efecto que asignar desde el detalle.
   abiertos, prioridad, severidad).
 - **Notification**: Notificación interna. Destinatario, tipo de evento, ticket relacionado,
   leída/no leída, fecha.
-- **ToolCatalog / ProcessCatalog / ResolutionTypeCatalog**: Catálogos administrables de
-  herramienta, proceso y tipo de resolución.
+- **ToolCatalog / ProcessCatalog / ResolutionTypeCatalog / RecordTypeCatalog**: Catálogos
+  administrables de herramienta, proceso, tipo de resolución y tipo de registro
+  (Ticket/Tarea).
 
 ## Success Criteria *(mandatory)*
 

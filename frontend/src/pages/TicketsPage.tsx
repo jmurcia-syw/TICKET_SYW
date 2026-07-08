@@ -4,7 +4,7 @@ import {
   PlusOutlined, EyeOutlined, UserSwitchOutlined, InboxOutlined, ThunderboltOutlined,
   ClockCircleOutlined, CheckCircleOutlined, FieldTimeOutlined,
 } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
+import type { ColumnsType, TableProps } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
 import { clientService } from '../services/clientService'
@@ -12,7 +12,7 @@ import { projectService } from '../services/projectService'
 import { catalogService } from '../services/catalogService'
 import { resourceService } from '../services/resourceService'
 import type {
-  TicketListItem, TicketFormData, TicketStatus, Priority,
+  TicketListItem, TicketFormData, TicketStatus, Priority, Severity,
 } from '../types/ticket'
 import { STATUS_LABELS, TICKET_TYPE_LABELS, PRIORITY_LABELS, SEVERITY_LABELS } from '../types/ticket'
 import type { CatalogItem } from '../types/catalog'
@@ -24,6 +24,7 @@ import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
 import PageToolbar from '../components/common/PageToolbar'
 import StatCard from '../components/common/StatCard'
+import { textColumnFilter, serverColumnFilter } from '../components/common/columnFilters'
 import { useAuthStore } from '../store/authStore'
 
 const IN_PROGRESS_STATUSES: TicketStatus[] = ['contacto', 'en_analisis', 'en_ejecucion', 'en_pruebas']
@@ -47,6 +48,7 @@ export default function TicketsPage() {
   const [statusFilter, setStatusFilter] = useState<TicketStatus[]>([])
   const [clientFilter, setClientFilter] = useState<string | undefined>()
   const [priorityFilter, setPriorityFilter] = useState<Priority | undefined>()
+  const [severityFilter, setSeverityFilter] = useState<Severity | undefined>()
   const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>()
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const [stats, setStats] = useState<{ nuevo: number; enProgreso: number; pendienteUsuario: number; resuelto: number } | null>(null)
@@ -56,6 +58,7 @@ export default function TicketsPage() {
   const [tools, setTools] = useState<CatalogItem[]>([])
   const [processes, setProcesses] = useState<CatalogItem[]>([])
   const [resources, setResources] = useState<Resource[]>([])
+  const [recordTypes, setRecordTypes] = useState<CatalogItem[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [form] = Form.useForm<TicketFormData>()
   const selectedClientId = Form.useWatch('client_id', form)
@@ -69,6 +72,7 @@ export default function TicketsPage() {
         status: statusFilter.length ? statusFilter : undefined,
         client_id: clientFilter,
         priority: priorityFilter,
+        severity: severityFilter,
         assignee_id: assigneeFilter,
       })
       setTickets(res.items)
@@ -76,7 +80,7 @@ export default function TicketsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, search, statusFilter, clientFilter, priorityFilter, assigneeFilter])
+  }, [page, search, statusFilter, clientFilter, priorityFilter, severityFilter, assigneeFilter])
 
   useEffect(() => { load() }, [load])
 
@@ -97,7 +101,14 @@ export default function TicketsPage() {
     catalogService.list('tools').then(r => setTools(r.items))
     catalogService.list('processes').then(r => setProcesses(r.items))
     resourceService.list({ active: true, page_size: 100 }).then(r => setResources(r.items))
-  }, [])
+    // Solo "Ticket" es creable en esta fase (FR-030); "Tarea" queda reservado para Fase 3
+    // aunque el catálogo ya lo tenga sembrado.
+    catalogService.list('record-types').then(r => {
+      const creatable = r.items.filter(rt => rt.name === 'Ticket')
+      setRecordTypes(creatable)
+      if (creatable[0]) form.setFieldValue('record_type_id', creatable[0].id)
+    })
+  }, [form])
 
   useEffect(() => {
     if (selectedClientId) {
@@ -123,19 +134,48 @@ export default function TicketsPage() {
     }
   }
 
+  const handleTableChange: TableProps<TicketListItem>['onChange'] = (pagination, filters) => {
+    setPage(pagination.current || 1)
+    setClientFilter((filters.client?.[0] as string) || undefined)
+    setStatusFilter((filters.status as TicketStatus[] | null) || [])
+    setPriorityFilter((filters.priority?.[0] as Priority) || undefined)
+    setSeverityFilter((filters.severity?.[0] as Severity) || undefined)
+    setAssigneeFilter((filters.assignee?.[0] as string) || undefined)
+  }
+
   const columns: ColumnsType<TicketListItem> = [
     { title: 'Número', dataIndex: 'ticket_number', width: 110,
       render: (v: string) => <span className="tabular-nums">{v}</span> },
-    { title: 'Título', dataIndex: 'title', ellipsis: true },
-    { title: 'Cliente', dataIndex: ['client', 'name'], width: 160, ellipsis: true },
-    { title: 'Estado', dataIndex: 'status', width: 150,
-      render: (s: TicketStatus) => <TicketStatusTag status={s} /> },
-    { title: 'Prioridad', dataIndex: 'priority', width: 90,
-      render: (p: Priority) => <PriorityBadge priority={p} /> },
-    { title: 'Sev.', dataIndex: 'severity', width: 70,
-      render: (s: string) => s.toUpperCase() },
-    { title: 'Asignado', dataIndex: ['assignee', 'full_name'], width: 160,
-      render: (v: string | undefined) => v ?? <em>—</em> },
+    {
+      title: 'Título', dataIndex: 'title', ellipsis: true,
+      ...textColumnFilter('Buscar título o número...', search, setSearch),
+    },
+    {
+      title: 'Cliente', dataIndex: ['client', 'name'], key: 'client', width: 160, ellipsis: true,
+      ...serverColumnFilter(clients.map(c => ({ text: c.name, value: c.id })), clientFilter),
+    },
+    {
+      title: 'Estado', dataIndex: 'status', key: 'status', width: 150,
+      render: (s: TicketStatus) => <TicketStatusTag status={s} />,
+      filters: statusOptions.map(o => ({ text: o.label, value: o.value })),
+      filteredValue: statusFilter.length ? statusFilter : null,
+      onFilter: () => true,
+    },
+    {
+      title: 'Prioridad', dataIndex: 'priority', key: 'priority', width: 90,
+      render: (p: Priority) => <PriorityBadge priority={p} />,
+      ...serverColumnFilter(priorityOptions.map(o => ({ text: o.label, value: o.value })), priorityFilter),
+    },
+    {
+      title: 'Sev.', dataIndex: 'severity', key: 'severity', width: 70,
+      render: (s: string) => s.toUpperCase(),
+      ...serverColumnFilter(severityOptions.map(o => ({ text: o.label, value: o.value })), severityFilter),
+    },
+    {
+      title: 'Asignado', dataIndex: ['assignee', 'full_name'], key: 'assignee', width: 160,
+      render: (v: string | undefined) => v ?? <em>—</em>,
+      ...serverColumnFilter(resources.map(r => ({ text: r.full_name, value: r.id })), assigneeFilter),
+    },
     {
       title: 'Acciones', key: 'actions', width: 110,
       render: (_: unknown, t: TicketListItem) => (
@@ -187,14 +227,18 @@ export default function TicketsPage() {
             onChange={setAssigneeFilter} options={resources.map(r => ({ value: r.id, label: r.full_name }))} />
         </>}
         action={canCreate && (
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setFormOpen(true) }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+            form.resetFields()
+            if (recordTypes[0]) form.setFieldValue('record_type_id', recordTypes[0].id)
+            setFormOpen(true)
+          }}>
             Nuevo ticket
           </Button>
         )}
       />
 
       <Table rowKey="id" columns={columns} dataSource={tickets} loading={loading}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage }} />
+        pagination={{ current: page, total, pageSize: 20 }} onChange={handleTableChange} />
 
       <Modal title="Nuevo ticket" open={formOpen} onCancel={() => setFormOpen(false)}
         onOk={() => form.submit()} okText="Crear ticket" width={640}>
@@ -218,6 +262,11 @@ export default function TicketsPage() {
             </Form.Item>
           </Space>
           <Space style={{ display: 'flex' }} align="start" wrap>
+            <Form.Item name="record_type_id" label="Tipo de registro"
+              rules={[{ required: true, message: 'Selecciona el tipo de registro' }]}>
+              <Select style={{ width: 130 }}
+                options={recordTypes.map(rt => ({ value: rt.id, label: rt.name }))} />
+            </Form.Item>
             <Form.Item name="ticket_type" label="Tipo" rules={[{ required: true }]}>
               <Select style={{ width: 130 }} options={typeOptions} />
             </Form.Item>

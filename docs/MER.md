@@ -159,7 +159,7 @@ erDiagram
 
 ---
 
-# Ampliación Fase 1 — Tickets (2026-07-02, migraciones 011-012)
+# Ampliación Fase 1 — Tickets (2026-07-02, migraciones 011-013)
 
 ```mermaid
 erDiagram
@@ -177,12 +177,15 @@ erDiagram
     catalog_tools |o--o{ tickets : ""
     catalog_processes |o--o{ tickets : ""
     catalog_resolution_types |o--o{ tickets : "al cerrar"
+    catalog_record_types ||--o{ tickets : "record_type_id"
 
     tickets {
         uuid id PK
         bigint ticket_number UK "secuencia, TK-nnnnnn"
-        text record_type "ticket|task (task=Fase 3)"
+        uuid record_type_id FK "catalog_record_types; dominio solo permite Ticket (FR-030)"
         text ticket_type "incident|evolutive|preventive"
+        text title
+        text description
         text status "10 estados FSM"
         text priority "critical..low"
         text severity "s1..s4"
@@ -199,6 +202,8 @@ erDiagram
         timestamptz resolved_at
         timestamptz resolution_accepted_at
         timestamptz closed_at
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     ticket_comments {
@@ -209,6 +214,7 @@ erDiagram
         text body
         uuid author_id FK
         boolean is_automatic
+        timestamptz created_at
     }
 
     comment_attachments {
@@ -218,6 +224,7 @@ erDiagram
         text content_type
         bigint size_bytes "max 10MB"
         text storage_path "uploads/tickets/id/"
+        timestamptz created_at
     }
 
     ticket_status_transitions {
@@ -227,6 +234,7 @@ erDiagram
         text to_status
         uuid actor_id FK
         uuid comment_id FK "nullable"
+        timestamptz created_at
     }
 
     ticket_assignments {
@@ -236,6 +244,7 @@ erDiagram
         uuid assignee_id FK
         text resulting_status
         jsonb context "skills, carga, prioridad, severidad"
+        timestamptz created_at
     }
 
     notifications {
@@ -245,6 +254,35 @@ erDiagram
         uuid ticket_id FK
         text message
         boolean read
+        timestamptz created_at
+    }
+
+    catalog_tools {
+        uuid id PK
+        text name UK
+        boolean active
+        timestamptz created_at
+    }
+
+    catalog_processes {
+        uuid id PK
+        text name UK
+        boolean active
+        timestamptz created_at
+    }
+
+    catalog_resolution_types {
+        uuid id PK
+        text name UK
+        boolean active
+        timestamptz created_at
+    }
+
+    catalog_record_types {
+        uuid id PK
+        text name UK "sembrado: Ticket, Tarea"
+        boolean active
+        timestamptz created_at
     }
 ```
 
@@ -252,3 +290,67 @@ erDiagram
 16 transiciones); `ticket_status_transitions` y `ticket_assignments` son append-only;
 RLS habilitado en todas las tablas de tickets (migración 012); permisos: módulos `tickets`
 (6 acciones), `assignment_panel`, `catalogs`; enforcement JWT+permiso activo en TODA la API.
+- `catalog_tools`, `catalog_processes` y `catalog_resolution_types` comparten la misma
+  forma (`id`, `name` UK, `active`, `created_at`); no pueden eliminarse si están en uso por
+  algún ticket (`CATALOG_TICKET_COLUMN` en `backend/infra/models/catalog_model.py`).
+
+**Actualizado 2026-07-06**: se agregaron al diagrama las columnas `title`/`description`/
+`created_at`/`updated_at` de `tickets`, `created_at` en las tablas de auditoría
+(`ticket_comments`, `comment_attachments`, `ticket_status_transitions`, `ticket_assignments`,
+`notifications`), y los bloques de entidad de los tres catálogos — todos existían en el
+esquema real pero faltaban en el MER.
+
+**Actualizado 2026-07-06 (migración 013)**: `tickets.record_type` (TEXT + CHECK
+`'ticket'|'task'`) se reemplazó por `tickets.record_type_id` (FK a la nueva tabla
+`catalog_record_types`, sembrada con "Ticket"/"Tarea"), siguiendo el patrón de los demás
+catálogos. El dominio (`TicketService.resolve_record_type`) sigue rechazando la creación de
+tickets con el valor "Tarea" — el catálogo dinámico no desbloquea Fase 3 (FR-029/FR-030).
+
+---
+
+# Ampliación Fase 2 — Registro diario de tiempos (2026-07-07, migraciones 015-017)
+
+```mermaid
+erDiagram
+    resources ||--o{ work_sessions : "recurso"
+    tickets ||--o{ work_sessions : ""
+    users ||--o{ work_sessions : "created_by/updated_by"
+    work_sessions ||--o{ work_session_edits : "append-only"
+    users ||--o{ work_session_edits : "edited_by"
+
+    work_sessions {
+        uuid id PK
+        uuid resource_id FK "inmutable tras la creación"
+        uuid ticket_id FK
+        date work_date "no futura"
+        int duration_minutes "CHECK > 0"
+        text note "nullable"
+        uuid created_by FK
+        uuid updated_by FK "nullable"
+        timestamptz deleted_at "soft-delete, nullable"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    work_session_edits {
+        uuid id PK
+        uuid work_session_id FK
+        text action "created|updated|deleted"
+        jsonb previous_values "nullable"
+        jsonb new_values "nullable"
+        uuid edited_by FK
+        timestamptz edited_at
+    }
+```
+
+**Reglas Fase 2**: `work_sessions` es el registro atómico de tiempo trabajado por un recurso
+sobre un ticket de Fase 1 (entidad `WorkSession` ya anticipada en Constitución §II); el borrado
+es soft-delete (`deleted_at`) para que `work_session_edits` conserve una referencia válida al
+padre. `work_session_edits` es append-only (mismo patrón que `ticket_status_transitions`/
+`ticket_assignments`): toda alta/edición/borrado genera exactamente una fila. RLS habilitado en
+ambas tablas (migración 016, mismo patrón app-level que `012_tickets_rls.py`); permisos: módulo
+`work_sessions` con 4 acciones (`view_own`, `manage`, `view_all`, `manage_all`) — un recurso ve
+y gestiona solo sus propios registros salvo Coordinador/QM (`view_all`) o Admin (`manage_all`).
+Reglas de negocio en `backend/domain/services/work_session_service.py`: máximo 1440 minutos
+(24h) por recurso/día, ventana de edición de 7 días corridos, sin fechas futuras, sin registrar
+contra tickets `cerrado` salvo Admin.
