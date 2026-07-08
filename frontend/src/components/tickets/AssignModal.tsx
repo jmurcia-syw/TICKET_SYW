@@ -35,11 +35,12 @@ export default function AssignModal({ ticketId, onClose, onAssigned, forcedMode 
       setSelected(undefined)
       setSearch('')
       resourceService.list({ active: true, page_size: 100 }).then(r => setResources(r.items))
+        .catch(() => message.error('No se pudo cargar la lista de recursos'))
       ticketService.panel().then(data => {
         const map: Record<string, number> = {}
         data.matrix.forEach(row => { map[row.resource.id] = row.total })
         setWorkload(map)
-      })
+      }).catch(() => message.error('No se pudo cargar la carga de los resolutores'))
     }
   }, [ticketId])
 

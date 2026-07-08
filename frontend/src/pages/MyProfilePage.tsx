@@ -54,6 +54,7 @@ export default function MyProfilePage() {
     setTicketsLoading(true)
     ticketService.list({ assignee_id: resource.id, page_size: 50, sort: '-created_at' })
       .then(r => setTickets(r.items))
+      .catch(() => message.error('No se pudieron cargar tus tickets asignados'))
       .finally(() => setTicketsLoading(false))
   }, [resource])
 

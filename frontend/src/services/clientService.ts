@@ -22,7 +22,8 @@ export const clientService = {
     apiClient.patch<{ id: string; active: boolean }>(`/api/clients/${id}/activate`).then(r => r.data),
 
   listSystems: (clientId: string) =>
-    apiClient.get<ClientSystem[]>(`/api/clients/${clientId}/systems`).then(r => r.data),
+    apiClient.get<{ items: ClientSystem[]; total: number }>(`/api/clients/${clientId}/systems`)
+      .then(r => r.data.items),
 
   addSystem: (clientId: string, data: ClientSystemFormData) =>
     apiClient.post<ClientSystem>(`/api/clients/${clientId}/systems`, data).then(r => r.data),

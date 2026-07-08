@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, InputNumber, Modal, Segmented, Select, Space, message } from 'antd'
+import { Button, Form, Input, InputNumber, Modal, Segmented, Select, Space, message } from 'antd'
 import type { TicketListItem } from '../../types/ticket'
 import type { WorkSessionListItem } from '../../types/workSession'
 import { workSessionService } from '../../services/workSessionService'
@@ -10,6 +10,10 @@ interface WorkSessionFormProps {
   onSaved: () => void
   tickets: TicketListItem[]
   editing?: WorkSessionListItem | null
+  /** Cuando es `true`, renderiza solo el `<Form>` sin su `<Modal>` envolvente — para usarse
+   * dentro de un modal ya existente (ver `TimeLogModal`). Por defecto `false` (comportamiento
+   * histórico, usado por `WorkSessionsPage`). */
+  embedded?: boolean
 }
 
 type DurationMode = 'range' | 'manual'
@@ -41,7 +45,7 @@ function toIsoDateTime(workDate: string, time: string): string {
   return `${workDate}T${time}:00${tz}`
 }
 
-export default function WorkSessionForm({ open, onClose, onSaved, tickets, editing }: WorkSessionFormProps) {
+export default function WorkSessionForm({ open, onClose, onSaved, tickets, editing, embedded = false }: WorkSessionFormProps) {
   const [form] = Form.useForm<FormValues>()
   const [mode, setMode] = useState<DurationMode>('range')
 
@@ -106,6 +110,72 @@ export default function WorkSessionForm({ open, onClose, onSaved, tickets, editi
     }
   }
 
+  const formFields = (
+    <Form form={form} layout="vertical">
+      <Form.Item name="ticket_id" label="Ticket" rules={[{ required: true, message: 'Seleccioná un ticket' }]}>
+        <Select
+          disabled={!!editing}
+          showSearch
+          optionFilterProp="label"
+          placeholder="Ticket asignado"
+          options={tickets.map(t => ({ value: t.id, label: `${t.ticket_number} — ${t.title}` }))}
+        />
+      </Form.Item>
+      <Form.Item name="work_date" label="Fecha" rules={[{ required: true, message: 'La fecha es requerida' }]}>
+        <Input type="date" disabled={!!editing} max={todayIso()} />
+      </Form.Item>
+
+      <Form.Item label="Tiempo trabajado" required>
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Segmented
+            value={mode}
+            onChange={v => setMode(v as DurationMode)}
+            options={[
+              { label: 'Hora de inicio/fin', value: 'range' },
+              { label: 'Duración manual', value: 'manual' },
+            ]}
+          />
+          {mode === 'range' ? (
+            <Space.Compact block>
+              <Form.Item name="start_time" noStyle>
+                <Input type="time" placeholder="Inicio" />
+              </Form.Item>
+              <Form.Item name="end_time" noStyle>
+                <Input type="time" placeholder="Fin" />
+              </Form.Item>
+            </Space.Compact>
+          ) : (
+            <Space.Compact block>
+              <Form.Item name="hours" noStyle>
+                <InputNumber min={0} max={24} addonAfter="h" style={{ width: '50%' }} />
+              </Form.Item>
+              <Form.Item name="minutes" noStyle>
+                <InputNumber min={0} max={59} addonAfter="m" style={{ width: '50%' }} />
+              </Form.Item>
+            </Space.Compact>
+          )}
+        </Space>
+      </Form.Item>
+
+      <Form.Item name="note" label="Nota (opcional)">
+        <Input.TextArea rows={2} maxLength={500} />
+      </Form.Item>
+    </Form>
+  )
+
+  if (embedded) {
+    if (!open) return null
+    return (
+      <div>
+        {formFields}
+        <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Button onClick={onClose}>Cancelar</Button>
+          <Button type="primary" onClick={handleSubmit}>{editing ? 'Guardar' : 'Registrar'}</Button>
+        </Space>
+      </div>
+    )
+  }
+
   return (
     <Modal
       title={editing ? 'Editar registro de tiempo' : 'Nuevo registro de tiempo'}
@@ -116,56 +186,7 @@ export default function WorkSessionForm({ open, onClose, onSaved, tickets, editi
       cancelText="Cancelar"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical">
-        <Form.Item name="ticket_id" label="Ticket" rules={[{ required: true, message: 'Seleccioná un ticket' }]}>
-          <Select
-            disabled={!!editing}
-            showSearch
-            optionFilterProp="label"
-            placeholder="Ticket asignado"
-            options={tickets.map(t => ({ value: t.id, label: `${t.ticket_number} — ${t.title}` }))}
-          />
-        </Form.Item>
-        <Form.Item name="work_date" label="Fecha" rules={[{ required: true, message: 'La fecha es requerida' }]}>
-          <Input type="date" disabled={!!editing} max={todayIso()} />
-        </Form.Item>
-
-        <Form.Item label="Tiempo trabajado" required>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Segmented
-              value={mode}
-              onChange={v => setMode(v as DurationMode)}
-              options={[
-                { label: 'Hora de inicio/fin', value: 'range' },
-                { label: 'Duración manual', value: 'manual' },
-              ]}
-            />
-            {mode === 'range' ? (
-              <Space.Compact block>
-                <Form.Item name="start_time" noStyle>
-                  <Input type="time" placeholder="Inicio" />
-                </Form.Item>
-                <Form.Item name="end_time" noStyle>
-                  <Input type="time" placeholder="Fin" />
-                </Form.Item>
-              </Space.Compact>
-            ) : (
-              <Space.Compact block>
-                <Form.Item name="hours" noStyle>
-                  <InputNumber min={0} max={24} addonAfter="h" style={{ width: '50%' }} />
-                </Form.Item>
-                <Form.Item name="minutes" noStyle>
-                  <InputNumber min={0} max={59} addonAfter="m" style={{ width: '50%' }} />
-                </Form.Item>
-              </Space.Compact>
-            )}
-          </Space>
-        </Form.Item>
-
-        <Form.Item name="note" label="Nota (opcional)">
-          <Input.TextArea rows={2} maxLength={500} />
-        </Form.Item>
-      </Form>
+      {formFields}
     </Modal>
   )
 }

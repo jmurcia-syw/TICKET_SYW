@@ -55,7 +55,8 @@ class NotificationList(Resource):
                     "read": n.read,
                     "created_at": n.created_at.isoformat() if n.created_at else None,
                 })
-            return {"items": result, "total": total, "unread_count": unread_count}, 200
+            return {"items": result, "total": total, "page": page, "page_size": page_size,
+                    "unread_count": unread_count}, 200
         except Exception:
             return server_error()
 

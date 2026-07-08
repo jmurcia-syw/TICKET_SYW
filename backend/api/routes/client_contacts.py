@@ -7,7 +7,7 @@ import uuid
 
 from flask_restx import Namespace, Resource, fields
 
-from backend.api.middleware.rbac import require_permission
+from backend.api.middleware.rbac import require_permission, require_authenticated, current_user_has
 from backend.api.routes._shared import parse_uuid, error_model, server_error
 from backend.domain.entities.client_contact import ClientContact
 from backend.domain.entities.user import User
@@ -85,11 +85,17 @@ class ClientContactList(Resource):
     @ns.response(200, "Listado de Encargados con su Cliente asociado", _client_contact_list_out)
     @ns.response(400, "Parámetros inválidos", _error)
     @ns.response(401, "No autenticado", _error)
-    @ns.response(403, "Sin permiso client_contacts:manage", _error)
+    @ns.response(403, "Sin permiso client_contacts:manage, tickets:create ni tickets:edit", _error)
     @ns.response(500, "Error interno del servidor", _error)
-    @require_permission("client_contacts", "manage")
+    @require_authenticated()
     def get(self):
-        """Listado paginado de Encargados, opcionalmente filtrado por Cliente"""
+        """Listado paginado de Encargados, opcionalmente filtrado por Cliente. Además de
+        `client_contacts:manage` (Admin/Coordinador), lo puede consultar cualquier rol con
+        `tickets:create` o `tickets:edit` (Fase 2.2 — necesitan poder elegir el Encargado
+        solicitante de un cliente al crear o editar un ticket)."""
+        if not (current_user_has("client_contacts", "manage")
+                or current_user_has("tickets", "create") or current_user_has("tickets", "edit")):
+            return {"error": "forbidden", "message": "Acceso denegado"}, 403
         from flask import request
         try:
             page = max(1, int(request.args.get("page", 1)))

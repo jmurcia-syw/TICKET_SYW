@@ -65,3 +65,23 @@ export function formatDuration(minutes: number): string {
   const m = minutes % 60
   return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`
 }
+
+/** "Fecha de inicio" de un ticket (Fase 2.2, US2): la fecha del registro de tiempo más antiguo,
+ * no la fecha de creación del ticket (ver spec.md FR-006). `null` si todavía no hay ningún
+ * registro. */
+export function earliestWorkDate(sessions: WorkSessionListItem[]): string | null {
+  if (sessions.length === 0) return null
+  return sessions.reduce((earliest, s) => (s.work_date < earliest ? s.work_date : earliest), sessions[0].work_date)
+}
+
+export type ConsumptionLevel = 'success' | 'warning' | 'error' | 'none'
+
+/** Nivel de alerta de consumo de tiempo estimado vs. real (Fase 2.2, US2 — research.md
+ * Decisión 6): <80% = success, 80-100% = warning, >100% = error; sin estimado = none. */
+export function getConsumptionLevel(estimatedMinutes: number | null | undefined, actualMinutes: number): ConsumptionLevel {
+  if (estimatedMinutes == null || estimatedMinutes <= 0) return 'none'
+  const ratio = actualMinutes / estimatedMinutes
+  if (ratio > 1) return 'error'
+  if (ratio >= 0.8) return 'warning'
+  return 'success'
+}

@@ -35,9 +35,9 @@ FIELD_LOCKS: dict[str, set[str]] = {
     "pendiente_usuario": {"estimated_resolution_minutes", "severity", "priority"},
     "resuelto": {"estimated_resolution_minutes", "severity", "priority"},
     "cerrado": {"title", "description", "ticket_type", "priority", "severity",
-                "escalation_level", "estimated_resolution_minutes"},
+                "escalation_level", "estimated_resolution_minutes", "client_contact_id"},
     "cancelado": {"title", "description", "ticket_type", "priority", "severity",
-                  "escalation_level", "estimated_resolution_minutes"},
+                  "escalation_level", "estimated_resolution_minutes", "client_contact_id"},
 }
 
 
@@ -67,6 +67,7 @@ class Ticket:
     tool_id: Optional[uuid.UUID] = None
     process_id: Optional[uuid.UUID] = None
     assignee_id: Optional[uuid.UUID] = None
+    client_contact_id: Optional[uuid.UUID] = None
     estimated_resolution_minutes: Optional[int] = None
     resolution_type_id: Optional[uuid.UUID] = None
     related_ticket_id: Optional[uuid.UUID] = None

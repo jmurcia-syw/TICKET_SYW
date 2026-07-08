@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Popconfirm, Space, Table, Tooltip, Statistic, message } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Button, Space, Statistic } from 'antd'
+import { HistoryOutlined } from '@ant-design/icons'
 import { workSessionService } from '../../services/workSessionService'
-import type { WorkSessionListItem } from '../../types/workSession'
-import { formatDuration } from '../../types/workSession'
-import type { TicketListItem } from '../../types/ticket'
+import type { WorkSessionListItem, ConsumptionLevel } from '../../types/workSession'
+import { formatDuration, earliestWorkDate, getConsumptionLevel } from '../../types/workSession'
 import { useAuthStore } from '../../store/authStore'
-import WorkSessionForm from './WorkSessionForm'
+import { palette } from '../../theme'
+import TimeLogModal from './TimeLogModal'
 
 interface TicketWorkSessionsProps {
   ticketId: string
@@ -15,38 +14,28 @@ interface TicketWorkSessionsProps {
   ticketTitle: string
   /** Tiempo estimado de solución (minutos, US2) — se muestra junto al total real registrado. */
   estimatedMinutes?: number | null
+  /** Notifica a `TicketDetailPage` la fecha de inicio y el nivel de consumo derivados de los
+   * registros de tiempo (Fase 2.2, US2), para mostrarlos junto a "Tiempo estimado de solución". */
+  onSummary?: (summary: { startDate: string | null; consumptionLevel: ConsumptionLevel }) => void
+  /** Modo colapsado (Fase 2.2, US1 — revelado fluido, ver `TicketDetailPage`): reemplaza los dos
+   * `Statistic` por una línea compacta con el mismo total y acción. */
+  compact?: boolean
+  /** Se dispara cuando se cierra `TimeLogModal` (además de `onChanged`), para que
+   * `TicketDetailPage` vuelva a expandir el resumen (FR-004). */
+  onModalClose?: () => void
 }
 
-const EDIT_WINDOW_DAYS = 7
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-/** Mismo criterio que `EDIT_WINDOW_DAYS` del backend — solo controla la UI; la API vuelve a
- * validar y es la fuente de verdad. */
-function withinEditWindow(workDate: string): boolean {
-  const diffMs = new Date(todayIso()).getTime() - new Date(workDate).getTime()
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
-  return diffDays <= EDIT_WINDOW_DAYS
-}
-
-function formatTimeRange(item: WorkSessionListItem): string | null {
-  if (!item.started_at || !item.ended_at) return null
-  const start = item.started_at.slice(11, 16)
-  const end = item.ended_at.slice(11, 16)
-  return `${start} – ${end}`
-}
-
-/** Historial + alta/edición/borrado de "Registros de tiempo" embebido en el detalle del
- * ticket (Fase 2.1, US1) — estilo Teamwork. Reutiliza el motor de work_sessions de Fase 2. */
-export default function TicketWorkSessions({ ticketId, ticketNumber, ticketTitle, estimatedMinutes }: TicketWorkSessionsProps) {
+/** Resumen compacto de "Registro de tiempo" del ticket (Fase 2.2, US1) — abre `TimeLogModal`
+ * en vez de mostrar el historial siempre visible. Reutiliza el motor de work_sessions de
+ * Fase 2 / Fase 2.1. */
+export default function TicketWorkSessions({
+  ticketId, ticketNumber, ticketTitle, estimatedMinutes, onSummary, compact = false, onModalClose,
+}: TicketWorkSessionsProps) {
   const { hasPermission } = useAuthStore()
   const canManage = hasPermission('work_sessions', 'manage')
   const [items, setItems] = useState<WorkSessionListItem[]>([])
   const [loading, setLoading] = useState(false)
-  const [formOpen, setFormOpen] = useState(false)
-  const [editing, setEditing] = useState<WorkSessionListItem | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -62,94 +51,54 @@ export default function TicketWorkSessions({ ticketId, ticketNumber, ticketTitle
 
   const totalMinutes = items.reduce((sum, item) => sum + item.duration_minutes, 0)
 
-  const handleDelete = async (id: string) => {
-    try {
-      await workSessionService.remove(id)
-      message.success('Registro eliminado')
-      load()
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-        ?? 'Error al eliminar el registro'
-      message.error(msg)
-    }
-  }
+  useEffect(() => {
+    onSummary?.({
+      startDate: earliestWorkDate(items),
+      consumptionLevel: getConsumptionLevel(estimatedMinutes, totalMinutes),
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, estimatedMinutes, totalMinutes])
 
-  const columns: ColumnsType<WorkSessionListItem> = [
-    { title: 'Fecha', dataIndex: 'work_date', key: 'work_date' },
-    {
-      title: 'Horario', key: 'time_range',
-      render: (_, record) => formatTimeRange(record) ?? '—',
-    },
-    {
-      title: 'Duración', dataIndex: 'duration_minutes', key: 'duration_minutes',
-      render: (minutes: number) => formatDuration(minutes),
-    },
-    { title: 'Quién', dataIndex: 'resource_name', key: 'resource_name' },
-    { title: 'Nota', dataIndex: 'note', key: 'note', ellipsis: true },
-    {
-      title: 'Acciones', key: 'actions',
-      render: (_, record) => {
-        const editable = withinEditWindow(record.work_date)
-        return (
-          <Space>
-            <Tooltip title={editable ? 'Editar' : 'Ventana de edición de 7 días expirada'}>
-              <Button
-                size="small" icon={<EditOutlined />} disabled={!editable}
-                onClick={() => { setEditing(record); setFormOpen(true) }}
-              />
-            </Tooltip>
-            <Popconfirm
-              title="¿Eliminar este registro de tiempo?"
-              disabled={!editable}
-              onConfirm={() => handleDelete(record.id)}
-              okText="Eliminar" cancelText="Cancelar"
-            >
-              <Tooltip title={editable ? 'Eliminar' : 'Ventana de edición de 7 días expirada'}>
-                <Button size="small" danger icon={<DeleteOutlined />} disabled={!editable} />
-              </Tooltip>
-            </Popconfirm>
-          </Space>
-        )
-      },
-    },
-  ]
-
-  const soloTicket: TicketListItem[] = [
-    { id: ticketId, ticket_number: ticketNumber, title: ticketTitle } as TicketListItem,
-  ]
+  const trigger = (
+    <Button icon={<HistoryOutlined />} loading={loading} onClick={() => setModalOpen(true)}>
+      {canManage ? 'Registrar tiempo' : 'Ver historial'}
+    </Button>
+  )
 
   return (
     <div>
-      <Space style={{ marginBottom: 12, justifyContent: 'space-between', width: '100%' }} size="large">
-        <Statistic title="Tiempo total registrado" value={formatDuration(totalMinutes)} />
-        <Statistic
-          title="Tiempo estimado"
-          value={estimatedMinutes != null ? formatDuration(estimatedMinutes) : 'Sin estimar'}
-        />
-        {canManage && (
-          <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
-            Registrar tiempo
-          </Button>
-        )}
-      </Space>
-      <Table
-        rowKey="id"
-        size="small"
-        loading={loading}
-        columns={columns}
-        dataSource={items}
-        pagination={false}
-        locale={{ emptyText: 'Todavía no hay tiempo registrado en este ticket.' }}
-      />
-      {canManage && (
-        <WorkSessionForm
-          open={formOpen}
-          onClose={() => { setFormOpen(false); setEditing(null) }}
-          onSaved={load}
-          tickets={soloTicket}
-          editing={editing}
-        />
+      {compact ? (
+        <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+          <span style={{ fontSize: 13, color: palette.slate600 }}>
+            <strong style={{ color: palette.slate900 }}>{formatDuration(totalMinutes)}</strong> registradas
+            {estimatedMinutes != null && ` · ${formatDuration(estimatedMinutes)} estimado`}
+          </span>
+          {trigger}
+        </Space>
+      ) : (
+        <Space style={{ justifyContent: 'space-between', width: '100%' }} size="large">
+          <Statistic
+            title="Tiempo total registrado"
+            value={formatDuration(totalMinutes)}
+            valueStyle={{ fontSize: 28, fontWeight: 600, color: palette.slate900 }}
+          />
+          <Statistic
+            title="Tiempo estimado"
+            value={estimatedMinutes != null ? formatDuration(estimatedMinutes) : 'Sin estimar'}
+            valueStyle={{ fontSize: 16, fontWeight: 500, color: palette.slate500 }}
+          />
+          {trigger}
+        </Space>
       )}
+      <TimeLogModal
+        open={modalOpen}
+        onClose={() => { setModalOpen(false); onModalClose?.() }}
+        ticketId={ticketId}
+        ticketNumber={ticketNumber}
+        ticketTitle={ticketTitle}
+        canManage={canManage}
+        onChanged={load}
+      />
     </div>
   )
 }

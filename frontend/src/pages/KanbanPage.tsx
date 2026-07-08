@@ -67,6 +67,8 @@ export default function KanbanPage() {
       const next = {} as Record<TicketStatus, TicketListItem[]>
       BOARD_STATUSES.forEach((status, i) => { next[status] = results[i].items })
       setColumns(next)
+    } catch {
+      message.error('No se pudo cargar el tablero Kanban')
     } finally {
       setLoading(false)
     }
@@ -75,6 +77,7 @@ export default function KanbanPage() {
   useEffect(() => { load() }, [load])
   useEffect(() => {
     resourceService.list({ active: true, page_size: 100 }).then(r => setResources(r.items))
+      .catch(() => message.error('No se pudo cargar la lista de recursos'))
   }, [])
 
   const handleDragEnd = (result: DropResult) => {

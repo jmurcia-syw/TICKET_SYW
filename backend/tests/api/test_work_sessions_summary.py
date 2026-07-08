@@ -65,3 +65,29 @@ def test_summary_rejects_range_over_92_days(client, ticket_resource):
     })
     assert response.status_code == 400
     assert response.get_json()["error"] == "validation_error"
+
+
+def test_summary_overview_returns_per_resource_totals(client, make_ticket, ticket_resource, resolver_auth):
+    """/summary/overview: endpoint separado de /summary, con su propia forma de respuesta
+    (`{range, resources}`), en vez de una segunda forma bajo la misma URL."""
+    ticket = make_ticket()
+    _assign(client, ticket["id"], ticket_resource["id"])
+    today = date.today()
+    _create_ws(client, ticket["id"], resolver_auth, 45, today)
+
+    response = client.get("/api/work-sessions/summary/overview", query_string={
+        "date_from": today.isoformat(), "date_to": today.isoformat(),
+    })  # client por defecto = Admin (work_sessions:view_all)
+    assert response.status_code == 200, response.get_json()
+    data = response.get_json()
+    assert "resources" in data and "days" not in data
+    totals = {row["resource_id"]: row["total_minutes"] for row in data["resources"]}
+    assert totals[ticket_resource["id"]] == 45
+
+
+def test_summary_overview_forbidden_without_view_all(resolver_auth, client):
+    today = date.today()
+    response = client.get("/api/work-sessions/summary/overview", query_string={
+        "date_from": today.isoformat(), "date_to": today.isoformat(),
+    }, headers=resolver_auth)
+    assert response.status_code == 403

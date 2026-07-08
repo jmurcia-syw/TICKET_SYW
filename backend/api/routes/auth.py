@@ -15,7 +15,7 @@ from flask_jwt_extended import create_access_token
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-from backend.api.routes._shared import error_model
+from backend.api.routes._shared import error_model, server_error
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.repositories.role_repo import RoleRepository
 from backend.infra.database import get_db
@@ -110,15 +110,18 @@ class AuthLogin(Resource):
         if not identifier or not password:
             return {"error": "validation_error", "message": "username_or_email y password son requeridos"}, 400
 
-        db = get_db()
-        repo = UserRepository(db)
-        user = repo.get_by_username_or_email(identifier)
-        if not user or not user.active or not _auth_svc.verify_password(password, user.password_hash):
-            return {"error": "unauthorized", "message": "Usuario o contraseña incorrectos"}, 401
+        try:
+            db = get_db()
+            repo = UserRepository(db)
+            user = repo.get_by_username_or_email(identifier)
+            if not user or not user.active or not _auth_svc.verify_password(password, user.password_hash):
+                return {"error": "unauthorized", "message": "Usuario o contraseña incorrectos"}, 401
 
-        repo.update_last_login(user.id)
-        token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.name})
-        return {"access_token": token, "user": _user_payload(user, db)}, 200
+            repo.update_last_login(user.id)
+            token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.name})
+            return {"access_token": token, "user": _user_payload(user, db)}, 200
+        except Exception:
+            return server_error()
 
 
 @ns.route("/google")
@@ -154,16 +157,19 @@ class AuthGoogle(Resource):
             return {"error": "unauthorized", "message": "Acceso denegado"}, 401
 
         google_sub: str = idinfo["sub"]
-        db = get_db()
-        repo = UserRepository(db)
+        try:
+            db = get_db()
+            repo = UserRepository(db)
 
-        user = repo.get_by_google_sub(google_sub) or repo.get_by_email(email)
-        if user is None or not user.active:
-            return {"error": "unauthorized", "message": "Acceso denegado"}, 401
+            user = repo.get_by_google_sub(google_sub) or repo.get_by_email(email)
+            if user is None or not user.active:
+                return {"error": "unauthorized", "message": "Acceso denegado"}, 401
 
-        repo.update_last_login(user.id)
-        token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.name})
-        return {"access_token": token, "user": _user_payload(user, db)}, 200
+            repo.update_last_login(user.id)
+            token = create_access_token(identity=str(user.id), additional_claims={"role": user.role.name})
+            return {"access_token": token, "user": _user_payload(user, db)}, 200
+        except Exception:
+            return server_error()
 
 
 _FORGOT_PASSWORD_MESSAGE = "Si el correo está registrado, recibirás un enlace para restablecer tu contraseña."

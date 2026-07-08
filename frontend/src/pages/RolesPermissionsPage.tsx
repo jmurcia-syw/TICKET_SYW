@@ -35,6 +35,7 @@ export default function RolesPermissionsPage() {
   useEffect(() => {
     load()
     permissionService.list().then(r => setAllPermissions(r.items))
+      .catch(() => message.error('No se pudo cargar el catálogo de permisos'))
   }, [])
 
   const openCreate = () => {
@@ -83,9 +84,13 @@ export default function RolesPermissionsPage() {
   }
 
   const handleActivate = async (id: string) => {
-    await roleService.activate(id)
-    message.success('Rol activado')
-    load()
+    try {
+      await roleService.activate(id)
+      message.success('Rol activado')
+      load()
+    } catch {
+      message.error('No se pudo activar el rol')
+    }
   }
 
   const columns: ColumnsType<RoleDetail> = [

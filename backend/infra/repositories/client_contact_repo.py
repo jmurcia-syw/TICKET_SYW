@@ -9,6 +9,10 @@ class ClientContactRepository:
     def __init__(self, db: Session) -> None:
         self._db = db
 
+    def get_by_id(self, contact_id: uuid.UUID) -> Optional[ClientContact]:
+        model = self._db.get(ClientContactModel, contact_id)
+        return model.to_entity() if model else None
+
     def get_by_user_id(self, user_id: uuid.UUID) -> Optional[ClientContact]:
         model = self._db.query(ClientContactModel).filter(ClientContactModel.user_id == user_id).first()
         return model.to_entity() if model else None

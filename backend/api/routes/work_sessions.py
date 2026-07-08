@@ -79,6 +79,11 @@ _daily_summary_out = ns.model("WorkSessionDailySummary", {
     "total_minutes": fields.Integer(),
 })
 
+_resources_overview_out = ns.model("WorkSessionResourcesOverview", {
+    "range": fields.Raw(),
+    "resources": fields.List(fields.Raw()),
+})
+
 
 def _parse_date(value: str, field_name: str) -> date:
     try:
@@ -96,6 +101,21 @@ def _parse_datetime(value, field_name: str):
     except ValueError:
         raise DomainError("validation_error", f"'{field_name}' debe ser una fecha/hora ISO-8601 válida",
                           status_code=400)
+
+
+def _parse_summary_range(args) -> tuple[date, date]:
+    """Valida `date_from`/`date_to` (requeridos, orden correcto, rango máximo) — compartido por
+    `/summary` y `/summary/overview`."""
+    if not args.get("date_from") or not args.get("date_to"):
+        raise DomainError("validation_error", "date_from y date_to son requeridos", status_code=400)
+    date_from = _parse_date(args["date_from"], "date_from")
+    date_to = _parse_date(args["date_to"], "date_to")
+    if date_to < date_from:
+        raise DomainError("validation_error", "date_to no puede ser anterior a date_from", status_code=400)
+    if (date_to - date_from).days > MAX_SUMMARY_RANGE_DAYS:
+        raise DomainError("validation_error",
+                          f"El rango no puede superar {MAX_SUMMARY_RANGE_DAYS} días", status_code=400)
+    return date_from, date_to
 
 
 def _serialize(ws, db) -> dict:
@@ -224,57 +244,82 @@ class WorkSessionList(Resource):
 @ns.route("/summary")
 class WorkSessionSummary(Resource):
     @ns.doc("work_sessions_summary", params={
-        "resource_id": {"type": "string"}, "date_from": {"type": "string", "required": True},
-        "date_to": {"type": "string", "required": True},
+        "resource_id": {"description": "Solo con permiso work_sessions:view_all", "type": "string"},
+        "date_from": {"type": "string", "required": True}, "date_to": {"type": "string", "required": True},
     })
-    @ns.response(200, "Resumen por recurso y día", _daily_summary_out)
-    @ns.response(400, "Rango de fechas inválido", _error)
+    @ns.response(200, "Resumen diario de un único recurso (propio, o explícito con view_all)", _daily_summary_out)
+    @ns.response(400, "Rango de fechas inválido, o falta resource_id (ver /summary/overview)", _error)
     @ns.response(401, "No autenticado", _error)
     @ns.response(403, "Sin permiso work_sessions:view_own", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("work_sessions", "view_own")
     def get(self):
-        if not request.args.get("date_from") or not request.args.get("date_to"):
-            return {"error": "validation_error", "message": "date_from y date_to son requeridos"}, 400
+        """Resumen diario de **un solo recurso** — forma de respuesta fija (`_daily_summary_out`).
+        Para ver todos los recursos a la vez, usar `GET /api/work-sessions/summary/overview`
+        (contrato separado en vez de una segunda forma de respuesta bajo el mismo endpoint)."""
         db = get_db()
         try:
-            date_from = _parse_date(request.args["date_from"], "date_from")
-            date_to = _parse_date(request.args["date_to"], "date_to")
+            date_from, date_to = _parse_summary_range(request.args)
         except DomainError as e:
             return {"error": e.code, "message": e.message}, e.status_code
-        if date_to < date_from:
-            return {"error": "validation_error", "message": "date_to no puede ser anterior a date_from"}, 400
-        if (date_to - date_from).days > MAX_SUMMARY_RANGE_DAYS:
-            return {"error": "validation_error",
-                    "message": f"El rango no puede superar {MAX_SUMMARY_RANGE_DAYS} días"}, 400
 
         has_view_all = current_user_has("work_sessions", "view_all")
         resource_id = parse_uuid(request.args.get("resource_id") or "") or None
         try:
             if resource_id and not has_view_all:
                 resource_id = None  # se ignora, se fuerza al propio (contrato)
-            if resource_id is None and not has_view_all:
+            if resource_id is None:
                 own = ResourceRepository(db).get_by_user_id(g.current_user.id)
-                if not own:
+                if own:
+                    resource_id = own.id
+                elif has_view_all:
+                    return {"error": "validation_error",
+                            "message": "Especificá resource_id, o usá "
+                                       "GET /api/work-sessions/summary/overview para ver todos "
+                                       "los recursos"}, 400
+                else:
                     return {"resource_id": None, "range": {"date_from": date_from.isoformat(),
                             "date_to": date_to.isoformat()}, "days": [], "total_minutes": 0}, 200
-                resource_id = own.id
             repo = WorkSessionRepository(db)
-            if resource_id:
-                summary = _svc.get_daily_summary(
-                    resource_id=resource_id, date_from=date_from, date_to=date_to,
-                    work_sessions_repo=repo)
-                resource = ResourceRepository(db).get_by_id(resource_id)
-                return {
-                    "resource_id": str(resource_id),
-                    "resource_name": resource.full_name if resource else None,
-                    "range": {"date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
-                    "days": [{"work_date": d["work_date"].isoformat(),
-                              "total_minutes": d["total_minutes"],
-                              "sin_registro": d["sin_registro"]} for d in summary["days"]],
-                    "total_minutes": summary["total_minutes"],
-                }, 200
-            # Coordinador/QM/Admin sin resource_id: overview de todos los recursos
+            summary = _svc.get_daily_summary(
+                resource_id=resource_id, date_from=date_from, date_to=date_to,
+                work_sessions_repo=repo)
+            resource = ResourceRepository(db).get_by_id(resource_id)
+            return {
+                "resource_id": str(resource_id),
+                "resource_name": resource.full_name if resource else None,
+                "range": {"date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
+                "days": [{"work_date": d["work_date"].isoformat(),
+                          "total_minutes": d["total_minutes"],
+                          "sin_registro": d["sin_registro"]} for d in summary["days"]],
+                "total_minutes": summary["total_minutes"],
+            }, 200
+        except DomainError as e:
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
+
+
+@ns.route("/summary/overview")
+class WorkSessionSummaryOverview(Resource):
+    @ns.doc("work_sessions_summary_overview", params={
+        "date_from": {"type": "string", "required": True}, "date_to": {"type": "string", "required": True},
+    })
+    @ns.response(200, "Total del rango por cada recurso — forma de respuesta fija, distinta de "
+                      "/summary", _resources_overview_out)
+    @ns.response(400, "Rango de fechas inválido", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso work_sessions:view_all", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("work_sessions", "view_all")
+    def get(self):
+        """Resumen del rango para **todos los recursos a la vez** (Coordinador/QM/Admin, FR
+        spec 004 US2) — endpoint separado de `/summary` en vez de una segunda forma de
+        respuesta bajo la misma URL."""
+        db = get_db()
+        try:
+            date_from, date_to = _parse_summary_range(request.args)
+            repo = WorkSessionRepository(db)
             overview = _svc.get_all_resources_summary(date_from=date_from, date_to=date_to,
                                                        work_sessions_repo=repo)
             for row in overview:

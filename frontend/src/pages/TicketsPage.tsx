@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
 import { clientService } from '../services/clientService'
 import { projectService } from '../services/projectService'
+import { clientContactService } from '../services/clientContactService'
 import { catalogService } from '../services/catalogService'
 import { resourceService } from '../services/resourceService'
 import type {
@@ -19,13 +20,16 @@ import type { CatalogItem } from '../types/catalog'
 import type { ClientListItem } from '../types/client'
 import type { ProjectListItem } from '../types/project'
 import type { Resource } from '../types/resource'
+import type { ClientContact } from '../types/clientContact'
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
 import PageToolbar from '../components/common/PageToolbar'
 import StatCard from '../components/common/StatCard'
+import SavedFiltersBar from '../components/tickets/SavedFiltersBar'
 import { textColumnFilter, serverColumnFilter } from '../components/common/columnFilters'
 import { useAuthStore } from '../store/authStore'
+import type { TicketFilterCriteria } from '../store/savedFiltersStore'
 
 const IN_PROGRESS_STATUSES: TicketStatus[] = ['contacto', 'en_analisis', 'en_ejecucion', 'en_pruebas']
 
@@ -58,6 +62,7 @@ export default function TicketsPage() {
 
   const [clients, setClients] = useState<ClientListItem[]>([])
   const [projects, setProjects] = useState<ProjectListItem[]>([])
+  const [contacts, setContacts] = useState<ClientContact[]>([])
   const [tools, setTools] = useState<CatalogItem[]>([])
   const [processes, setProcesses] = useState<CatalogItem[]>([])
   const [resources, setResources] = useState<Resource[]>([])
@@ -88,13 +93,17 @@ export default function TicketsPage() {
   useEffect(() => { load() }, [load])
 
   const loadStats = useCallback(async () => {
-    const [nuevo, enProgreso, pendienteUsuario, resuelto] = await Promise.all([
-      ticketService.list({ status: ['nuevo'], page_size: 1 }).then(r => r.total),
-      ticketService.list({ status: IN_PROGRESS_STATUSES, page_size: 1 }).then(r => r.total),
-      ticketService.list({ status: ['pendiente_usuario'], page_size: 1 }).then(r => r.total),
-      ticketService.list({ status: ['resuelto'], page_size: 1 }).then(r => r.total),
-    ])
-    setStats({ nuevo, enProgreso, pendienteUsuario, resuelto })
+    try {
+      const [nuevo, enProgreso, pendienteUsuario, resuelto] = await Promise.all([
+        ticketService.list({ status: ['nuevo'], page_size: 1 }).then(r => r.total),
+        ticketService.list({ status: IN_PROGRESS_STATUSES, page_size: 1 }).then(r => r.total),
+        ticketService.list({ status: ['pendiente_usuario'], page_size: 1 }).then(r => r.total),
+        ticketService.list({ status: ['resuelto'], page_size: 1 }).then(r => r.total),
+      ])
+      setStats({ nuevo, enProgreso, pendienteUsuario, resuelto })
+    } catch {
+      message.error('No se pudieron cargar las estadísticas de tickets')
+    }
   }, [])
 
   useEffect(() => { loadStats() }, [loadStats])
@@ -102,25 +111,37 @@ export default function TicketsPage() {
   useEffect(() => {
     if (isEncargado) return  // sin permiso sobre clients/catalogs/resources — alta simplificada
     clientService.list({ active: true, page_size: 100 }).then(r => setClients(r.items))
+      .catch(() => message.error('No se pudo cargar la lista de clientes'))
     catalogService.list('tools').then(r => setTools(r.items))
+      .catch(() => message.error('No se pudo cargar el catálogo de herramientas'))
     catalogService.list('processes').then(r => setProcesses(r.items))
+      .catch(() => message.error('No se pudo cargar el catálogo de procesos'))
     resourceService.list({ active: true, page_size: 100 }).then(r => setResources(r.items))
+      .catch(() => message.error('No se pudo cargar la lista de recursos'))
     // Solo "Ticket" es creable en esta fase (FR-030); "Tarea" queda reservado para Fase 3
     // aunque el catálogo ya lo tenga sembrado.
     catalogService.list('record-types').then(r => {
       const creatable = r.items.filter(rt => rt.name === 'Ticket')
       setRecordTypes(creatable)
       if (creatable[0]) form.setFieldValue('record_type_id', creatable[0].id)
-    })
+    }).catch(() => message.error('No se pudo cargar el catálogo de tipo de registro'))
   }, [form, isEncargado])
 
   useEffect(() => {
     if (selectedClientId) {
       projectService.list({ client_id: selectedClientId, active: true, page_size: 100 })
         .then(r => setProjects(r.items))
+        .catch(() => message.error('No se pudo cargar la lista de proyectos'))
+      clientContactService.list({ client_id: selectedClientId, page_size: 100 })
+        .then(r => setContacts(r.items))
+        .catch(() => message.error('No se pudo cargar la lista de encargados'))
       form.setFieldValue('project_id', undefined)
+      // Encargado (Fase 2.2): acotado al cliente elegido — se limpia al cambiar de cliente
+      // para no dejar seleccionado uno de un cliente distinto (FR-005).
+      form.setFieldValue('client_contact_id', undefined)
     } else {
       setProjects([])
+      setContacts([])
     }
   }, [selectedClientId, form])
 
@@ -136,6 +157,25 @@ export default function TicketsPage() {
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al crear el ticket'
       message.error(msg)
     }
+  }
+
+  const currentCriteria: TicketFilterCriteria = {
+    search: search || undefined,
+    status: statusFilter.length ? statusFilter : undefined,
+    client_id: clientFilter,
+    priority: priorityFilter,
+    severity: severityFilter,
+    assignee_id: assigneeFilter,
+  }
+
+  const applySavedFilter = (criteria: TicketFilterCriteria) => {
+    setSearch(criteria.search ?? '')
+    setStatusFilter(criteria.status ?? [])
+    setClientFilter(criteria.client_id)
+    setPriorityFilter(criteria.priority)
+    setSeverityFilter(criteria.severity)
+    setAssigneeFilter(criteria.assignee_id)
+    setPage(1)
   }
 
   const handleTableChange: TableProps<TicketListItem>['onChange'] = (pagination, filters) => {
@@ -220,6 +260,12 @@ export default function TicketsPage() {
         </Col>
       </Row>
 
+      {!isEncargado && (
+        <div style={{ marginBottom: 12 }}>
+          <SavedFiltersBar currentCriteria={currentCriteria} onApply={applySavedFilter} />
+        </div>
+      )}
+
       <PageToolbar
         filters={isEncargado
           ? <Input.Search placeholder="Buscar por título o número..." onSearch={setSearch} allowClear style={{ width: 240 }} />
@@ -249,7 +295,7 @@ export default function TicketsPage() {
         pagination={{ current: page, total, pageSize: 20 }} onChange={handleTableChange} />
 
       <Modal title="Nuevo ticket" open={formOpen} onCancel={() => setFormOpen(false)}
-        onOk={() => form.submit()} okText="Crear ticket" width={isEncargado ? 480 : 640}>
+        onOk={() => form.submit()} okText="Crear ticket" width={isEncargado ? 480 : 760}>
         <Form form={form} layout="vertical" onFinish={handleCreate}
           initialValues={isEncargado ? {} : { ticket_type: 'incident', priority: 'medium', severity: 's3', escalation_level: 'n2' }}>
           <Form.Item name="title" label="Título" rules={[{ required: true, message: 'El título es requerido' }]}>
@@ -259,15 +305,22 @@ export default function TicketsPage() {
             <Input.TextArea rows={3} />
           </Form.Item>
           {!isEncargado && <>
-            <Space style={{ display: 'flex' }} align="start">
+            <Space style={{ display: 'flex' }} align="start" wrap>
               <Form.Item name="client_id" label="Cliente" rules={[{ required: true, message: 'El cliente es requerido' }]}>
-                <Select showSearch optionFilterProp="label" placeholder="Cliente" style={{ width: 260 }}
+                <Select showSearch optionFilterProp="label" placeholder="Cliente" style={{ width: 220 }}
                   options={clients.map(c => ({ value: c.id, label: c.name }))} />
               </Form.Item>
               <Form.Item name="project_id" label="Proyecto (opcional)">
                 <Select allowClear placeholder={selectedClientId ? 'Proyecto' : 'Elige cliente primero'}
-                  disabled={!selectedClientId} style={{ width: 260 }}
+                  disabled={!selectedClientId} style={{ width: 220 }}
                   options={projects.map(p => ({ value: p.id, label: p.name }))} />
+              </Form.Item>
+              <Form.Item name="client_contact_id" label="Encargado (opcional)">
+                <Select allowClear placeholder={
+                  !selectedClientId ? 'Elige cliente primero'
+                    : contacts.length === 0 ? 'Sin encargados registrados' : 'Encargado'
+                } disabled={!selectedClientId || contacts.length === 0} style={{ width: 220 }}
+                  options={contacts.map(c => ({ value: c.id, label: c.username }))} />
               </Form.Item>
             </Space>
             <Space style={{ display: 'flex' }} align="start" wrap>

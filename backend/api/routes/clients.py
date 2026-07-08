@@ -72,6 +72,11 @@ _system_out = ns.model("ClientSystem", {
     "created_at": fields.String(description="Fecha de creación ISO-8601"),
 })
 
+_system_list_out = ns.model("ClientSystemList", {
+    "items": fields.List(fields.Nested(_system_out)),
+    "total": fields.Integer(description="Total de sistemas"),
+})
+
 _system_input = ns.model("ClientSystemInput", {
     "system_type": fields.String(required=True, description="Tipo de sistema", example="ERP"),
     "brand": fields.String(required=True, description="Marca", example="JD Edwards"),
@@ -352,7 +357,7 @@ class ClientSystems(Resource):
     @ns.doc("list_client_systems")
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
     @ns.response(403, "Sin el permiso requerido", _error)
-    @ns.response(200, "Portafolio de software del cliente", [_system_out])
+    @ns.response(200, "Portafolio de software del cliente", _system_list_out)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(404, "Cliente no encontrado", _error)
     @ns.response(500, "Error interno del servidor", _error)
@@ -366,7 +371,8 @@ class ClientSystems(Resource):
             repo = ClientRepository(db)
             if not repo.get_by_id(uid):
                 return {"error": "not_found", "message": "Cliente no encontrado"}, 404
-            return [_system_to_dict(s) for s in repo.list_systems(uid)], 200
+            items = [_system_to_dict(s) for s in repo.list_systems(uid)]
+            return {"items": items, "total": len(items)}, 200
         except Exception:
             return server_error()
 

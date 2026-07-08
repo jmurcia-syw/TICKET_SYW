@@ -24,13 +24,18 @@ export default function ClientContactsPage() {
     try {
       const res = await clientContactService.list({ page_size: 200 })
       setContacts(res.items)
+    } catch {
+      message.error('No se pudo cargar la lista de Encargados')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => { load() }, [])
-  useEffect(() => { clientService.list({ active: true, page_size: 200 }).then(r => setClients(r.items)) }, [])
+  useEffect(() => {
+    clientService.list({ active: true, page_size: 200 }).then(r => setClients(r.items))
+      .catch(() => message.error('No se pudo cargar la lista de clientes'))
+  }, [])
 
   const handleCreate = async (values: ClientContactCreateRequest) => {
     try {
@@ -67,7 +72,13 @@ export default function ClientContactsPage() {
         }
       />
 
-      <Table rowKey="id" columns={columns} dataSource={contacts} loading={loading} />
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={contacts}
+        loading={loading}
+        locale={{ emptyText: 'Todavía no hay Encargados dados de alta.' }}
+      />
 
       <Modal title="Nuevo Encargado" open={createOpen} onCancel={() => setCreateOpen(false)}
         onOk={() => form.submit()} okText="Crear">

@@ -47,6 +47,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     clientService.list({ active: true, page_size: 100 }).then(r => setClients(r.items))
+      .catch(() => message.error('No se pudo cargar la lista de clientes'))
   }, [])
 
   useEffect(() => { load() }, [page, clientFilter, search, activeFilter])
@@ -83,16 +84,24 @@ export default function ProjectsPage() {
   }
 
   const handleDeactivate = async (id: string) => {
-    await projectService.deactivate(id)
-    message.success('Proyecto desactivado')
-    setConfirmDeactivate(null)
-    load()
+    try {
+      await projectService.deactivate(id)
+      message.success('Proyecto desactivado')
+      setConfirmDeactivate(null)
+      load()
+    } catch {
+      message.error('No se pudo desactivar el proyecto')
+    }
   }
 
   const handleActivate = async (id: string) => {
-    await projectService.activate(id)
-    message.success('Proyecto activado')
-    load()
+    try {
+      await projectService.activate(id)
+      message.success('Proyecto activado')
+      load()
+    } catch {
+      message.error('No se pudo activar el proyecto')
+    }
   }
 
   const columns: ColumnsType<ProjectListItem> = [

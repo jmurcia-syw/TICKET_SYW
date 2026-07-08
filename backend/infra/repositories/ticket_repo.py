@@ -79,6 +79,7 @@ class TicketRepository:
             process_id=ticket.process_id,
             related_ticket_id=ticket.related_ticket_id,
             created_by=ticket.created_by,
+            client_contact_id=ticket.client_contact_id,
         )
         self._db.add(model)
         self._db.commit()

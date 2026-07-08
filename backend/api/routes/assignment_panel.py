@@ -56,7 +56,7 @@ class AssignmentPanel(Resource):
                 })
             matrix.sort(key=lambda r: (-r["total"], r["resource"]["full_name"]))
 
-            new_tickets, _ = ticket_repo.list_paginated(
+            new_tickets, new_tickets_total = ticket_repo.list_paginated(
                 page=1, page_size=100, statuses=["nuevo"], sort="created_at")
             unassigned = []
             for t in new_tickets:
@@ -70,6 +70,9 @@ class AssignmentPanel(Resource):
                 })
 
             return {"matrix": matrix, "unassigned_new": unassigned,
+                    # el panel muestra como máximo 100; si hay más pendientes de triage,
+                    # el cliente lo sabe por este total en vez de un truncamiento silencioso
+                    "unassigned_new_total": new_tickets_total,
                     "statuses": statuses or NON_FINAL,
                     "status_labels": {s: STATUS_LABELS[s] for s in NON_FINAL}}, 200
         except Exception:

@@ -53,6 +53,8 @@ _ticket_input = ns.model("TicketInput", {
     "severity": fields.String(required=True, description="s1 | s2 | s3 | s4"),
     "client_id": fields.String(required=True),
     "project_id": fields.String(description="Opcional: proyecto activo del cliente"),
+    "client_contact_id": fields.String(description="Opcional: Encargado solicitante — debe "
+                                                     "pertenecer al cliente indicado (Fase 2.2)"),
     "tool_id": fields.String(description="Catálogo herramienta"),
     "process_id": fields.String(description="Catálogo proceso"),
     "record_type_id": fields.String(description="Catálogo tipo de registro (default: valor "
@@ -169,9 +171,9 @@ _assignment_out = ns.model("TicketAssignment", {
 })
 
 _requester_out = ns.model("TicketRequester", {
-    "id": fields.String(description="UUID de quien creó el ticket"),
+    "id": fields.String(description="UUID del solicitante (Encargado manual o creador automático)"),
     "name": fields.String(description="Nombre para mostrar"),
-    "is_encargado": fields.Boolean(description="true si el creador tiene rol Encargado"),
+    "is_encargado": fields.Boolean(description="true si el solicitante tiene rol Encargado"),
 })
 
 _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
@@ -181,8 +183,13 @@ _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "resolution_type_id": fields.String(allow_null=True),
     "related_ticket_id": fields.String(allow_null=True),
     "created_by": fields.String(description="UUID de quien creó el ticket"),
+    "client_contact_id": fields.String(allow_null=True,
+                                       description="Encargado solicitante asignado manualmente "
+                                                    "(Fase 2.2); null si no hay o si se resuelve "
+                                                    "automáticamente del creador (Fase 2.1)"),
     "requester": fields.Nested(_requester_out, allow_null=True,
-                               description="Solicitante resuelto (FR-009): distingue Encargado de otros roles"),
+                               description="Solicitante resuelto (FR-009): prioriza "
+                                            "client_contact_id, si no cae al creador (Fase 2.1)"),
     "resolved_at": fields.String(allow_null=True),
     "resolution_accepted_at": fields.String(allow_null=True),
     "closed_at": fields.String(allow_null=True),
@@ -276,7 +283,15 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
 
 
 def _requester(ticket: Ticket, db) -> dict | None:
-    """Resuelve `created_by` a nombre + `is_encargado` (FR-009)."""
+    """Resuelve el solicitante (Fase 2.2): prioriza `client_contact_id` (Encargado asignado
+    manualmente); si no está presente, cae al comportamiento ya existente de Fase 2.1
+    (`created_by` resuelto a nombre + `is_encargado`)."""
+    if ticket.client_contact_id:
+        contact = ClientContactRepository(db).get_by_id(ticket.client_contact_id)
+        if contact:
+            contact_user = UserRepository(db).get_by_id(contact.user_id)
+            if contact_user:
+                return {"id": str(contact_user.id), "name": contact_user.username, "is_encargado": True}
     creator = UserRepository(db).get_by_id(ticket.created_by)
     if not creator:
         return None
@@ -294,6 +309,7 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
         "resolution_type_id": str(ticket.resolution_type_id) if ticket.resolution_type_id else None,
         "related_ticket_id": str(ticket.related_ticket_id) if ticket.related_ticket_id else None,
         "created_by": str(ticket.created_by),
+        "client_contact_id": str(ticket.client_contact_id) if ticket.client_contact_id else None,
         "requester": _requester(ticket, db),
         "resolved_at": ticket.resolved_at.isoformat() if ticket.resolved_at else None,
         "resolution_accepted_at": ticket.resolution_accepted_at.isoformat() if ticket.resolution_accepted_at else None,
@@ -404,9 +420,11 @@ class TicketList(Resource):
     @ns.response(400, "Datos inválidos o enum desconocido", _error)
     @ns.response(401, "No autenticado", _error)
     @ns.response(403, "Sin permiso tickets:create", _error)
-    @ns.response(404, "Cliente, proyecto o catálogo no encontrado", _error)
-    @ns.response(409, "Cliente/proyecto/catálogo inactivo, record_type_id no permitido, o el "
-                      "Encargado no tiene cliente asociado (no_client_contact)", _error)
+    @ns.response(404, "Cliente, proyecto, catálogo o client_contact_id no encontrado", _error)
+    @ns.response(409, "Cliente/proyecto/catálogo inactivo, record_type_id no permitido, el "
+                      "Encargado no tiene cliente asociado (no_client_contact), o "
+                      "client_contact_id no pertenece al cliente indicado "
+                      "(client_contact_mismatch)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "create")
     def post(self):
@@ -427,7 +445,7 @@ class TicketList(Resource):
                         "message": "Tu cuenta no tiene un cliente asociado; contactá al equipo de soporte"}, 409
             client_id = contact.client_id
             ticket_type, priority, severity = "incident", "medium", "s3"
-            project_id = tool_id = process_id = related_id = record_type_id = None
+            project_id = tool_id = process_id = related_id = record_type_id = client_contact_id = None
         else:
             for field_name in ("title", "description", "ticket_type", "priority", "severity", "client_id"):
                 if not data.get(field_name):
@@ -440,6 +458,7 @@ class TicketList(Resource):
             process_id = parse_uuid(data["process_id"]) if data.get("process_id") else None
             record_type_id = parse_uuid(data["record_type_id"]) if data.get("record_type_id") else None
             related_id = parse_uuid(data["related_ticket_id"]) if data.get("related_ticket_id") else None
+            client_contact_id = parse_uuid(data["client_contact_id"]) if data.get("client_contact_id") else None
             ticket_type, priority, severity = data["ticket_type"], data["priority"], data["severity"]
         try:
             _svc.validate_enums({"ticket_type": ticket_type, "priority": priority, "severity": severity})
@@ -450,6 +469,8 @@ class TicketList(Resource):
                 tools_repo=CatalogRepository(db, "tools"),
                 processes_repo=CatalogRepository(db, "processes"),
                 tickets_repo=TicketRepository(db),
+                client_contact_id=client_contact_id,
+                client_contacts_repo=ClientContactRepository(db),
             )
             resolved_record_type_id = _svc.resolve_record_type(
                 record_type_id, CatalogRepository(db, "record-types"))
@@ -462,6 +483,7 @@ class TicketList(Resource):
                 project_id=project_id, tool_id=tool_id, process_id=process_id,
                 record_type_id=resolved_record_type_id,
                 related_ticket_id=related_id, created_by=g.current_user.id,
+                client_contact_id=client_contact_id,
             )
             created = TicketRepository(db).create(ticket)
             return _ticket_detail(created, db), 201, {"Location": f"/api/tickets/{created.id}"}
@@ -504,8 +526,10 @@ class TicketDetail(Resource):
     @ns.response(400, "Datos inválidos, campo desconocido o intento de editar `status`", _error)
     @ns.response(401, "No autenticado", _error)
     @ns.response(403, "Sin permiso tickets:edit", _error)
-    @ns.response(404, "Ticket no encontrado", _error)
-    @ns.response(409, "Campo bloqueado por el estado actual (`field_locked`)", _error)
+    @ns.response(404, "Ticket, o client_contact_id, no encontrado", _error)
+    @ns.response(409, "Campo bloqueado por el estado actual (`field_locked`), "
+                      "client_contact_id no pertenece al cliente (`client_contact_mismatch`), o "
+                      "el ticket fue creado por un Encargado (`requester_immutable`)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "edit")
     def patch(self, ticket_id: str):
@@ -518,7 +542,10 @@ class TicketDetail(Resource):
             ticket, err = _get_ticket_or_404(db, ticket_id)
             if err:
                 return err
-            clean = _svc.validate_patch(ticket, dict(data))
+            clean = _svc.validate_patch(
+                ticket, dict(data),
+                client_contacts_repo=ClientContactRepository(db), users_repo=UserRepository(db),
+            )
             for uuid_field in ("tool_id", "process_id", "related_ticket_id"):
                 if uuid_field in clean and clean[uuid_field] is not None:
                     parsed = parse_uuid(str(clean[uuid_field]))
