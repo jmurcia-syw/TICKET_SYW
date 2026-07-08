@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend.domain.entities.work_session import WorkSession
 from backend.infra.models.work_session_model import WorkSessionModel, WorkSessionEditModel
 
-_TRACKED_FIELDS = ("ticket_id", "work_date", "duration_minutes", "note")
+_TRACKED_FIELDS = ("ticket_id", "work_date", "duration_minutes", "note", "started_at", "ended_at")
 
 
 def _snapshot(model: WorkSessionModel) -> dict:
@@ -17,6 +17,8 @@ def _snapshot(model: WorkSessionModel) -> dict:
         "work_date": model.work_date.isoformat(),
         "duration_minutes": model.duration_minutes,
         "note": model.note,
+        "started_at": model.started_at.isoformat() if model.started_at else None,
+        "ended_at": model.ended_at.isoformat() if model.ended_at else None,
     }
 
 

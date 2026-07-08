@@ -10,3 +10,4 @@ from backend.infra.models.user_model import UserModel  # noqa: E402, F401
 from backend.infra.models.client_model import ClientModel  # noqa: E402, F401
 from backend.infra.models.project_model import ProjectModel  # noqa: E402, F401
 from backend.infra.models.resource_model import SkillModel, ResourceModel  # noqa: E402, F401
+from backend.infra.models.client_contact_model import ClientContactModel  # noqa: E402, F401

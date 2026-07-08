@@ -100,14 +100,22 @@ export default function TeamPage() {
       ])
       setResources(resRes.items)
       setUsers(userRes.items)
+    } catch {
+      message.error('No se pudo cargar el equipo')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => { load() }, [])
-  useEffect(() => { skillService.list(true).then(r => setSkills(r.items)) }, [])
-  useEffect(() => { roleService.list({ page_size: 100, active: true }).then(r => setRoles(r.items)) }, [])
+  useEffect(() => {
+    skillService.list(true).then(r => setSkills(r.items))
+      .catch(() => message.error('No se pudo cargar el catálogo de skills'))
+  }, [])
+  useEffect(() => {
+    roleService.list({ page_size: 100, active: true }).then(r => setRoles(r.items))
+      .catch(() => message.error('No se pudo cargar la lista de roles'))
+  }, [])
 
   const rows = useMemo(() => mergeTeam(resources, users), [resources, users])
   const orphanResources = useMemo(() => rows.filter(r => r.resource && !r.user).map(r => r.resource!), [rows])
@@ -214,7 +222,10 @@ export default function TeamPage() {
       const comp = await resourceService.getCompensation(r.id)
       setCompensation(comp)
       compForm.setFieldsValue(comp)
-    } catch {
+    } catch (err: unknown) {
+      if ((err as { response?: { status?: number } }).response?.status !== 404) {
+        message.error('No se pudo cargar la compensación')
+      }
       // 404 = sin compensación registrada aún; el formulario queda vacío
     }
   }
@@ -234,26 +245,42 @@ export default function TeamPage() {
 
   // ── Activar/Desactivar (recurso y cuenta son independientes) ─────────────
   const handleDeactivateResource = async (id: string) => {
-    await resourceService.deactivate(id)
-    message.success('Recurso desactivado')
-    setConfirmDeactivateResource(null)
-    load()
+    try {
+      await resourceService.deactivate(id)
+      message.success('Recurso desactivado')
+      setConfirmDeactivateResource(null)
+      load()
+    } catch {
+      message.error('No se pudo desactivar el recurso')
+    }
   }
   const handleActivateResource = async (id: string) => {
-    await resourceService.activate(id)
-    message.success('Recurso activado')
-    load()
+    try {
+      await resourceService.activate(id)
+      message.success('Recurso activado')
+      load()
+    } catch {
+      message.error('No se pudo activar el recurso')
+    }
   }
   const handleDeactivateUser = async (id: string) => {
-    await userService.deactivate(id)
-    message.success('Cuenta desactivada')
-    setConfirmDeactivateUser(null)
-    load()
+    try {
+      await userService.deactivate(id)
+      message.success('Cuenta desactivada')
+      setConfirmDeactivateUser(null)
+      load()
+    } catch {
+      message.error('No se pudo desactivar la cuenta')
+    }
   }
   const handleActivateUser = async (id: string) => {
-    await userService.activate(id)
-    message.success('Cuenta activada')
-    load()
+    try {
+      await userService.activate(id)
+      message.success('Cuenta activada')
+      load()
+    } catch {
+      message.error('No se pudo activar la cuenta')
+    }
   }
 
   // ── Vincular cuenta a un recurso ya existente sin cuenta ──────────────────

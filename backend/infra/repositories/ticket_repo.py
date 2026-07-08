@@ -28,8 +28,11 @@ class TicketRepository:
                        statuses: list[str] | None = None, priority: str | None = None,
                        severity: str | None = None, ticket_type: str | None = None,
                        assignee_id: uuid.UUID | None = None, escalation_level: str | None = None,
-                       sort: str = "-created_at") -> tuple[list[Ticket], int]:
+                       sort: str = "-created_at",
+                       created_by: uuid.UUID | None = None) -> tuple[list[Ticket], int]:
         q = self._db.query(TicketModel)
+        if created_by:
+            q = q.filter(TicketModel.created_by == created_by)
         if search:
             like = f"%{search}%"
             filters = [TicketModel.title.ilike(like)]
@@ -76,6 +79,7 @@ class TicketRepository:
             process_id=ticket.process_id,
             related_ticket_id=ticket.related_ticket_id,
             created_by=ticket.created_by,
+            client_contact_id=ticket.client_contact_id,
         )
         self._db.add(model)
         self._db.commit()

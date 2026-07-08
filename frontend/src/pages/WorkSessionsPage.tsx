@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Popconfirm, Space, Table, Tooltip, Typography, Statistic, message } from 'antd'
+import { Button, Popconfirm, Space, Table, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined } from '@ant-design/icons'
 import { workSessionService } from '../services/workSessionService'
 import { ticketService } from '../services/ticketService'
 import { resourceService } from '../services/resourceService'
@@ -10,6 +10,8 @@ import { formatDuration } from '../types/workSession'
 import type { TicketListItem, TicketStatus } from '../types/ticket'
 import WorkSessionForm from '../components/worksessions/WorkSessionForm'
 import PageToolbar from '../components/common/PageToolbar'
+import StatCard from '../components/common/StatCard'
+import { palette } from '../theme'
 
 const OPEN_STATUSES: TicketStatus[] = [
   'nuevo', 'pre_analisis', 'contacto', 'en_analisis', 'en_ejecucion', 'en_pruebas',
@@ -74,7 +76,8 @@ export default function WorkSessionsPage() {
   }
 
   const columns: ColumnsType<WorkSessionListItem> = [
-    { title: 'Ticket', dataIndex: 'ticket_number', key: 'ticket_number' },
+    { title: 'Ticket', dataIndex: 'ticket_number', key: 'ticket_number',
+      render: (v: string) => <span className="tabular-nums">{v}</span> },
     { title: 'Fecha', dataIndex: 'work_date', key: 'work_date' },
     {
       title: 'Duración', dataIndex: 'duration_minutes', key: 'duration_minutes',
@@ -111,9 +114,12 @@ export default function WorkSessionsPage() {
 
   return (
     <div>
-      <Typography.Title level={3}>Registro de Tiempos</Typography.Title>
+      <Space align="center" style={{ marginBottom: 16 }}>
+        <ClockCircleOutlined style={{ color: palette.brandOrange600, fontSize: 18 }} />
+        <Typography.Title level={3} style={{ margin: 0 }}>Registro de Tiempos</Typography.Title>
+      </Space>
       <PageToolbar
-        filters={<Statistic title="Total registrado hoy" value={formatDuration(totalMinutes)} />}
+        filters={<StatCard label="Total registrado hoy" value={formatDuration(totalMinutes)} icon={<ClockCircleOutlined />} color="blue" />}
         action={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
             Nuevo registro
@@ -126,10 +132,8 @@ export default function WorkSessionsPage() {
         columns={columns}
         dataSource={items}
         pagination={false}
+        locale={{ emptyText: 'Todavía no registraste tiempo hoy.' }}
       />
-      {items.length === 0 && !loading && (
-        <Typography.Text type="secondary">Todavía no registraste tiempo hoy.</Typography.Text>
-      )}
       <WorkSessionForm
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditing(null) }}

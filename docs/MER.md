@@ -354,3 +354,50 @@ y gestiona solo sus propios registros salvo Coordinador/QM (`view_all`) o Admin 
 Reglas de negocio en `backend/domain/services/work_session_service.py`: máximo 1440 minutos
 (24h) por recurso/día, ventana de edición de 7 días corridos, sin fechas futuras, sin registrar
 contra tickets `cerrado` salvo Admin.
+
+---
+
+# Ampliación Fase 2.1 — Rol Encargado, hora de inicio/fin y navegación (2026-07-08, migraciones 018-021)
+
+```mermaid
+erDiagram
+    users ||--o{ client_contacts : "cuenta del Encargado"
+    clients ||--o{ client_contacts : "cliente fijo"
+
+    client_contacts {
+        uuid id PK
+        uuid user_id FK "UNIQUE — 1 Encargado = 1 Cliente"
+        uuid client_id FK
+        timestamptz created_at
+    }
+```
+
+**work_sessions (extensión, migración 018)**: se agregan `started_at`/`ended_at`
+(TIMESTAMPTZ, nullable, opcionales pero deben venir juntos) — si están presentes,
+`duration_minutes` se recalcula automáticamente `(ended_at - started_at)`; si no, se exige
+`duration_minutes` manual. Sin cambios en las reglas ya vigentes de Fase 2 (límite diario,
+ventana de edición), que siguen aplicando sobre la duración resultante.
+
+**client_contacts (nueva, migraciones 019-020)**: perfil del rol "Encargado" — usuario externo
+al equipo interno, vinculado a exactamente un Cliente (1:1 con `users` vía `user_id` UNIQUE).
+Al crear un ticket, el Encargado nunca elige el Cliente: el backend lo resuelve desde esta
+tabla. RLS habilitado (mismo patrón app-level que `012_tickets_rls.py`/`016_work_sessions_rls.py`).
+
+**Rol Encargado y permisos (migración 021)**: nuevo rol sin ningún permiso de módulo salvo
+`tickets:create` (extendido) y `tickets:view_own` (nuevo, exclusivo de este rol). `GET
+/api/tickets` y `GET /api/tickets/{id}` aceptan `tickets:view` **o** `tickets:view_own`,
+filtrando por `created_by = usuario autenticado` cuando solo hay `view_own` (mismo patrón
+`view_own`/`view_all` de `work_sessions`). Nuevo permiso `client_contacts:manage`
+(Admin, Coordinador) para dar de alta Encargados.
+
+**Dominio de email relajado (migración 021)**: se eliminó el CHECK `ck_users_email_domain`
+(`email LIKE '%@sywork.net'`) de la tabla `users`, porque el Encargado usa su email externo
+real (ej. `@clienteexterno.com`), no uno corporativo. La restricción de dominio para el resto
+de roles internos se mantiene, pero ahora solo a nivel de aplicación
+(`ALLOWED_EMAIL_DOMAIN` en `backend/api/routes/users.py`, endpoint sin cambios) — la fila de
+`client_contacts` se crea por un endpoint distinto (`/api/client-contacts`) que valida un
+formato de email genérico en su lugar.
+
+**Ticket — sin cambios de esquema**: `created_by` (ya existente) se interpreta como "Encargado
+solicitante" cuando el creador tiene ese rol; el detalle del ticket expone esto como
+`requester: {id, name, is_encargado}`, sin agregar columnas nuevas.

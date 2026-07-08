@@ -25,6 +25,7 @@ class TicketModel(Base):
     tool_id = Column(UUID(as_uuid=True), ForeignKey("catalog_tools.id"), nullable=True)
     process_id = Column(UUID(as_uuid=True), ForeignKey("catalog_processes.id"), nullable=True)
     assignee_id = Column(UUID(as_uuid=True), ForeignKey("resources.id"), nullable=True)
+    client_contact_id = Column(UUID(as_uuid=True), ForeignKey("client_contacts.id", ondelete="SET NULL"), nullable=True)
     estimated_resolution_minutes = Column(Integer, nullable=True)
     resolution_type_id = Column(UUID(as_uuid=True), ForeignKey("catalog_resolution_types.id"), nullable=True)
     related_ticket_id = Column(UUID(as_uuid=True), ForeignKey("tickets.id"), nullable=True)
@@ -52,6 +53,7 @@ class TicketModel(Base):
             tool_id=self.tool_id,
             process_id=self.process_id,
             assignee_id=self.assignee_id,
+            client_contact_id=self.client_contact_id,
             estimated_resolution_minutes=self.estimated_resolution_minutes,
             resolution_type_id=self.resolution_type_id,
             related_ticket_id=self.related_ticket_id,

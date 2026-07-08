@@ -20,7 +20,7 @@ class TicketValidationError(DomainError):
 PATCHABLE_FIELDS = {
     "title", "description", "ticket_type", "priority", "severity",
     "escalation_level", "estimated_resolution_minutes", "tool_id", "process_id",
-    "related_ticket_id",
+    "related_ticket_id", "client_contact_id",
 }
 
 _ENUMS = {
@@ -43,7 +43,9 @@ class TicketService:
     def validate_create(self, client_id: uuid.UUID, project_id: Optional[uuid.UUID],
                         tool_id: Optional[uuid.UUID], process_id: Optional[uuid.UUID],
                         related_ticket_id: Optional[uuid.UUID], clients_repo, projects_repo,
-                        tools_repo, processes_repo, tickets_repo) -> None:
+                        tools_repo, processes_repo, tickets_repo,
+                        client_contact_id: Optional[uuid.UUID] = None,
+                        client_contacts_repo=None) -> None:
         client = clients_repo.get_by_id(client_id)
         if not client:
             raise TicketValidationError("not_found", "Cliente no encontrado", status_code=404)
@@ -67,6 +69,13 @@ class TicketService:
                     raise TicketBusinessError("catalog_inactive", f"El valor de {label} está inactivo")
         if related_ticket_id and not tickets_repo.get_by_id(related_ticket_id):
             raise TicketValidationError("not_found", "El ticket relacionado no existe", status_code=404)
+        if client_contact_id:
+            contact = client_contacts_repo.get_by_id(client_contact_id)
+            if not contact:
+                raise TicketValidationError("not_found", "El Encargado indicado no existe", status_code=404)
+            if contact.client_id != client_id:
+                raise TicketBusinessError(
+                    "client_contact_mismatch", "El Encargado indicado no pertenece al cliente del ticket")
 
     def resolve_record_type(self, record_type_id: Optional[uuid.UUID], record_types_repo) -> uuid.UUID:
         """Resuelve el catálogo dinámico de tipo de registro (FR-029) y aplica el bloqueo
@@ -92,7 +101,8 @@ class TicketService:
                 "('Tarea' queda reservado para Fase 3)")
         return uuid.UUID(item["id"])
 
-    def validate_patch(self, ticket: Ticket, data: dict) -> dict:
+    def validate_patch(self, ticket: Ticket, data: dict,
+                       client_contacts_repo=None, users_repo=None) -> dict:
         """Filtra los campos del PATCH: rechaza status, campos desconocidos y bloqueados."""
         if "status" in data:
             raise TicketValidationError(
@@ -123,4 +133,26 @@ class TicketService:
             if str(data["related_ticket_id"]) == str(ticket.id):
                 raise TicketValidationError(
                     "validation_error", "Un ticket no puede relacionarse consigo mismo")
+        if "client_contact_id" in data:
+            if users_repo is not None:
+                creator = users_repo.get_by_id(ticket.created_by)
+                if creator and creator.role.name == "Encargado":
+                    raise TicketBusinessError(
+                        "requester_immutable",
+                        "El Encargado solicitante no se puede editar: el ticket fue creado por "
+                        "un usuario Encargado")
+            if data["client_contact_id"] is not None:
+                try:
+                    contact_id = uuid.UUID(str(data["client_contact_id"]))
+                except (ValueError, AttributeError):
+                    raise TicketValidationError("validation_error", "client_contact_id inválido")
+                contact = client_contacts_repo.get_by_id(contact_id)
+                if not contact:
+                    raise TicketValidationError(
+                        "not_found", "El Encargado indicado no existe", status_code=404)
+                if contact.client_id != ticket.client_id:
+                    raise TicketBusinessError(
+                        "client_contact_mismatch",
+                        "El Encargado indicado no pertenece al cliente del ticket")
+                data["client_contact_id"] = contact_id
         return data

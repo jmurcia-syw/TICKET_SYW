@@ -1,5 +1,5 @@
-"""Reglas de negocio del registro diario de tiempos (Fase 2)."""
-from datetime import date, timedelta
+"""Reglas de negocio del registro diario de tiempos (Fase 2 / Fase 2.1)."""
+from datetime import date, datetime, timedelta
 from typing import Optional
 import uuid
 
@@ -66,32 +66,67 @@ class WorkSessionService:
                 "edit_window_expired",
                 f"La ventana de edición de {EDIT_WINDOW_DAYS} días para este registro ya expiró")
 
+    def resolve_duration(self, *, started_at: Optional[datetime], ended_at: Optional[datetime],
+                        duration_minutes: Optional[int]) -> int:
+        """Calcula la duración desde hora de inicio/fin si ambas vienen presentes (ignorando
+        cualquier duration_minutes explícito); si no, exige que venga la duración manual."""
+        if started_at is None and ended_at is None:
+            if duration_minutes is None:
+                raise WorkSessionValidationError(
+                    "invalid_duration",
+                    "Debe indicar la duración, o la hora de inicio y de finalización")
+            return duration_minutes
+        if started_at is None or ended_at is None:
+            raise WorkSessionValidationError(
+                "incomplete_time_range",
+                "Debe indicar tanto la hora de inicio como la de finalización")
+        if ended_at <= started_at:
+            raise WorkSessionValidationError(
+                "invalid_time_range",
+                "La hora de finalización debe ser posterior a la de inicio")
+        return round((ended_at - started_at).total_seconds() / 60)
+
     # ── operaciones ──────────────────────────────────────────────────────────
 
-    def create(self, *, resource_id: uuid.UUID, ticket, work_date: date, duration_minutes: int,
+    def create(self, *, resource_id: uuid.UUID, ticket, work_date: date,
               created_by: uuid.UUID, work_sessions_repo, tickets_repo,
-              note: Optional[str] = None, allow_any: bool = False) -> WorkSession:
-        self.validate_duration(duration_minutes)
+              duration_minutes: Optional[int] = None, started_at: Optional[datetime] = None,
+              ended_at: Optional[datetime] = None, note: Optional[str] = None,
+              allow_any: bool = False) -> WorkSession:
+        resolved_duration = self.resolve_duration(
+            started_at=started_at, ended_at=ended_at, duration_minutes=duration_minutes)
+        self.validate_duration(resolved_duration)
         self.validate_not_future(work_date)
         self.assert_ticket_ownership(resource_id, ticket, tickets_repo, allow_any)
         self.assert_ticket_open_or_admin(ticket, allow_any)
-        self.assert_daily_limit(resource_id, work_date, duration_minutes, work_sessions_repo)
+        self.assert_daily_limit(resource_id, work_date, resolved_duration, work_sessions_repo)
         work_session = WorkSession.create(
             resource_id=resource_id, ticket_id=ticket.id, work_date=work_date,
-            duration_minutes=duration_minutes, created_by=created_by, note=note,
+            duration_minutes=resolved_duration, created_by=created_by, note=note,
+            started_at=started_at, ended_at=ended_at,
         )
         return work_sessions_repo.create(work_session)
 
     def update(self, *, existing: WorkSession, actor_id: uuid.UUID, work_sessions_repo,
               duration_minutes: Optional[int] = None, note: Optional[str] = None,
+              started_at: Optional[datetime] = None, ended_at: Optional[datetime] = None,
               allow_any: bool = False) -> WorkSession:
         self.assert_within_edit_window(existing.work_date, allow_any)
-        new_duration = duration_minutes if duration_minutes is not None else existing.duration_minutes
+        if started_at is not None or ended_at is not None:
+            new_started = started_at if started_at is not None else existing.started_at
+            new_ended = ended_at if ended_at is not None else existing.ended_at
+            new_duration = self.resolve_duration(
+                started_at=new_started, ended_at=new_ended, duration_minutes=duration_minutes)
+        else:
+            new_duration = duration_minutes if duration_minutes is not None else existing.duration_minutes
+            new_started = None
+            new_ended = None
         self.validate_duration(new_duration)
         self.assert_daily_limit(existing.resource_id, existing.work_date, new_duration,
                                 work_sessions_repo, exclude_id=existing.id)
         return work_sessions_repo.update(
-            existing.id, actor_id, duration_minutes=duration_minutes, note=note)
+            existing.id, actor_id, duration_minutes=new_duration, note=note,
+            started_at=new_started, ended_at=new_ended)
 
     def delete(self, *, existing: WorkSession, actor_id: uuid.UUID, work_sessions_repo,
               allow_any: bool = False) -> None:

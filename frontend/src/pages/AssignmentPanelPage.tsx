@@ -122,7 +122,9 @@ export default function AssignmentPanelPage() {
               locale={{ emptyText: 'No hay tickets nuevos sin asignar 🎉' }}
               columns={([
                 { title: 'Número', dataIndex: 'ticket_number', width: 100,
-                  render: (v: string, t) => <a onClick={() => navigate(`/tickets/${t.id}`)}>{v}</a> },
+                  render: (v: string, t) => <a onClick={() => navigate(`/tickets/${t.id}`, {
+                    state: { from: { pathname: '/assignment-panel', label: 'Panel de Asignación' } },
+                  })}>{v}</a> },
                 {
                   title: 'Título', dataIndex: 'title', ellipsis: true,
                   ...clientTextColumnFilter<UnassignedTicket>('Buscar título...', r => r.title),

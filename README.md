@@ -3,7 +3,8 @@
 Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM
 de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre **GitHub Spec Kit**.
 
-> **Fase activa**: `Fase 1 — Tickets` ✅ implementada y validada (pendiente commit/merge) · Rama: `develp_Jp`
+> **Fase activa**: `Fase 2.2 — Mis Tareas y Encargado asignable por Cliente` ✅ implementada y
+> validada end-to-end contra Docker real (quickstart 6/6 escenarios) · Rama: `develp_Jp`
 
 ---
 
@@ -13,7 +14,7 @@ de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre *
 |-------------|-------------|--------|
 | **1a — Maestros** | Clientes, Proyectos, Recursos/Skills, Roles/Permisos, login dual, compensación protegida (spec `001`) | ✅ **Completa** |
 | **1b — Tickets** | Ciclo de vida de 9 estados (FSM), comentarios tipificados con adjuntos, Triage Push + Gold Standard Dataset, Panel de Asignación, notificaciones, enforcement JWT total (spec `002`) | ✅ **Completa** (validación E2E 26/26) |
-| 2 | Registro diario de tiempos por recurso + rentabilidad | ⏳ Siguiente |
+| **2 — Registro de tiempos** | Registro diario de tiempos por recurso (hora inicio/fin), rol Encargado (autoservicio con Cliente fijo), breadcrumbs de navegación, Encargado seleccionable/editable por Cliente en el ticket, "Mis Tareas" (specs `004`, `005`, `006`, `007`) | ✅ **Completa** |
 | 3 | Tareas (misma tabla, campo "Tipo de registro" + registro relacionado) | ⏳ Pendiente |
 | 4 | SLAs por prioridad/cliente/proyecto con estados que pausan el contador | ⏳ Pendiente |
 | 5 | Asignación por disponibilidad + calendarios por país/recurso | ⏳ Pendiente |
@@ -27,7 +28,7 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 
 ---
 
-## Estado actual — Fase 1 Tickets
+## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos y Encargados)
 
 ### Funcionalidad operativa
 
@@ -46,9 +47,22 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 - **Panel de Asignación**: matriz resolutor × estado + tickets NUEVOS asignables inline.
 - **Notificaciones internas** con campana (polling 60 s): asignación, respuesta de usuario,
   rechazo de resolución, cierre.
-- **Catálogos administrables**: herramientas, procesos, tipos de resolución (bloqueo por uso).
+- **Catálogos administrables**: herramientas, procesos, tipos de resolución (bloqueo por uso),
+  tipo de registro dinámico.
 - **Cierre controlado**: requiere aceptación del usuario (o 3+ días sin respuesta) + tipo
   de resolución + descripción de solución; notifica a Coordinador y QM.
+- **Registro de tiempos** (Fase 2): registro manual estilo Teamwork desde el detalle del
+  ticket (hora inicio/fin con duración calculada, o duración manual + nota), historial completo
+  por ticket, Registro de Tiempos diario y Reporte de Tiempos agregados por recurso/cliente.
+- **Rol Encargado**: usuario de cliente externo con alta simplificada (solo email/usuario,
+  contraseña provisional), flujo de creación de ticket autoservicio restringido a su Cliente
+  fijo, sin acceso a Maestros/Catálogos/Panel de Asignación.
+- **Encargado solicitante asignable por Cliente**: al crear o editar un ticket, Coordinador/
+  Resolutor pueden elegir el Encargado (contacto del Cliente) como solicitante desde una lista
+  filtrada por Cliente; el campo se limpia si cambia el Cliente y queda bloqueado/no editable en
+  tickets de autoservicio o en estados finales (Cerrado/Cancelado).
+- **Mis Tareas** y **breadcrumbs de navegación** estilo Teamwork (Kanban → Detalle → Volver
+  respeta el origen exacto).
 
 ### Seguridad
 
@@ -65,8 +79,13 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 
 ### Verificación
 
-- **155 tests** (dominio sin DB + API contra Postgres real en Docker) ✅
-- **Validación E2E** de los 6 escenarios del quickstart: 26/26 checks ✅
+- Tests de dominio + API contra Postgres real en Docker ✅ (suite dirigida por feature;
+  la última incorporación — Encargado asignable por Cliente, spec `007` — 20/20 tests en verde)
+- **Validación E2E** de la Fase 1 (6 escenarios del quickstart): 26/26 checks ✅
+- **Validación E2E** de la Fase 2.2 (Encargado asignable por Cliente, spec `007`): 6/6
+  escenarios del quickstart validados contra Docker real (creación con/sin Encargado,
+  autoservicio inmutable, reasignación, bloqueo por estado, limpieza al cambiar Cliente,
+  permiso de lectura para Resolutor)
 - **Performance** con 500+ tickets: panel 64 ms (SC < 2 s), listado 52 ms (SC < 1 s) ✅
 - Typecheck frontend estricto sin errores ✅
 
@@ -77,7 +96,7 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 ### Backend
 - **Python 3.12** + **Flask 3.x** + **Flask-RESTX** (Swagger en `/swagger`)
 - **python-transitions** (FSM del ciclo de vida — Capa 1, dominio puro)
-- **SQLAlchemy 2.x** + **Alembic** (12 migraciones — dueño único del schema)
+- **SQLAlchemy 2.x** + **Alembic** (revisión `022` — dueño único del schema)
 - **PostgreSQL 16** on-premise con RLS y pgcrypto
 - **Flask-JWT-Extended** + login provisional usuario/contraseña + **Google OAuth2** (`@sywork.net`)
 
@@ -97,23 +116,32 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 ```
 backend/
 ├── domain/            # Capa 1 — sin imports de Flask/SQLAlchemy
-│   ├── entities/      # Ticket, Comment, Notification, Client, Project, Resource, User, Role
+│   ├── entities/      # Ticket, Comment, Notification, Client, Project, Resource, User, Role,
+│   │                  # ClientContact, WorkSession
 │   ├── fsm/           # ticket_fsm.py — matriz de 16 transiciones (python-transitions)
-│   └── services/      # ticket, comment, assignment, notification, compensation, ...
+│   └── services/      # ticket, comment, assignment, notification, compensation,
+│                      # client_contact, work_session, ...
 ├── infra/             # Capa 2
-│   ├── models/        # SQLAlchemy (tickets, comments, catalogs, notifications, maestros)
+│   ├── models/        # SQLAlchemy (tickets, comments, catalogs, notifications, maestros,
+│   │                  # client_contacts, work_sessions)
 │   ├── repositories/  # paginación, filtros, historiales append-only
 │   ├── storage/       # adjuntos en filesystem (uploads/tickets/{id}/)
-│   └── migrations/    # Alembic 001..012
+│   └── migrations/    # Alembic 001..022
 └── api/               # Capa 3
     ├── middleware/    # auth.py (JWT + usuario activo), rbac.py (@require_permission)
-    └── routes/        # tickets, catalogs, notifications, assignment_panel + maestros
+    └── routes/        # tickets, catalogs, notifications, assignment_panel, client_contacts,
+                       # work_sessions + maestros
 
 frontend/src/
-├── components/tickets/  # TicketStatusTag, AssignModal, CommentThread, CommentComposer
-├── components/common/   # NotificationBell, ProtectedRoute, ConfirmationModal, ...
-├── pages/               # TicketsPage, TicketDetailPage, AssignmentPanelPage, CatalogsPage + maestros
-├── services/            # ticketService, catalogService, notificationService + maestros
+├── components/tickets/     # TicketStatusTag, AssignModal, CommentThread, CommentComposer,
+│                           # TicketBreadcrumb
+├── components/worksessions/ # WorkSessionForm, TimeLogModal, TicketWorkSessions
+├── components/common/      # NotificationBell, ProtectedRoute, ConfirmationModal, ...
+├── pages/                  # TicketsPage, TicketDetailPage, AssignmentPanelPage, CatalogsPage,
+│                           # MyTasksPage, WorkSessionsPage, TimeReportPage, ClientContactsPage
+│                           # + maestros
+├── services/                # ticketService, catalogService, notificationService,
+│                            # clientContactService, workSessionService + maestros
 ├── store/               # authStore (Zustand: token, permisos, hasPermission)
 └── types/               # tipos estrictos por dominio
 ```
@@ -179,7 +207,7 @@ Esto construye las 3 imágenes y arranca, en orden:
 
 1. **`sywork_db`** (Postgres 16) — espera a estar `healthy` antes de continuar.
 2. **`sywork_backend`** (Flask) — corre `alembic upgrade head` automáticamente al iniciar
-   (12 migraciones) y luego levanta el servidor en `:5000`.
+   (revisión `022`) y luego levanta el servidor en `:5000`.
 3. **`sywork_frontend`** (Vite) — sirve la SPA en `:5173`.
 
 ```bash
@@ -263,10 +291,15 @@ pnpm dev   # http://localhost:5173, usa VITE_API_URL apuntando al backend
 ### Tests
 
 ```bash
-docker exec sywork_backend python -m pytest tests/ -q     # suite completa (155 tests)
+docker exec sywork_backend python -m pytest tests/ -q     # suite completa
 cd frontend && npx tsc -b                                  # typecheck estricto
 docker exec sywork_backend python -m backend.scripts.seed_tickets 500   # datos de carga
 ```
+
+> Nota: la suite completa acumula datos de prueba en la base (clientes/tickets sintéticos). En
+> desarrollo, si el volumen de datos residuales afecta la UI (p. ej. selectores que paginan a
+> 100 ítems), `docker compose down -v && docker compose up --build -d` reinicia la base desde
+> cero (Alembic vuelve a aplicar todas las migraciones automáticamente).
 
 ---
 
@@ -286,24 +319,28 @@ docker exec sywork_backend python -m backend.scripts.seed_tickets 500   # datos 
 
 ## Especificaciones (SDD / Spec Kit)
 
-| Artefacto | Fase 0 — Maestros | Fase 1 — Tickets (activa) |
-|-----------|-------------------|---------------------------|
-| Spec | [`specs/001-fase0-maestros/spec.md`](specs/001-fase0-maestros/spec.md) | [`specs/002-fase1-tickets/spec.md`](specs/002-fase1-tickets/spec.md) |
-| Plan técnico | [`plan.md`](specs/001-fase0-maestros/plan.md) | [`plan.md`](specs/002-fase1-tickets/plan.md) |
-| Research | — | [`research.md`](specs/002-fase1-tickets/research.md) |
-| Modelo de datos | [`data-model.md`](specs/001-fase0-maestros/data-model.md) | [`data-model.md`](specs/002-fase1-tickets/data-model.md) |
-| Contratos API | [`contracts/`](specs/001-fase0-maestros/contracts/) | [`contracts/`](specs/002-fase1-tickets/contracts/) |
-| Tasks | [`tasks.md`](specs/001-fase0-maestros/tasks.md) | [`tasks.md`](specs/002-fase1-tickets/tasks.md) — 44/44 ✅ |
-| Quickstart de validación | [`quickstart.md`](specs/001-fase0-maestros/quickstart.md) | [`quickstart.md`](specs/002-fase1-tickets/quickstart.md) |
+| # | Spec | Alcance | Estado |
+|---|------|---------|--------|
+| `001` | [fase0-maestros](specs/001-fase0-maestros/spec.md) | Clientes, Proyectos, Recursos/Skills, Roles/Permisos, login dual | ✅ Completa |
+| `002` | [fase1-tickets](specs/002-fase1-tickets/spec.md) | FSM de tickets, comentarios, Triage Push, Panel de Asignación | ✅ Completa — tasks 44/44 |
+| `003` | [reseteo-contrasenas](specs/003-reseteo-contrasenas/spec.md) | Reseteo de contraseñas y credenciales semilla | ✅ Completa |
+| `004` | [fase2-registro-tiempos](specs/004-fase2-registro-tiempos/spec.md) | Registro diario de tiempos por recurso | ✅ Completa |
+| `005` | [ticket-tiempo-encargado-nav](specs/005-ticket-tiempo-encargado-nav/spec.md) | Registro de tiempo en el detalle, rol Encargado, breadcrumbs | ✅ Completa |
+| `006` | [ticket-detalle-tiempo-ui](specs/006-ticket-detalle-tiempo-ui/spec.md) | Refactor visual/navegación del detalle del ticket | ✅ Completa |
+| `007` | [ticket-encargado-cliente](specs/007-ticket-encargado-cliente/spec.md) | Encargado solicitante asignable por Cliente en el ticket | ✅ Completa — quickstart 6/6 |
+
+Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.md`,
+`data-model.md`, `contracts/`, `tasks.md`, `quickstart.md`.
 
 **Transversales**: [Constitución v1.1.0](.specify/memory/constitution.md) ·
 [MER actual](docs/MER.md) (maestros + tickets, generado del schema real)
 
 ## Pendientes conocidos
 
-- Validación visual en navegador de la Fase 1 (la validación E2E fue por API).
+- Validación visual en navegador de la Fase 1 (la validación E2E original fue por API; las
+  fases posteriores ya se validan con navegador real vía preview).
 - Auditorías de Fase 0: sanitización XSS (T066), logs sin datos VPN (T067), exposición
   frontend (T071).
 - El cifrado pgcrypto es placeholder de desarrollo → reemplazar por `pgp_sym_encrypt`
   antes de producción.
-- Commit/merge del trabajo de las Fases 0-ampliación y 1 (rama `develp_Jp`).
+- Fase 3 (Tareas) y siguientes del roadmap SDD V3 aún no iniciadas.

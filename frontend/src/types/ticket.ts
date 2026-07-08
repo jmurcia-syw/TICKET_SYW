@@ -109,6 +109,12 @@ export interface TicketAssignment {
   created_at: string
 }
 
+export interface TicketRequester {
+  id: string
+  name: string
+  is_encargado: boolean
+}
+
 export interface TicketDetail extends TicketListItem {
   description: string
   tool_id: string | null
@@ -117,6 +123,11 @@ export interface TicketDetail extends TicketListItem {
   resolution_type_id: string | null
   related_ticket_id: string | null
   created_by: string
+  /** Encargado solicitante asignado manualmente (Fase 2.2) — `null` si no hay o si `requester`
+   * se resuelve automáticamente del creador (Fase 2.1). Editable solo cuando no es `null` o
+   * cuando `requester` no viene de un creador con rol Encargado (ver TicketDetailPage). */
+  client_contact_id: string | null
+  requester: TicketRequester | null
   resolved_at: string | null
   resolution_accepted_at: string | null
   closed_at: string | null
@@ -131,11 +142,15 @@ export interface TicketDetail extends TicketListItem {
 export interface TicketFormData {
   title: string
   description: string
-  ticket_type: TicketType
-  priority: Priority
-  severity: Severity
-  client_id: string
+  /** Requeridos para todos los roles salvo Encargado (alta simplificada, Fase 2.1 US3):
+   * el backend los completa automáticamente (incident/medium/s3 + cliente del Encargado). */
+  ticket_type?: TicketType
+  priority?: Priority
+  severity?: Severity
+  client_id?: string
   project_id?: string | null
+  /** Encargado solicitante (Fase 2.2) — opcional, debe pertenecer al `client_id` elegido. */
+  client_contact_id?: string | null
   tool_id?: string | null
   process_id?: string | null
   record_type_id?: string | null
