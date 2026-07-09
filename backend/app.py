@@ -81,6 +81,12 @@ def create_app() -> Flask:
 
     api.add_namespace(ns_client_contacts)
 
+    # ── spec 009 — Listas de tareas ─────────────────────────────────────────────
+    from backend.api.routes.task_lists import ns_project_lists, ns as ns_task_lists
+
+    api.add_namespace(ns_project_lists)
+    api.add_namespace(ns_task_lists)
+
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")
 

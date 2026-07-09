@@ -2,14 +2,22 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Selección manual del Encargado solicitante en el Ticket
+**Active feature**: Listas de Tareas, Subtareas, ciclo de vida unificado y fix de Registro de tiempo
+**Spec**: specs/009-tareas-listas-subtareas/spec.md
+**Plan**: specs/009-tareas-listas-subtareas/plan.md
+**Research**: specs/009-tareas-listas-subtareas/research.md
+**Data model**: specs/009-tareas-listas-subtareas/data-model.md
+**Contracts**: specs/009-tareas-listas-subtareas/contracts/
+**Quickstart**: specs/009-tareas-listas-subtareas/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada)**: Fase 3 — Manejo de Tareas
+**Spec**: specs/008-fase3-tareas/spec.md
+**Plan**: specs/008-fase3-tareas/plan.md
+
+**Previous feature (completada, validada end-to-end contra Docker real)**: Selección manual del Encargado solicitante en el Ticket
 **Spec**: specs/007-ticket-encargado-cliente/spec.md
 **Plan**: specs/007-ticket-encargado-cliente/plan.md
-**Research**: specs/007-ticket-encargado-cliente/research.md
-**Data model**: specs/007-ticket-encargado-cliente/data-model.md
-**Contracts**: specs/007-ticket-encargado-cliente/contracts/
-**Quickstart**: specs/007-ticket-encargado-cliente/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (implementada, pendiente de validación manual)**: Refactorización visual y de navegación del detalle del Ticket (flujo tipo Teamwork)
 **Spec**: specs/006-ticket-detalle-tiempo-ui/spec.md

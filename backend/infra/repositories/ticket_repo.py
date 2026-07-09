@@ -78,6 +78,10 @@ class TicketRepository:
             tool_id=ticket.tool_id,
             process_id=ticket.process_id,
             related_ticket_id=ticket.related_ticket_id,
+            list_name=ticket.list_name,
+            list_id=ticket.list_id,
+            parent_task_id=ticket.parent_task_id,
+            assignee_id=ticket.assignee_id,
             created_by=ticket.created_by,
             client_contact_id=ticket.client_contact_id,
         )
@@ -96,6 +100,21 @@ class TicketRepository:
         self._db.commit()
         self._db.refresh(model)
         return model.to_entity()
+
+    def list_related_from(self, ticket_id: uuid.UUID) -> list[Ticket]:
+        """Registros (Ticket o Tarea) que tienen a `ticket_id` como `related_ticket_id`
+        (relación inversa, Fase 3 FR-006)."""
+        models = (self._db.query(TicketModel)
+                  .filter(TicketModel.related_ticket_id == ticket_id)
+                  .order_by(TicketModel.created_at).all())
+        return [m.to_entity() for m in models]
+
+    def list_subtasks(self, parent_task_id: uuid.UUID) -> list[Ticket]:
+        """Subtareas (Nivel 5) de una Tarea (Nivel 4) — spec 009 FR-014."""
+        models = (self._db.query(TicketModel)
+                  .filter(TicketModel.parent_task_id == parent_task_id)
+                  .order_by(TicketModel.created_at).all())
+        return [m.to_entity() for m in models]
 
     # ── historiales (append-only) ───────────────────────────────────────
 

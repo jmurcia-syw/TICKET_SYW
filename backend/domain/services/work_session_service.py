@@ -33,12 +33,20 @@ class WorkSessionService:
                 "future_date", "No se puede registrar tiempo con fecha futura")
 
     def assert_ticket_ownership(self, resource_id: uuid.UUID, ticket, tickets_repo,
-                               allow_any: bool) -> None:
+                               allow_any: bool, is_task: bool = False,
+                               resources_repo=None) -> None:
         if allow_any:
             return
         assignee_ids = {a["assignee_id"] for a in tickets_repo.list_assignments(ticket.id)}
         if ticket.assignee_id:
             assignee_ids.add(str(ticket.assignee_id))
+        # spec 009 FR-001: el creador de una Tarea/Subtarea puede registrar tiempo aunque no sea
+        # su `assignee_id` formal (p. ej. una Subtarea que él creó pero asignó a otro recurso) —
+        # sin exigir el historial de asignaciones de Triage, que solo tiene sentido para Ticket.
+        if is_task and resources_repo is not None:
+            creator_resource = resources_repo.get_by_user_id(ticket.created_by)
+            if creator_resource:
+                assignee_ids.add(str(creator_resource.id))
         if str(resource_id) not in assignee_ids:
             raise WorkSessionAuthorizationError(
                 "not_assigned", "El recurso no participa de este ticket")
@@ -92,12 +100,13 @@ class WorkSessionService:
               created_by: uuid.UUID, work_sessions_repo, tickets_repo,
               duration_minutes: Optional[int] = None, started_at: Optional[datetime] = None,
               ended_at: Optional[datetime] = None, note: Optional[str] = None,
-              allow_any: bool = False) -> WorkSession:
+              allow_any: bool = False, is_task: bool = False, resources_repo=None) -> WorkSession:
         resolved_duration = self.resolve_duration(
             started_at=started_at, ended_at=ended_at, duration_minutes=duration_minutes)
         self.validate_duration(resolved_duration)
         self.validate_not_future(work_date)
-        self.assert_ticket_ownership(resource_id, ticket, tickets_repo, allow_any)
+        self.assert_ticket_ownership(resource_id, ticket, tickets_repo, allow_any,
+                                     is_task=is_task, resources_repo=resources_repo)
         self.assert_ticket_open_or_admin(ticket, allow_any)
         self.assert_daily_limit(resource_id, work_date, resolved_duration, work_sessions_repo)
         work_session = WorkSession.create(

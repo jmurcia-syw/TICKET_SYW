@@ -25,15 +25,16 @@ def test_create_ticket_with_explicit_ticket_record_type_id(client, make_ticket):
     assert ticket["record_type_id"] == ticket_record_type["id"]
 
 
-def test_create_ticket_rejects_tarea_record_type(client, ticket_client):
+def test_create_ticket_with_tarea_record_type_is_allowed(client, ticket_client):
+    """Fase 1 rechazaba 'Tarea' (FR-030); Fase 3 (spec 008) la habilitó como record_type_id
+    creable — ver backend/tests/api/test_tickets_tasks.py para la cobertura completa."""
     tarea_record_type = _record_type_by_name(client, "Tarea")
     response = client.post("/api/tickets", json={
-        "title": "x", "description": "y", "ticket_type": "incident",
-        "priority": "high", "severity": "s2", "client_id": ticket_client["id"],
+        "title": "x", "description": "y", "client_id": ticket_client["id"],
         "record_type_id": tarea_record_type["id"],
     })
-    assert response.status_code == 409
-    assert response.get_json()["error"] == "record_type_not_allowed"
+    assert response.status_code == 201, response.get_json()
+    assert response.get_json()["record_type_id"] == tarea_record_type["id"]
 
 
 def test_deactivate_ticket_record_type_blocked_while_in_use(client, make_ticket):

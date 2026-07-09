@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tooltip, message } from 'antd'
-import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import type { ColumnsType, TableProps } from 'antd/es/table'
+import { useNavigate } from 'react-router-dom'
 import { projectService } from '../services/projectService'
 import { clientService } from '../services/clientService'
 import type { ProjectListItem, ProjectFormData } from '../types/project'
@@ -16,8 +17,10 @@ import { useAuthStore } from '../store/authStore'
 const ACTIVE_FILTER_OPTIONS = [{ text: 'Activo', value: 'true' }, { text: 'Inactivo', value: 'false' }]
 
 export default function ProjectsPage() {
+  const navigate = useNavigate()
   const { hasPermission } = useAuthStore()
   const canManage = hasPermission('projects', 'create') || hasPermission('projects', 'edit') || hasPermission('projects', 'deactivate')
+  const canManageLists = hasPermission('tickets', 'create')
 
   const [projects, setProjects] = useState<ProjectListItem[]>([])
   const [clients, setClients] = useState<ClientListItem[]>([])
@@ -124,6 +127,11 @@ export default function ProjectsPage() {
       title: 'Acciones', key: 'actions',
       render: (_: unknown, r: ProjectListItem) => (
         <Space>
+          {canManageLists && (
+            <Tooltip title="Listas de tareas">
+              <Button size="small" icon={<UnorderedListOutlined />} onClick={() => navigate(`/projects/${r.id}/lists`)} />
+            </Tooltip>
+          )}
           {canManage && <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} /></Tooltip>}
           {canManage && (r.active
             ? <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => setConfirmDeactivate(r.id)} /></Tooltip>

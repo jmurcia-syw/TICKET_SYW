@@ -11,7 +11,7 @@ import type { Resource } from '../types/resource'
 import { getKanbanTransition, reachableFrom } from '../config/kanbanTransitions'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
-import { avatarColor, initials, palette, TICKET_STATUS_CHIP } from '../theme'
+import { avatarColor, initials, palette, vivid, TICKET_STATUS_CHIP } from '../theme'
 import { useAuthStore } from '../store/authStore'
 
 // Estados activos del ciclo de vida (docs/PROPUESTA_VISUAL.html — "Vista Kanban").
@@ -49,6 +49,10 @@ export default function KanbanPage() {
   const [assignModal, setAssignModal] = useState<{ ticketId: string; mode: 'resolver' | 'pre_analysis' } | null>(null)
   const [commentModal, setCommentModal] = useState<{ ticketId: string; commentType: CommentType } | null>(null)
   const [commentBody, setCommentBody] = useState('')
+  /** Tarea/Subtarea (spec 009): transición libre — cualquier columna destino es válida, solo
+   * exige un comentario. A diferencia de Ticket, no pasa por `getKanbanTransition`. */
+  const [taskStatusModal, setTaskStatusModal] = useState<{ ticketId: string; to: TicketStatus } | null>(null)
+  const [taskStatusBody, setTaskStatusBody] = useState('')
   const [resolutionModal, setResolutionModal] = useState<{ ticketId: string } | null>(null)
   const [resolutionBody, setResolutionBody] = useState('El usuario rechazó la resolución')
   const [actionLoading, setActionLoading] = useState(false)
@@ -86,6 +90,13 @@ export default function KanbanPage() {
     const to = result.destination.droppableId as TicketStatus
     if (from === to) return
     const ticketId = result.draggableId
+
+    const dragged = columns?.[from]?.find(t => t.id === ticketId)
+    if (dragged?.record_type === 'Tarea') {
+      setTaskStatusBody('')
+      setTaskStatusModal({ ticketId, to })
+      return
+    }
 
     const transition = getKanbanTransition(from, to)
     if (!transition) {
@@ -140,6 +151,25 @@ export default function KanbanPage() {
       load()
     } catch (err: unknown) {
       message.error(apiError(err, 'No se pudo registrar el comentario'))
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const submitTaskStatusChange = async () => {
+    if (!taskStatusModal) return
+    if (!taskStatusBody.trim()) {
+      message.warning('El comentario es obligatorio para cambiar el estado')
+      return
+    }
+    setActionLoading(true)
+    try {
+      await ticketService.changeStatus(taskStatusModal.ticketId, taskStatusModal.to, taskStatusBody)
+      message.success('Estado de la Tarea actualizado')
+      setTaskStatusModal(null)
+      load()
+    } catch (err: unknown) {
+      message.error(apiError(err, 'No se pudo cambiar el estado'))
     } finally {
       setActionLoading(false)
     }
@@ -246,8 +276,18 @@ export default function KanbanPage() {
                                   ...dragProvided.draggableProps.style,
                                 }}
                               >
-                                <div style={{ fontSize: 11, fontWeight: 700, color: palette.slate400, marginBottom: 2 }}>
-                                  {t.ticket_number}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: palette.slate400 }}>
+                                    {t.ticket_number}
+                                  </span>
+                                  {t.record_type === 'Tarea' && (
+                                    <span style={{
+                                      fontSize: 10, fontWeight: 700, padding: '0 6px', borderRadius: 999,
+                                      background: vivid.purple.bg, color: vivid.purple.text,
+                                    }}>
+                                      Tarea
+                                    </span>
+                                  )}
                                 </div>
                                 <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, lineHeight: 1.3 }}>
                                   {t.title}
@@ -308,6 +348,18 @@ export default function KanbanPage() {
       >
         <Input.TextArea rows={4} value={commentBody} onChange={e => setCommentBody(e.target.value)}
           placeholder="Escribe el comentario que respalda este cambio de estado..." autoFocus />
+      </Modal>
+
+      <Modal
+        title={taskStatusModal ? `Cambiar estado a "${STATUS_LABELS[taskStatusModal.to]}"` : ''}
+        open={!!taskStatusModal}
+        onCancel={() => setTaskStatusModal(null)}
+        confirmLoading={actionLoading}
+        onOk={submitTaskStatusChange}
+        okText="Confirmar"
+      >
+        <Input.TextArea rows={4} value={taskStatusBody} onChange={e => setTaskStatusBody(e.target.value)}
+          placeholder="Comentario obligatorio que documenta el cambio de estado..." autoFocus />
       </Modal>
 
       <Modal

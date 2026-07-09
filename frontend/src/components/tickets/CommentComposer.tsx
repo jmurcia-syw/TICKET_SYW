@@ -22,10 +22,13 @@ interface CommentComposerProps {
   ticket: TicketDetail
   resolutionTypes: CatalogItem[]
   onUpdated: () => void
+  /** Tarea/Subtarea (spec 009): sin tipos tipificados ni acciones de Ticket — el cambio de
+   * estado se hace por `TaskStatusChanger`, este composer solo registra comentarios simples. */
+  restrictToInternal?: boolean
 }
 
 /** Composer de comentarios tipificados + botones de acciones de estado (US3). */
-export default function CommentComposer({ ticket, resolutionTypes, onUpdated }: CommentComposerProps) {
+export default function CommentComposer({ ticket, resolutionTypes, onUpdated, restrictToInternal }: CommentComposerProps) {
   const { hasPermission } = useAuthStore()
   const [commentType, setCommentType] = useState<CommentType>('comentario_interno')
   const [body, setBody] = useState('')
@@ -52,7 +55,7 @@ export default function CommentComposer({ ticket, resolutionTypes, onUpdated }: 
     setSending(true)
     try {
       const rawFiles = files.map(f => f.originFileObj).filter((f): f is NonNullable<typeof f> => !!f)
-      await ticketService.addComment(ticket.id, commentType, body, rawFiles)
+      await ticketService.addComment(ticket.id, restrictToInternal ? 'comentario_interno' : commentType, body, rawFiles)
       setBody(''); setFiles([]); setCommentType('comentario_interno')
       message.success('Comentario registrado')
       onUpdated()
@@ -71,6 +74,24 @@ export default function CommentComposer({ ticket, resolutionTypes, onUpdated }: 
     } catch (err: unknown) {
       message.error(apiError(err, 'La acción no pudo completarse'))
     }
+  }
+
+  if (restrictToInternal) {
+    return (
+      <Space direction="vertical" style={{ width: '100%' }}>
+        <Input.TextArea rows={3} value={body} onChange={e => setBody(e.target.value)}
+          placeholder="Escribe un comentario..." />
+        <Space>
+          <Upload multiple beforeUpload={() => false} fileList={files}
+            onChange={({ fileList }) => setFiles(fileList)}>
+            <Button icon={<UploadOutlined />}>Adjuntar (máx 10 MB c/u)</Button>
+          </Upload>
+          <Button type="primary" icon={<SendOutlined />} loading={sending} onClick={send}>
+            Registrar comentario
+          </Button>
+        </Space>
+      </Space>
+    )
   }
 
   if (isFinal) {

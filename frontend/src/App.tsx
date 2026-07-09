@@ -6,6 +6,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
 import ClientsPage from './pages/ClientsPage'
 import ProjectsPage from './pages/ProjectsPage'
+import ProjectListsPage from './pages/ProjectListsPage'
 import TeamPage from './pages/TeamPage'
 import SkillsPage from './pages/SkillsPage'
 import RolesPermissionsPage from './pages/RolesPermissionsPage'
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="reporte-tiempos" element={<ProtectedRoute requiredPermission={{ module: 'work_sessions', action: 'view_own' }}><TimeReportPage /></ProtectedRoute>} />
         <Route path="clients" element={<ProtectedRoute requiredPermission={{ module: 'clients', action: 'view' }}><ClientsPage /></ProtectedRoute>} />
         <Route path="projects" element={<ProtectedRoute requiredPermission={{ module: 'projects', action: 'view' }}><ProjectsPage /></ProtectedRoute>} />
+        <Route path="projects/:projectId/lists" element={<ProtectedRoute requiredPermission={{ module: 'tickets', action: 'create' }}><ProjectListsPage /></ProtectedRoute>} />
         <Route path="team" element={<ProtectedRoute requiredPermission={{ module: 'resources', action: 'view' }}><TeamPage /></ProtectedRoute>} />
         <Route path="resources" element={<Navigate to="/team" replace />} />
         <Route path="users" element={<Navigate to="/team" replace />} />
