@@ -4,19 +4,23 @@ import {
   UserSwitchOutlined, SaveOutlined, ClockCircleOutlined,
   FieldTimeOutlined, PlayCircleOutlined, HistoryOutlined, UnorderedListOutlined,
 } from '@ant-design/icons'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
 import { catalogService } from '../services/catalogService'
 import { clientContactService } from '../services/clientContactService'
-import type { TicketDetail, Priority, Severity } from '../types/ticket'
+import { taskListService } from '../services/taskListService'
+import type { TicketDetail, TicketListItem, Priority, Severity } from '../types/ticket'
 import { PRIORITY_LABELS, SEVERITY_LABELS, TICKET_TYPE_LABELS, formatMinutes } from '../types/ticket'
 import type { ConsumptionLevel } from '../types/workSession'
 import type { CatalogItem } from '../types/catalog'
 import type { ClientContact } from '../types/clientContact'
+import type { TaskList } from '../types/taskList'
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import CommentThread from '../components/tickets/CommentThread'
 import CommentComposer from '../components/tickets/CommentComposer'
+import TaskStatusChanger from '../components/tickets/TaskStatusChanger'
+import SubtaskList from '../components/tickets/SubtaskList'
 import AssignModal from '../components/tickets/AssignModal'
 import TicketWorkSessions from '../components/worksessions/TicketWorkSessions'
 import TicketBreadcrumb from '../components/tickets/TicketBreadcrumb'
@@ -41,6 +45,7 @@ const CONSUMPTION_LABEL: Record<ConsumptionLevel, string> = {
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { hasPermission } = useAuthStore()
   const canAssign = hasPermission('tickets', 'assign')
   const canEdit = hasPermission('tickets', 'edit')
@@ -54,6 +59,10 @@ export default function TicketDetailPage() {
   const [severity, setSeverity] = useState<Severity>()
   const [contacts, setContacts] = useState<ClientContact[]>([])
   const [clientContactId, setClientContactId] = useState<string | undefined>()
+  const [taskLists, setTaskLists] = useState<TaskList[]>([])
+  const [listId, setListId] = useState<string | undefined>()
+  const [relatedOptions, setRelatedOptions] = useState<TicketListItem[]>([])
+  const [relatedTicketId, setRelatedTicketId] = useState<string | undefined>()
   /** Revelado fluido del resumen de tiempo (Fase 2.2, US1 FR-004/FR-005): expandido por defecto
    * y al cerrar el modal de tiempo; se colapsa al hacer scroll hacia abajo, se re-expande al
    * volver a scrollear hacia arriba (ver research.md Decisión 2). */
@@ -85,6 +94,8 @@ export default function TicketDetailPage() {
       setPriority(data.priority)
       setSeverity(data.severity)
       setClientContactId(data.client_contact_id ?? undefined)
+      setListId(data.list_id ?? undefined)
+      setRelatedTicketId(data.related_ticket_id ?? undefined)
     } catch {
       message.error('No se pudo cargar el ticket')
     }
@@ -101,8 +112,16 @@ export default function TicketDetailPage() {
     if (ticket?.client?.id) {
       clientContactService.list({ client_id: ticket.client.id, page_size: 100 }).then(r => setContacts(r.items))
         .catch(() => message.error('No se pudo cargar la lista de encargados'))
+      ticketService.list({ client_id: ticket.client.id, page_size: 100 }).then(r => setRelatedOptions(r.items))
+        .catch(() => message.error('No se pudo cargar la lista de registros del cliente'))
     }
   }, [ticket?.client?.id])
+  useEffect(() => {
+    if (ticket?.project?.id) {
+      taskListService.listByProject(ticket.project.id).then(setTaskLists)
+        .catch(() => message.error('No se pudo cargar la lista de Listas del proyecto'))
+    }
+  }, [ticket?.project?.id])
 
   if (!ticket) return <Spin style={{ display: 'block', margin: '80px auto' }} />
 
@@ -112,6 +131,12 @@ export default function TicketDetailPage() {
    * todavía no hay ninguna. */
   const encargadoAutoDerivado = !ticket.client_contact_id && !!ticket.requester?.is_encargado
   const encargadoEditable = canEdit && !locked.has('client_contact_id') && !encargadoAutoDerivado
+  /** spec 009: Tarea comparte el mismo ciclo de vida y campos de clasificación que Ticket
+   * (revierte la spec 008) — isTask solo cambia el composer de estado y habilita Lista/Subtareas. */
+  const isTask = recordTypes.find(rt => rt.id === ticket.record_type_id)?.name === 'Tarea'
+  const isSubtask = isTask && !!ticket.parent_task_id
+  const listEditable = canEdit && isTask && !locked.has('list_id') && !isSubtask
+  const projectTaskLists = taskLists.filter(l => l.project_id === ticket.project?.id)
 
   const saveEditable = async () => {
     try {
@@ -122,6 +147,8 @@ export default function TicketDetailPage() {
       if (!locked.has('priority')) payload.priority = priority
       if (!locked.has('severity')) payload.severity = severity
       if (encargadoEditable) payload.client_contact_id = clientContactId ?? null
+      if (listEditable) payload.list_id = listId ?? null
+      if (!locked.has('related_ticket_id')) payload.related_ticket_id = relatedTicketId ?? null
       await ticketService.update(ticket.id, payload)
       message.success('Ticket actualizado')
       load()
@@ -140,8 +167,9 @@ export default function TicketDetailPage() {
         </span>
         <h2 style={{ margin: 0 }}>{ticket.title}</h2>
         <TicketStatusTag status={ticket.status} />
+        {isTask && <Tag>{isSubtask ? 'Subtarea' : 'Tarea'}</Tag>}
         <PriorityBadge priority={ticket.priority} full />
-        {canAssign && (ticket.status === 'nuevo' || ticket.status === 'pre_analisis') && (
+        {canAssign && !isTask && (ticket.status === 'nuevo' || ticket.status === 'pre_analisis') && (
           <Button type="primary" icon={<UserSwitchOutlined />} onClick={() => setAssignOpen(true)}>
             Asignar (Triage)
           </Button>
@@ -172,10 +200,17 @@ export default function TicketDetailPage() {
             />
           </Card>
 
-          <Card title="Comentarios y acciones" size="small" style={{ marginTop: 16 }}>
+          <Card title={isTask ? 'Estado y comentarios' : 'Comentarios y acciones'} size="small" style={{ marginTop: 16 }}>
+            {isTask && (
+              <>
+                <TaskStatusChanger ticket={ticket} onUpdated={load} />
+                <Divider style={{ margin: '12px 0' }} />
+              </>
+            )}
             <CommentThread ticketId={ticket.id} comments={ticket.comments} />
             <Divider style={{ margin: '12px 0' }} />
-            <CommentComposer ticket={ticket} resolutionTypes={resolutionTypes} onUpdated={load} />
+            <CommentComposer ticket={ticket} resolutionTypes={resolutionTypes} onUpdated={load}
+              restrictToInternal={isTask} />
           </Card>
 
           <Card title="Historial de estados" size="small" style={{ marginTop: 16 }}>
@@ -192,7 +227,7 @@ export default function TicketDetailPage() {
           </Card>
         </Col>
 
-        {/* ── Sidebar: SLA / Focus Room / Subtareas (placeholders) + clasificación ── */}
+        {/* ── Sidebar: SLA / Focus Room / Subtareas + clasificación ── */}
         <Col xs={24} lg={10}>
           <Card
             size="small"
@@ -257,17 +292,49 @@ export default function TicketDetailPage() {
                   <em style={{ color: palette.slate400 }}>Sin encargado asignado</em>
                 )}
               </Descriptions.Item>
-              <Descriptions.Item label="Lista">
-                <Tooltip title="Organización en listas — llega en Fase 3 (Manejo de Tareas)">
-                  <span style={{ color: palette.slate400 }}>
-                    Sin asignar <Tag style={{ marginLeft: 4 }}>Próximamente</Tag>
-                  </span>
-                </Tooltip>
-              </Descriptions.Item>
+              {isTask && (
+                <Descriptions.Item label="Lista">
+                  {listEditable
+                    ? <Select size="small" allowClear placeholder="Sin lista" style={{ width: 200 }}
+                        value={listId} onChange={setListId}
+                        options={projectTaskLists.map(l => ({ value: l.id, label: l.name }))} />
+                    : (ticket.list_name || <em style={{ color: palette.slate400 }}>Sin lista</em>)}
+                </Descriptions.Item>
+              )}
               <Descriptions.Item label="Proyecto">{ticket.project?.name ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="Tipo de registro">
                 {recordTypes.find(rt => rt.id === ticket.record_type_id)?.name ?? '—'}
               </Descriptions.Item>
+              <Descriptions.Item label="Registro relacionado">
+                {canEdit && !locked.has('related_ticket_id') ? (
+                  <Select
+                    size="small" allowClear showSearch optionFilterProp="label"
+                    placeholder="Sin registro relacionado" style={{ width: 220 }}
+                    value={relatedTicketId} onChange={setRelatedTicketId}
+                    options={relatedOptions.filter(t => t.id !== ticket.id)
+                      .map(t => ({ value: t.id, label: `${t.ticket_number} — ${t.title}` }))}
+                  />
+                ) : ticket.related_ticket_id ? (
+                  <Button type="link" size="small" style={{ padding: 0, height: 'auto' }}
+                    onClick={() => navigate(`/tickets/${ticket.related_ticket_id}`)}>
+                    Ver registro relacionado
+                  </Button>
+                ) : (
+                  <em style={{ color: palette.slate400 }}>Sin registro relacionado</em>
+                )}
+              </Descriptions.Item>
+              {ticket.related_from.length > 0 && (
+                <Descriptions.Item label="Referenciado por">
+                  <Space direction="vertical" size={2}>
+                    {ticket.related_from.map(r => (
+                      <Button key={r.id} type="link" size="small" style={{ padding: 0, height: 'auto' }}
+                        onClick={() => navigate(`/tickets/${r.id}`)}>
+                        {r.ticket_number} — {r.title} ({r.record_type})
+                      </Button>
+                    ))}
+                  </Space>
+                </Descriptions.Item>
+              )}
               <Descriptions.Item label="Tipo">{TICKET_TYPE_LABELS[ticket.ticket_type]}</Descriptions.Item>
               <Descriptions.Item label="Nivel de escalamiento">{ticket.escalation_level.toUpperCase()}</Descriptions.Item>
               <Descriptions.Item label="Asignado">{ticket.assignee?.full_name ?? 'Sin asignar'}</Descriptions.Item>
@@ -316,27 +383,22 @@ export default function TicketDetailPage() {
                 <Descriptions.Item label="Cerrado">{new Date(ticket.closed_at).toLocaleString('es-CO')}</Descriptions.Item>
               )}
             </Descriptions>
-            {canEdit && (!locked.has('priority') || !locked.has('severity') || !locked.has('estimated_resolution_minutes') || encargadoEditable) && (
+            {canEdit && (!locked.has('priority') || !locked.has('severity') || !locked.has('estimated_resolution_minutes') || !locked.has('related_ticket_id') || encargadoEditable || listEditable) && (
               <Button size="small" icon={<SaveOutlined />} onClick={saveEditable} style={{ marginTop: 8 }}>
                 Guardar cambios
               </Button>
             )}
           </Card>
 
-          <Card
-            size="small"
-            title={<span><UnorderedListOutlined style={{ color: palette.slate400, marginRight: 8 }} />Subtareas</span>}
-            style={{ marginTop: 16, borderColor: palette.slate200, background: palette.slate50 }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: palette.slate400 }}>
-                Este ticket todavía no admite subtareas
-              </span>
-              <Tooltip title="Desglose en subtareas — llega en Fase 3 (Manejo de Tareas)">
-                <Tag>Próximamente · Fase 3</Tag>
-              </Tooltip>
-            </div>
-          </Card>
+          {isTask && !isSubtask && (
+            <Card
+              size="small"
+              title={<span><UnorderedListOutlined style={{ color: palette.slate400, marginRight: 8 }} />Subtareas</span>}
+              style={{ marginTop: 16, borderColor: palette.slate200, background: palette.slate50 }}
+            >
+              <SubtaskList ticket={ticket} onUpdated={load} />
+            </Card>
+          )}
         </Col>
       </Row>
 

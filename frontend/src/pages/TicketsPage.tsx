@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Form, Input, Modal, Row, Col, Select, Space, Table, Tooltip, message } from 'antd'
+import { Button, Form, Input, Modal, Row, Col, Segmented, Select, Space, Table, Tooltip, message } from 'antd'
 import {
   PlusOutlined, EyeOutlined, UserSwitchOutlined, InboxOutlined, ThunderboltOutlined,
   ClockCircleOutlined, CheckCircleOutlined, FieldTimeOutlined,
@@ -12,6 +12,7 @@ import { projectService } from '../services/projectService'
 import { clientContactService } from '../services/clientContactService'
 import { catalogService } from '../services/catalogService'
 import { resourceService } from '../services/resourceService'
+import { taskListService } from '../services/taskListService'
 import type {
   TicketListItem, TicketFormData, TicketStatus, Priority, Severity,
 } from '../types/ticket'
@@ -21,6 +22,7 @@ import type { ClientListItem } from '../types/client'
 import type { ProjectListItem } from '../types/project'
 import type { Resource } from '../types/resource'
 import type { ClientContact } from '../types/clientContact'
+import type { TaskList } from '../types/taskList'
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
@@ -68,8 +70,15 @@ export default function TicketsPage() {
   const [resources, setResources] = useState<Resource[]>([])
   const [recordTypes, setRecordTypes] = useState<CatalogItem[]>([])
   const [formOpen, setFormOpen] = useState(false)
+  const [taskLists, setTaskLists] = useState<TaskList[]>([])
   const [form] = Form.useForm<TicketFormData>()
   const selectedClientId = Form.useWatch('client_id', form)
+  const selectedProjectId = Form.useWatch('project_id', form)
+  const selectedRecordTypeId = Form.useWatch('record_type_id', form)
+  /** Fase 3: "Tarea" oculta la clasificación de incidente y muestra "Lista" (FR-001/002/010).
+   * spec 009: el formulario reducido se mantiene (Assumptions) — solo cambia "Lista" de texto
+   * libre a una entidad real (`list_id`, acotada al Proyecto elegido). */
+  const isTaskSelected = recordTypes.find(rt => rt.id === selectedRecordTypeId)?.name === 'Tarea'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -118,12 +127,12 @@ export default function TicketsPage() {
       .catch(() => message.error('No se pudo cargar el catálogo de procesos'))
     resourceService.list({ active: true, page_size: 100 }).then(r => setResources(r.items))
       .catch(() => message.error('No se pudo cargar la lista de recursos'))
-    // Solo "Ticket" es creable en esta fase (FR-030); "Tarea" queda reservado para Fase 3
-    // aunque el catálogo ya lo tenga sembrado.
+    // Fase 3: "Ticket" y "Tarea" son ambos creables — el default al abrir el form es "Ticket"
+    // (no el primero alfabético, que sería "Tarea").
     catalogService.list('record-types').then(r => {
-      const creatable = r.items.filter(rt => rt.name === 'Ticket')
-      setRecordTypes(creatable)
-      if (creatable[0]) form.setFieldValue('record_type_id', creatable[0].id)
+      setRecordTypes(r.items)
+      const ticketType = r.items.find(rt => rt.name === 'Ticket') ?? r.items[0]
+      if (ticketType) form.setFieldValue('record_type_id', ticketType.id)
     }).catch(() => message.error('No se pudo cargar el catálogo de tipo de registro'))
   }, [form, isEncargado])
 
@@ -144,6 +153,16 @@ export default function TicketsPage() {
       setContacts([])
     }
   }, [selectedClientId, form])
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      taskListService.listByProject(selectedProjectId).then(setTaskLists)
+        .catch(() => message.error('No se pudo cargar la lista de Listas del proyecto'))
+      form.setFieldValue('list_id', undefined)
+    } else {
+      setTaskLists([])
+    }
+  }, [selectedProjectId, form])
 
   const handleCreate = async (values: TicketFormData) => {
     try {
@@ -283,7 +302,8 @@ export default function TicketsPage() {
         action={canCreate && (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => {
             form.resetFields()
-            if (!isEncargado && recordTypes[0]) form.setFieldValue('record_type_id', recordTypes[0].id)
+            const ticketType = recordTypes.find(rt => rt.name === 'Ticket') ?? recordTypes[0]
+            if (!isEncargado && ticketType) form.setFieldValue('record_type_id', ticketType.id)
             setFormOpen(true)
           }}>
             Nuevo ticket
@@ -305,6 +325,10 @@ export default function TicketsPage() {
             <Input.TextArea rows={3} />
           </Form.Item>
           {!isEncargado && <>
+            <Form.Item name="record_type_id" label="Tipo de registro"
+              rules={[{ required: true, message: 'Selecciona el tipo de registro' }]}>
+              <Segmented options={recordTypes.map(rt => ({ value: rt.id, label: rt.name }))} />
+            </Form.Item>
             <Space style={{ display: 'flex' }} align="start" wrap>
               <Form.Item name="client_id" label="Cliente" rules={[{ required: true, message: 'El cliente es requerido' }]}>
                 <Select showSearch optionFilterProp="label" placeholder="Cliente" style={{ width: 220 }}
@@ -322,37 +346,41 @@ export default function TicketsPage() {
                 } disabled={!selectedClientId || contacts.length === 0} style={{ width: 220 }}
                   options={contacts.map(c => ({ value: c.id, label: c.username }))} />
               </Form.Item>
+              {isTaskSelected && (
+                <Form.Item name="list_id" label="Lista (opcional)">
+                  <Select allowClear placeholder={selectedProjectId ? 'Lista' : 'Elige proyecto primero'}
+                    disabled={!selectedProjectId} style={{ width: 200 }}
+                    options={taskLists.map(l => ({ value: l.id, label: l.name }))} />
+                </Form.Item>
+              )}
             </Space>
-            <Space style={{ display: 'flex' }} align="start" wrap>
-              <Form.Item name="record_type_id" label="Tipo de registro"
-                rules={[{ required: true, message: 'Selecciona el tipo de registro' }]}>
-                <Select style={{ width: 130 }}
-                  options={recordTypes.map(rt => ({ value: rt.id, label: rt.name }))} />
-              </Form.Item>
-              <Form.Item name="ticket_type" label="Tipo" rules={[{ required: true }]}>
-                <Select style={{ width: 130 }} options={typeOptions} />
-              </Form.Item>
-              <Form.Item name="priority" label="Prioridad" rules={[{ required: true }]}>
-                <Select style={{ width: 110 }} options={priorityOptions} />
-              </Form.Item>
-              <Form.Item name="severity" label="Severidad" rules={[{ required: true }]}>
-                <Select style={{ width: 100 }} options={severityOptions} />
-              </Form.Item>
-              <Form.Item name="escalation_level" label="Nivel">
-                <Select style={{ width: 90 }}
-                  options={['n1', 'n2', 'n3', 'n4'].map(v => ({ value: v, label: v.toUpperCase() }))} />
-              </Form.Item>
-            </Space>
-            <Space style={{ display: 'flex' }} align="start">
-              <Form.Item name="tool_id" label="Herramienta">
-                <Select allowClear placeholder="Herramienta" style={{ width: 200 }}
-                  options={tools.map(t => ({ value: t.id, label: t.name }))} />
-              </Form.Item>
-              <Form.Item name="process_id" label="Proceso">
-                <Select allowClear placeholder="Proceso" style={{ width: 200 }}
-                  options={processes.map(p => ({ value: p.id, label: p.name }))} />
-              </Form.Item>
-            </Space>
+            <>
+              <Space style={{ display: 'flex' }} align="start" wrap>
+                <Form.Item name="ticket_type" label="Tipo" rules={isTaskSelected ? [] : [{ required: true }]}>
+                  <Select style={{ width: 130 }} options={typeOptions} allowClear={isTaskSelected} />
+                </Form.Item>
+                <Form.Item name="priority" label="Prioridad" rules={isTaskSelected ? [] : [{ required: true }]}>
+                  <Select style={{ width: 110 }} options={priorityOptions} allowClear={isTaskSelected} />
+                </Form.Item>
+                <Form.Item name="severity" label="Severidad" rules={isTaskSelected ? [] : [{ required: true }]}>
+                  <Select style={{ width: 100 }} options={severityOptions} allowClear={isTaskSelected} />
+                </Form.Item>
+                <Form.Item name="escalation_level" label="Nivel">
+                  <Select style={{ width: 90 }} allowClear={isTaskSelected}
+                    options={['n1', 'n2', 'n3', 'n4'].map(v => ({ value: v, label: v.toUpperCase() }))} />
+                </Form.Item>
+              </Space>
+              <Space style={{ display: 'flex' }} align="start">
+                <Form.Item name="tool_id" label="Herramienta">
+                  <Select allowClear placeholder="Herramienta" style={{ width: 200 }}
+                    options={tools.map(t => ({ value: t.id, label: t.name }))} />
+                </Form.Item>
+                <Form.Item name="process_id" label="Proceso">
+                  <Select allowClear placeholder="Proceso" style={{ width: 200 }}
+                    options={processes.map(p => ({ value: p.id, label: p.name }))} />
+                </Form.Item>
+              </Space>
+            </>
           </>}
         </Form>
       </Modal>

@@ -15,9 +15,15 @@ from backend.api.routes._shared import parse_uuid, error_model, server_error
 from backend.domain.errors import DomainError
 from backend.domain.services.work_session_service import WorkSessionService
 from backend.infra.database import get_db
+from backend.infra.repositories.catalog_repo import CatalogRepository
 from backend.infra.repositories.resource_repo import ResourceRepository
 from backend.infra.repositories.ticket_repo import TicketRepository
 from backend.infra.repositories.work_session_repo import WorkSessionRepository
+
+
+def _is_task(ticket, db) -> bool:
+    record_type = CatalogRepository(db, "record-types").get_by_id(ticket.record_type_id)
+    return bool(record_type and record_type["name"] == "Tarea")
 
 ns = Namespace("work-sessions", description="Registro diario de tiempos por recurso",
               path="/api/work-sessions")
@@ -232,7 +238,8 @@ class WorkSessionList(Resource):
                 duration_minutes=duration_minutes, created_by=g.current_user.id,
                 work_sessions_repo=WorkSessionRepository(db), tickets_repo=TicketRepository(db),
                 note=data.get("note"), started_at=started_at, ended_at=ended_at,
-                allow_any=allow_any,
+                allow_any=allow_any, is_task=_is_task(ticket, db),
+                resources_repo=ResourceRepository(db),
             )
             return _serialize(created, db), 201, {"Location": f"/api/work-sessions/{created.id}"}
         except DomainError as e:

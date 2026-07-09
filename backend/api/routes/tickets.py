@@ -13,7 +13,7 @@ from flask_restx import Namespace, Resource, fields
 from backend.api.middleware.rbac import require_permission, require_authenticated, current_user_has
 from backend.api.routes._shared import parse_uuid, error_model, server_error
 from backend.domain.entities.comment import Comment, Attachment, COMMENT_TYPE_LABELS
-from backend.domain.entities.ticket import Ticket, STATUS_LABELS
+from backend.domain.entities.ticket import Ticket, STATUSES, STATUS_LABELS
 from backend.domain.errors import DomainError
 from backend.domain.fsm import ticket_fsm
 from backend.domain.services.assignment_service import AssignmentService
@@ -28,6 +28,7 @@ from backend.infra.repositories.comment_repo import CommentRepository
 from backend.infra.repositories.notification_repo import NotificationRepository
 from backend.infra.repositories.project_repo import ProjectRepository
 from backend.infra.repositories.resource_repo import ResourceRepository
+from backend.infra.repositories.task_list_repo import TaskListRepository
 from backend.infra.repositories.ticket_repo import TicketRepository
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.storage import attachments as attachment_storage
@@ -48,9 +49,12 @@ _error = error_model(ns, "TicketError")
 _ticket_input = ns.model("TicketInput", {
     "title": fields.String(required=True),
     "description": fields.String(required=True),
-    "ticket_type": fields.String(required=True, description="incident | evolutive | preventive"),
-    "priority": fields.String(required=True, description="critical | high | medium | low"),
-    "severity": fields.String(required=True, description="s1 | s2 | s3 | s4"),
+    "ticket_type": fields.String(description="incident | evolutive | preventive — requerido "
+                                              "salvo que record_type_id resuelva a 'Tarea', "
+                                              "donde es opcional (se defaultea si se omite)"),
+    "priority": fields.String(description="critical | high | medium | low — mismo criterio "
+                                          "que ticket_type"),
+    "severity": fields.String(description="s1 | s2 | s3 | s4 — mismo criterio que ticket_type"),
     "client_id": fields.String(required=True),
     "project_id": fields.String(description="Opcional: proyecto activo del cliente"),
     "client_contact_id": fields.String(description="Opcional: Encargado solicitante — debe "
@@ -58,9 +62,16 @@ _ticket_input = ns.model("TicketInput", {
     "tool_id": fields.String(description="Catálogo herramienta"),
     "process_id": fields.String(description="Catálogo proceso"),
     "record_type_id": fields.String(description="Catálogo tipo de registro (default: valor "
-                                                  "'Ticket'; 'Tarea' rechazado, reservado Fase 3)"),
+                                                  "'Ticket'; 'Tarea' habilitado desde Fase 3)"),
     "escalation_level": fields.String(description="n1..n4 (default n2)"),
-    "related_ticket_id": fields.String(description="Ticket relacionado"),
+    "related_ticket_id": fields.String(description="Registro relacionado (Ticket o Tarea) — "
+                                                     "debe pertenecer al mismo client_id"),
+    "list_id": fields.String(description="Lista de tareas del mismo Proyecto (spec 009, solo "
+                                          "tiene efecto en una Tarea)"),
+    "parent_task_id": fields.String(description="Marca el registro como Subtarea de la Tarea "
+                                                 "indicada (spec 009, Nivel 5)"),
+    "assignee_id": fields.String(description="Encargado de la Tarea/Subtarea (opcional; "
+                                              "default: el propio creador, spec 008 Decisión 7)"),
 })
 
 _assign_input = ns.model("TicketAssignInput", {
@@ -91,6 +102,13 @@ _cancel_input = ns.model("TicketCancelInput", {
     "body": fields.String(required=True, description="Motivo de la cancelación"),
 })
 
+_status_change_input = ns.model("StatusChangeInput", {
+    "status": fields.String(required=True, description="Uno de los 10 valores del catálogo "
+                                                        "compartido con Ticket"),
+    "comment": fields.String(required=True, description="Comentario obligatorio que documenta "
+                                                         "el cambio de estado"),
+})
+
 _entity_ref = ns.model("EntityRef", {
     "id": fields.String(description="UUID"),
     "name": fields.String(description="Nombre"),
@@ -116,6 +134,12 @@ _ticket_out = ns.model("Ticket", {
     "project": fields.Nested(_entity_ref, allow_null=True),
     "assignee": fields.Nested(_resource_ref, allow_null=True),
     "estimated_resolution_minutes": fields.Integer(allow_null=True),
+    "list_name": fields.String(allow_null=True, description="Nombre de la Lista resuelto "
+                                                              "(spec 009, solo Tarea)"),
+    "list_id": fields.String(allow_null=True, description="UUID de la Lista (spec 009)"),
+    "record_type": fields.String(description="Ticket | Tarea (nombre resuelto)"),
+    "parent_task_id": fields.String(allow_null=True, description="Si no es null, este "
+                                                                  "registro es una Subtarea"),
     "created_at": fields.String(description="Fecha de creación ISO-8601"),
 })
 
@@ -176,12 +200,25 @@ _requester_out = ns.model("TicketRequester", {
     "is_encargado": fields.Boolean(description="true si el solicitante tiene rol Encargado"),
 })
 
+_related_from_out = ns.model("RelatedFromItem", {
+    "id": fields.String(description="UUID"),
+    "ticket_number": fields.String(),
+    "title": fields.String(),
+    "record_type": fields.String(description="Ticket | Tarea"),
+})
+
 _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "description": fields.String(),
     "tool_id": fields.String(allow_null=True),
     "process_id": fields.String(allow_null=True),
     "resolution_type_id": fields.String(allow_null=True),
     "related_ticket_id": fields.String(allow_null=True),
+    "related_from": fields.List(fields.Nested(_related_from_out),
+                                description="Registros que referencian a este como Registro "
+                                            "relacionado (Fase 3, FR-006)"),
+    "subtasks": fields.List(fields.Nested(_ticket_out),
+                            description="Subtareas (Nivel 5) — solo poblado en una Tarea "
+                                        "(Nivel 4); vacío para Ticket y para Subtarea (spec 009)"),
     "created_by": fields.String(description="UUID de quien creó el ticket"),
     "client_contact_id": fields.String(allow_null=True,
                                        description="Encargado solicitante asignado manualmente "
@@ -195,7 +232,11 @@ _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "closed_at": fields.String(allow_null=True),
     "locked_fields": fields.List(fields.String(), description="Campos no editables en el estado actual (FR-010)"),
     "close_eligible": fields.Boolean(description="true si acepta cierre (aceptado o 3+ días resuelto)"),
-    "valid_actions": fields.List(fields.String(), description="Triggers FSM ejecutables desde el estado actual"),
+    "valid_actions": fields.List(fields.String(), description="Ticket: triggers FSM ejecutables "
+                                                               "desde el estado actual. Tarea/"
+                                                               "Subtarea: los demás 9 estados "
+                                                               "del catálogo (transición libre, "
+                                                               "spec 009)."),
     "comments": fields.List(fields.Nested(_comment_out)),
     "transitions": fields.List(fields.Nested(_transition_out)),
     "assignments": fields.List(fields.Nested(_assignment_out)),
@@ -263,6 +304,7 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
     client = ClientRepository(db).get_by_id(ticket.client_id)
     project = ProjectRepository(db).get_by_id(ticket.project_id) if ticket.project_id else None
     assignee = ResourceRepository(db).get_by_id(ticket.assignee_id) if ticket.assignee_id else None
+    task_list = TaskListRepository(db).get_by_id(ticket.list_id) if ticket.list_id else None
     return {
         "id": str(ticket.id),
         "ticket_number": ticket.number_display,
@@ -278,6 +320,10 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
         "project": {"id": str(project.id), "name": project.name} if project else None,
         "assignee": {"id": str(assignee.id), "full_name": assignee.full_name} if assignee else None,
         "estimated_resolution_minutes": ticket.estimated_resolution_minutes,
+        "list_name": task_list.name if task_list else None,
+        "list_id": str(ticket.list_id) if ticket.list_id else None,
+        "record_type": _record_type_name(ticket.record_type_id, db),
+        "parent_task_id": str(ticket.parent_task_id) if ticket.parent_task_id else None,
         "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
     }
 
@@ -299,8 +345,32 @@ def _requester(ticket: Ticket, db) -> dict | None:
             "is_encargado": creator.role.name == "Encargado"}
 
 
+def _is_task(ticket: Ticket, db) -> bool:
+    record_type = CatalogRepository(db, "record-types").get_by_id(ticket.record_type_id)
+    return bool(record_type and record_type["name"] == "Tarea")
+
+
+def _record_type_name(record_type_id, db) -> str:
+    record_type = CatalogRepository(db, "record-types").get_by_id(record_type_id)
+    return record_type["name"] if record_type else "Ticket"
+
+
+def _related_from(ticket: Ticket, db) -> list[dict]:
+    return [
+        {
+            "id": str(r.id), "ticket_number": r.number_display, "title": r.title,
+            "record_type": _record_type_name(r.record_type_id, db),
+        }
+        for r in TicketRepository(db).list_related_from(ticket.id)
+    ]
+
+
 def _ticket_detail(ticket: Ticket, db) -> dict:
     d = _ticket_summary(ticket, db)
+    is_task = _is_task(ticket, db)
+    is_subtask = is_task and ticket.parent_task_id is not None
+    subtasks = (TicketRepository(db).list_subtasks(ticket.id)
+                if is_task and not is_subtask else [])
     d.update({
         "description": ticket.description,
         "tool_id": str(ticket.tool_id) if ticket.tool_id else None,
@@ -308,6 +378,8 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
         "estimated_resolution_minutes": ticket.estimated_resolution_minutes,
         "resolution_type_id": str(ticket.resolution_type_id) if ticket.resolution_type_id else None,
         "related_ticket_id": str(ticket.related_ticket_id) if ticket.related_ticket_id else None,
+        "related_from": _related_from(ticket, db),
+        "subtasks": [_ticket_summary(s, db) for s in subtasks],
         "created_by": str(ticket.created_by),
         "client_contact_id": str(ticket.client_contact_id) if ticket.client_contact_id else None,
         "requester": _requester(ticket, db),
@@ -316,7 +388,8 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
         "closed_at": ticket.closed_at.isoformat() if ticket.closed_at else None,
         "locked_fields": ticket.locked_fields(),
         "close_eligible": _close_eligible(ticket),
-        "valid_actions": ticket_fsm.valid_triggers(ticket.status),
+        "valid_actions": [s for s in STATUSES if s != ticket.status] if is_task
+                          else ticket_fsm.valid_triggers(ticket.status),
         "comments": [_comment_to_dict(c) for c in CommentRepository(db).list_for_ticket(ticket.id)],
         "transitions": TicketRepository(db).list_transitions(ticket.id),
         "assignments": TicketRepository(db).list_assignments(ticket.id),
@@ -428,8 +501,14 @@ class TicketList(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "create")
     def post(self):
-        """Crear un ticket (nace en NUEVO con consecutivo, FR-001/002). Un Encargado solo envía
-        `title`/`description`: el resto se completa automáticamente (research.md Decisión 4)."""
+        """Crear un ticket, una Tarea o una Subtarea (FR-001/002; Fase 3; spec 009 FR-001..
+        FR-016). Un Encargado solo envía `title`/`description`: el resto se completa
+        automáticamente (research.md Decisión 4 de la spec 008) y nunca puede crear una Tarea.
+        Un registro no-Encargado con `record_type_id` de "Tarea" no está obligado a enviar
+        `ticket_type`/`priority`/`severity` (se defaultean en silencio si se omiten, spec 008
+        Decisión 1 — pero, a diferencia de la spec 008, si se envían se respetan) y nace en
+        estado "nuevo" como cualquier registro (spec 009 revierte el estado inicial "pendiente"
+        de la spec 008 — mismo catálogo compartido con Ticket)."""
         data = request.get_json(silent=True)
         if not data:
             return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
@@ -446,8 +525,9 @@ class TicketList(Resource):
             client_id = contact.client_id
             ticket_type, priority, severity = "incident", "medium", "s3"
             project_id = tool_id = process_id = related_id = record_type_id = client_contact_id = None
+            list_id = parent_task_id = None
         else:
-            for field_name in ("title", "description", "ticket_type", "priority", "severity", "client_id"):
+            for field_name in ("title", "description", "client_id"):
                 if not data.get(field_name):
                     return {"error": "validation_error", "message": f"El campo '{field_name}' es requerido"}, 400
             client_id = parse_uuid(data["client_id"])
@@ -459,8 +539,43 @@ class TicketList(Resource):
             record_type_id = parse_uuid(data["record_type_id"]) if data.get("record_type_id") else None
             related_id = parse_uuid(data["related_ticket_id"]) if data.get("related_ticket_id") else None
             client_contact_id = parse_uuid(data["client_contact_id"]) if data.get("client_contact_id") else None
-            ticket_type, priority, severity = data["ticket_type"], data["priority"], data["severity"]
+            list_id = parse_uuid(data["list_id"]) if data.get("list_id") else None
+            parent_task_id = parse_uuid(data["parent_task_id"]) if data.get("parent_task_id") else None
         try:
+            resolved_record_type_id = _svc.resolve_record_type(
+                record_type_id, CatalogRepository(db, "record-types"))
+            is_task = (not is_encargado) and _svc.is_task_record_type(
+                resolved_record_type_id, CatalogRepository(db, "record-types"))
+            if parent_task_id and not is_task:
+                return {"error": "validation_error",
+                        "message": "Solo una Tarea puede tener parent_task_id (Subtarea)"}, 400
+            task_assignee_id = None
+            if is_task:
+                ticket_type = data.get("ticket_type") or "incident"
+                priority = data.get("priority") or "medium"
+                severity = data.get("severity") or "s3"
+                # Encargado de la Tarea/Subtarea (spec 009 FR-015/FR-001): explícito si viene en
+                # el payload, si no se autoasigna al creador (spec 008 Decisión 7) para que
+                # aparezca de inmediato en "Mis Tareas" — sin esto quedaría huérfana, ya que
+                # create() nunca asigna un ticket por defecto (el Triage Push de un Ticket
+                # normal es un paso manual y deliberado, FR-002 Fase 1).
+                if data.get("assignee_id"):
+                    explicit_assignee_id = parse_uuid(str(data["assignee_id"]))
+                    if not explicit_assignee_id:
+                        return {"error": "validation_error", "message": "assignee_id inválido"}, 400
+                    assignee = ResourceRepository(db).get_by_id(explicit_assignee_id)
+                    if not assignee:
+                        return {"error": "not_found", "message": "El recurso indicado no existe"}, 404
+                    task_assignee_id = assignee.id
+                else:
+                    creator_resource = ResourceRepository(db).get_by_user_id(g.current_user.id)
+                    task_assignee_id = creator_resource.id if creator_resource else None
+            elif not is_encargado:
+                for field_name in ("ticket_type", "priority", "severity"):
+                    if not data.get(field_name):
+                        return {"error": "validation_error",
+                                "message": f"El campo '{field_name}' es requerido"}, 400
+                ticket_type, priority, severity = data["ticket_type"], data["priority"], data["severity"]
             _svc.validate_enums({"ticket_type": ticket_type, "priority": priority, "severity": severity})
             _svc.validate_create(
                 client_id=client_id, project_id=project_id, tool_id=tool_id,
@@ -471,19 +586,31 @@ class TicketList(Resource):
                 tickets_repo=TicketRepository(db),
                 client_contact_id=client_contact_id,
                 client_contacts_repo=ClientContactRepository(db),
+                list_id=list_id, task_lists_repo=TaskListRepository(db),
+                parent_task_id=parent_task_id,
             )
-            resolved_record_type_id = _svc.resolve_record_type(
-                record_type_id, CatalogRepository(db, "record-types"))
+            if parent_task_id:
+                parent_ticket = TicketRepository(db).get_by_id(parent_task_id)
+                if parent_ticket and not _is_task(parent_ticket, db):
+                    raise DomainError(
+                        "parent_task_mismatch",
+                        "La Tarea padre indicada es un Ticket, no una Tarea", status_code=409)
+                # Una Subtarea hereda la Lista de su Tarea padre en creación — no tiene Lista
+                # propia editable después (spec 009, Assumptions).
+                if parent_ticket and list_id is None:
+                    list_id = parent_ticket.list_id
             ticket = Ticket(
                 id=uuid.uuid4(), ticket_number=0,  # lo asigna la secuencia
                 title=str(data["title"]).strip(), description=str(data["description"]).strip(),
                 ticket_type=ticket_type, priority=priority,
                 severity=severity, client_id=client_id,
+                status="nuevo",
                 escalation_level=data.get("escalation_level") or "n2",
                 project_id=project_id, tool_id=tool_id, process_id=process_id,
                 record_type_id=resolved_record_type_id,
                 related_ticket_id=related_id, created_by=g.current_user.id,
-                client_contact_id=client_contact_id,
+                client_contact_id=client_contact_id, list_id=list_id,
+                parent_task_id=parent_task_id, assignee_id=task_assignee_id,
             )
             created = TicketRepository(db).create(ticket)
             return _ticket_detail(created, db), 201, {"Location": f"/api/tickets/{created.id}"}
@@ -545,6 +672,7 @@ class TicketDetail(Resource):
             clean = _svc.validate_patch(
                 ticket, dict(data),
                 client_contacts_repo=ClientContactRepository(db), users_repo=UserRepository(db),
+                tickets_repo=TicketRepository(db), task_lists_repo=TaskListRepository(db),
             )
             for uuid_field in ("tool_id", "process_id", "related_ticket_id"):
                 if uuid_field in clean and clean[uuid_field] is not None:
@@ -909,6 +1037,48 @@ class TicketCancel(Resource):
                                        g.current_user.id, comment_id=comment.id, commit=False)
             db.commit()
             updated = ticket_repo.get_by_id(ticket.id)
+            return _ticket_detail(updated, db), 200
+        except DomainError as e:
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
+
+
+@ns.route("/<string:ticket_id>/status")
+@ns.param("ticket_id", "UUID de la Tarea o Subtarea")
+class TicketStatusChange(Resource):
+    @ns.doc("change_task_status")
+    @ns.expect(_status_change_input, validate=False)
+    @ns.response(200, "Tarea/Subtarea actualizada", _ticket_detail_out)
+    @ns.response(400, "status ausente/desconocido, o comment vacío", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:transition", _error)
+    @ns.response(404, "Ticket/Tarea no encontrado", _error)
+    @ns.response(409, "El registro no es una Tarea (not_a_task)", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("tickets", "transition")
+    def patch(self, ticket_id: str):
+        """Transición libre de estado de una Tarea/Subtarea (spec 009, FR-003/FR-004): cualquier
+        estado del catálogo de 10 compartido con Ticket, sin restricción de secuencia, con
+        comentario obligatorio. Reemplaza `POST /{id}/task-transition` (spec 008, retirado)."""
+        data = request.get_json(silent=True) or {}
+        new_status = str(data.get("status", "")).strip()
+        comment = str(data.get("comment", "")).strip()
+        if not new_status:
+            return {"error": "validation_error", "message": "El campo 'status' es requerido"}, 400
+        try:
+            db = get_db()
+            ticket, err = _get_ticket_or_404(db, ticket_id)
+            if err:
+                return err
+            if not _is_task(ticket, db):
+                raise DomainError(
+                    "not_a_task", "Este registro es un Ticket, no una Tarea", status_code=409)
+            _svc.free_transition_task(
+                ticket, new_status, comment, g.current_user.id,
+                tickets_repo=TicketRepository(db), comments_repo=CommentRepository(db),
+            )
+            updated = TicketRepository(db).get_by_id(ticket.id)
             return _ticket_detail(updated, db), 200
         except DomainError as e:
             return {"error": e.code, "message": e.message, **e.extra}, e.status_code

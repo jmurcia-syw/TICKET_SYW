@@ -3,8 +3,9 @@ from typing import Optional
 import uuid
 
 from backend.domain.entities.ticket import (
-    Ticket, TICKET_TYPES, PRIORITIES, SEVERITIES, ESCALATION_LEVELS, locked_fields_for,
+    Ticket, STATUSES, TICKET_TYPES, PRIORITIES, SEVERITIES, ESCALATION_LEVELS, locked_fields_for,
 )
+from backend.domain.entities.comment import Comment
 from backend.domain.errors import DomainError
 
 
@@ -20,7 +21,7 @@ class TicketValidationError(DomainError):
 PATCHABLE_FIELDS = {
     "title", "description", "ticket_type", "priority", "severity",
     "escalation_level", "estimated_resolution_minutes", "tool_id", "process_id",
-    "related_ticket_id", "client_contact_id",
+    "related_ticket_id", "client_contact_id", "list_id",
 }
 
 _ENUMS = {
@@ -45,7 +46,9 @@ class TicketService:
                         related_ticket_id: Optional[uuid.UUID], clients_repo, projects_repo,
                         tools_repo, processes_repo, tickets_repo,
                         client_contact_id: Optional[uuid.UUID] = None,
-                        client_contacts_repo=None) -> None:
+                        client_contacts_repo=None,
+                        list_id: Optional[uuid.UUID] = None, task_lists_repo=None,
+                        parent_task_id: Optional[uuid.UUID] = None) -> None:
         client = clients_repo.get_by_id(client_id)
         if not client:
             raise TicketValidationError("not_found", "Cliente no encontrado", status_code=404)
@@ -67,8 +70,14 @@ class TicketService:
                     raise TicketValidationError("not_found", f"Valor de {label} no encontrado", status_code=404)
                 if not item["active"]:
                     raise TicketBusinessError("catalog_inactive", f"El valor de {label} está inactivo")
-        if related_ticket_id and not tickets_repo.get_by_id(related_ticket_id):
-            raise TicketValidationError("not_found", "El ticket relacionado no existe", status_code=404)
+        if related_ticket_id:
+            related = tickets_repo.get_by_id(related_ticket_id)
+            if not related:
+                raise TicketValidationError("not_found", "El ticket relacionado no existe", status_code=404)
+            if related.client_id != client_id:
+                raise TicketBusinessError(
+                    "related_ticket_mismatch",
+                    "El Registro relacionado no pertenece al cliente indicado")
         if client_contact_id:
             contact = client_contacts_repo.get_by_id(client_contact_id)
             if not contact:
@@ -76,11 +85,30 @@ class TicketService:
             if contact.client_id != client_id:
                 raise TicketBusinessError(
                     "client_contact_mismatch", "El Encargado indicado no pertenece al cliente del ticket")
+        if list_id:
+            task_list = task_lists_repo.get_by_id(list_id)
+            if not task_list:
+                raise TicketValidationError("not_found", "La Lista indicada no existe", status_code=404)
+            if project_id is None or task_list.project_id != project_id:
+                raise TicketBusinessError(
+                    "list_mismatch", "La Lista indicada no pertenece al proyecto del registro")
+        if parent_task_id:
+            parent = tickets_repo.get_by_id(parent_task_id)
+            if not parent:
+                raise TicketValidationError("not_found", "La Tarea padre indicada no existe", status_code=404)
+            if parent.parent_task_id is not None:
+                raise TicketBusinessError(
+                    "nested_subtask_not_allowed",
+                    "No se puede crear una Subtarea dentro de otra Subtarea")
+            if parent.client_id != client_id:
+                raise TicketBusinessError(
+                    "parent_task_mismatch", "La Tarea padre no pertenece al cliente indicado")
 
     def resolve_record_type(self, record_type_id: Optional[uuid.UUID], record_types_repo) -> uuid.UUID:
-        """Resuelve el catálogo dinámico de tipo de registro (FR-029) y aplica el bloqueo
-        de dominio: solo el valor "Ticket" puede usarse para crear en esta fase, "Tarea"
-        queda reservado para Fase 3 (FR-030) aunque el catálogo ya lo tenga sembrado."""
+        """Resuelve el catálogo dinámico de tipo de registro (FR-029). Desde la Fase 3, tanto
+        "Ticket" como "Tarea" son valores creables — el bloqueo que reservaba "Tarea" para esta
+        fase (FR-030) se retira aquí. Un Encargado nunca llega a este método con "Tarea" porque
+        su branch de autoservicio no lee `record_type_id` (ver `api/routes/tickets.py`)."""
         if record_type_id is None:
             item = record_types_repo.get_by_name("Ticket")
             if not item:
@@ -94,15 +122,16 @@ class TicketService:
                 "not_found", "Valor de tipo de registro no encontrado", status_code=404)
         if not item["active"]:
             raise TicketBusinessError("catalog_inactive", "El valor de tipo de registro está inactivo")
-        if item["name"] != "Ticket":
-            raise TicketBusinessError(
-                "record_type_not_allowed",
-                "En esta fase solo se pueden crear tickets con tipo de registro 'Ticket' "
-                "('Tarea' queda reservado para Fase 3)")
         return uuid.UUID(item["id"])
 
+    def is_task_record_type(self, record_type_id: uuid.UUID, record_types_repo) -> bool:
+        """True si el `record_type_id` resuelto corresponde a "Tarea" (Fase 3)."""
+        item = record_types_repo.get_by_id(record_type_id)
+        return bool(item and item["name"] == "Tarea")
+
     def validate_patch(self, ticket: Ticket, data: dict,
-                       client_contacts_repo=None, users_repo=None) -> dict:
+                       client_contacts_repo=None, users_repo=None, tickets_repo=None,
+                       task_lists_repo=None) -> dict:
         """Filtra los campos del PATCH: rechaza status, campos desconocidos y bloqueados."""
         if "status" in data:
             raise TicketValidationError(
@@ -133,6 +162,31 @@ class TicketService:
             if str(data["related_ticket_id"]) == str(ticket.id):
                 raise TicketValidationError(
                     "validation_error", "Un ticket no puede relacionarse consigo mismo")
+            try:
+                related_id = uuid.UUID(str(data["related_ticket_id"]))
+            except (ValueError, AttributeError):
+                raise TicketValidationError("validation_error", "related_ticket_id inválido")
+            related = tickets_repo.get_by_id(related_id)
+            if not related:
+                raise TicketValidationError(
+                    "not_found", "El ticket relacionado no existe", status_code=404)
+            if related.client_id != ticket.client_id:
+                raise TicketBusinessError(
+                    "related_ticket_mismatch",
+                    "El Registro relacionado no pertenece al cliente indicado")
+            data["related_ticket_id"] = related_id
+        if "list_id" in data and data["list_id"] is not None:
+            try:
+                list_id = uuid.UUID(str(data["list_id"]))
+            except (ValueError, AttributeError):
+                raise TicketValidationError("validation_error", "list_id inválido")
+            task_list = task_lists_repo.get_by_id(list_id)
+            if not task_list:
+                raise TicketValidationError("not_found", "La Lista indicada no existe", status_code=404)
+            if task_list.project_id != ticket.project_id:
+                raise TicketBusinessError(
+                    "list_mismatch", "La Lista indicada no pertenece al proyecto del registro")
+            data["list_id"] = list_id
         if "client_contact_id" in data:
             if users_repo is not None:
                 creator = users_repo.get_by_id(ticket.created_by)
@@ -156,3 +210,25 @@ class TicketService:
                         "El Encargado indicado no pertenece al cliente del ticket")
                 data["client_contact_id"] = contact_id
         return data
+
+    def free_transition_task(self, ticket: Ticket, new_status: str, comment_body: str,
+                             actor_id: uuid.UUID, tickets_repo, comments_repo) -> Ticket:
+        """Cambia el estado de una Tarea/Subtarea a cualquier valor del catálogo compartido con
+        Ticket, sin restricción de secuencia — exige un comentario que documente el cambio
+        (spec 009, FR-003/FR-004/FR-005). Reemplaza `task_fsm.py` (spec 008)."""
+        if new_status not in STATUSES:
+            raise TicketValidationError(
+                "validation_error",
+                f"Estado inválido. Permitidos: {', '.join(STATUSES)}")
+        if not comment_body or not comment_body.strip():
+            raise TicketValidationError(
+                "validation_error",
+                "Debe indicar un comentario que documente el cambio de estado")
+        comment = Comment.create(ticket_id=ticket.id, comment_type="comentario_interno",
+                                 body=comment_body.strip(), author_id=actor_id)
+        comments_repo.add(comment, commit=False)
+        previous_status = ticket.status
+        tickets_repo.update_fields(ticket.id, status=new_status)
+        tickets_repo.add_transition(ticket.id, previous_status, new_status, actor_id,
+                                    comment_id=comment.id, commit=True)
+        return tickets_repo.get_by_id(ticket.id)

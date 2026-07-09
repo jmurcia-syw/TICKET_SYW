@@ -35,9 +35,11 @@ FIELD_LOCKS: dict[str, set[str]] = {
     "pendiente_usuario": {"estimated_resolution_minutes", "severity", "priority"},
     "resuelto": {"estimated_resolution_minutes", "severity", "priority"},
     "cerrado": {"title", "description", "ticket_type", "priority", "severity",
-                "escalation_level", "estimated_resolution_minutes", "client_contact_id"},
+                "escalation_level", "estimated_resolution_minutes", "client_contact_id",
+                "list_id", "related_ticket_id"},
     "cancelado": {"title", "description", "ticket_type", "priority", "severity",
-                  "escalation_level", "estimated_resolution_minutes", "client_contact_id"},
+                  "escalation_level", "estimated_resolution_minutes", "client_contact_id",
+                  "list_id", "related_ticket_id"},
 }
 
 
@@ -71,6 +73,9 @@ class Ticket:
     estimated_resolution_minutes: Optional[int] = None
     resolution_type_id: Optional[uuid.UUID] = None
     related_ticket_id: Optional[uuid.UUID] = None
+    list_name: Optional[str] = None
+    list_id: Optional[uuid.UUID] = None
+    parent_task_id: Optional[uuid.UUID] = None
     resolved_at: Optional[datetime] = None
     resolution_accepted_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None

@@ -29,6 +29,9 @@ class TicketModel(Base):
     estimated_resolution_minutes = Column(Integer, nullable=True)
     resolution_type_id = Column(UUID(as_uuid=True), ForeignKey("catalog_resolution_types.id"), nullable=True)
     related_ticket_id = Column(UUID(as_uuid=True), ForeignKey("tickets.id"), nullable=True)
+    list_name = Column(Text, nullable=True)
+    list_id = Column(UUID(as_uuid=True), ForeignKey("task_lists.id"), nullable=True)
+    parent_task_id = Column(UUID(as_uuid=True), ForeignKey("tickets.id"), nullable=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     resolved_at = Column(TIMESTAMP(timezone=True), nullable=True)
     resolution_accepted_at = Column(TIMESTAMP(timezone=True), nullable=True)
@@ -57,6 +60,9 @@ class TicketModel(Base):
             estimated_resolution_minutes=self.estimated_resolution_minutes,
             resolution_type_id=self.resolution_type_id,
             related_ticket_id=self.related_ticket_id,
+            list_name=self.list_name,
+            list_id=self.list_id,
+            parent_task_id=self.parent_task_id,
             created_by=self.created_by,
             resolved_at=self.resolved_at,
             resolution_accepted_at=self.resolution_accepted_at,

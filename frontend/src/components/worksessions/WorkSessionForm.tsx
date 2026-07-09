@@ -66,9 +66,15 @@ export default function WorkSessionForm({ open, onClose, onSaved, tickets, editi
     } else {
       setMode('range')
       form.resetFields()
-      form.setFieldsValue({ work_date: todayIso(), hours: 0, minutes: 0 })
+      form.setFieldsValue({
+        work_date: todayIso(), hours: 0, minutes: 0,
+        // Contexto de un único ticket (TimeLogModal, embebido en el detalle) — se preselecciona
+        // para no exigirle al usuario elegir de un desplegable con una sola opción (bug real:
+        // sin esto, el registro fallaba con "Seleccioná un ticket" al no tocar el campo).
+        ticket_id: tickets.length === 1 ? tickets[0].id : undefined,
+      })
     }
-  }, [open, editing, form])
+  }, [open, editing, form, tickets])
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
@@ -114,7 +120,7 @@ export default function WorkSessionForm({ open, onClose, onSaved, tickets, editi
     <Form form={form} layout="vertical">
       <Form.Item name="ticket_id" label="Ticket" rules={[{ required: true, message: 'Seleccioná un ticket' }]}>
         <Select
-          disabled={!!editing}
+          disabled={!!editing || tickets.length === 1}
           showSearch
           optionFilterProp="label"
           placeholder="Ticket asignado"

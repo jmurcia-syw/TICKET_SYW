@@ -1,3 +1,6 @@
+/** Catálogo único de 10 estados, compartido por Ticket y Tarea/Subtarea (spec 009) — una
+ * Tarea puede transicionar a cualquiera de ellos sin restricción de secuencia (ver
+ * ticketService.changeStatus). */
 export type TicketStatus =
   | 'nuevo' | 'pre_analisis' | 'contacto' | 'en_analisis' | 'en_ejecucion'
   | 'en_pruebas' | 'pendiente_usuario' | 'resuelto' | 'cerrado' | 'cancelado'
@@ -51,6 +54,14 @@ export interface TicketListItem {
   project: EntityRef | null
   assignee: ResourceRef | null
   estimated_resolution_minutes: number | null
+  /** Nombre de la Lista resuelto (spec 009 — reemplaza el texto libre de la spec 008). */
+  list_name: string | null
+  list_id: string | null
+  /** Nombre resuelto del catálogo tipo de registro ("Ticket" | "Tarea") — usado para el tag
+   * del Kanban y de "Mis Tareas" sin round-trip adicional (spec 009). */
+  record_type: 'Ticket' | 'Tarea'
+  /** Si no es null, este registro es una Subtarea (Nivel 5) de la Tarea indicada. */
+  parent_task_id: string | null
   created_at: string
 }
 
@@ -115,6 +126,13 @@ export interface TicketRequester {
   is_encargado: boolean
 }
 
+export interface RelatedFromItem {
+  id: string
+  ticket_number: string
+  title: string
+  record_type: 'Ticket' | 'Tarea'
+}
+
 export interface TicketDetail extends TicketListItem {
   description: string
   tool_id: string | null
@@ -122,6 +140,8 @@ export interface TicketDetail extends TicketListItem {
   estimated_resolution_minutes: number | null
   resolution_type_id: string | null
   related_ticket_id: string | null
+  /** Registros (Ticket o Tarea) que referencian a este como "Registro relacionado" (Fase 3). */
+  related_from: RelatedFromItem[]
   created_by: string
   /** Encargado solicitante asignado manualmente (Fase 2.2) — `null` si no hay o si `requester`
    * se resuelve automáticamente del creador (Fase 2.1). Editable solo cuando no es `null` o
@@ -137,6 +157,8 @@ export interface TicketDetail extends TicketListItem {
   comments: TicketComment[]
   transitions: TicketTransition[]
   assignments: TicketAssignment[]
+  /** Subtareas (Nivel 5) de esta Tarea — vacío para Ticket y para Subtarea (spec 009). */
+  subtasks: TicketListItem[]
 }
 
 export interface TicketFormData {
@@ -156,6 +178,12 @@ export interface TicketFormData {
   record_type_id?: string | null
   escalation_level?: EscalationLevel
   related_ticket_id?: string | null
+  /** Lista real (spec 009) — solo tiene efecto en una Tarea. */
+  list_id?: string | null
+  /** Marca el registro como Subtarea de la Tarea indicada (spec 009, Nivel 5). */
+  parent_task_id?: string | null
+  /** Encargado de la Tarea/Subtarea (spec 009) — opcional, default: el propio creador. */
+  assignee_id?: string | null
 }
 
 export interface TicketFilters {

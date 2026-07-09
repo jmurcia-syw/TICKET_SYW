@@ -1,7 +1,7 @@
 import apiClient from './apiClient'
 import type { PaginatedResponse } from '../types/api'
 import type {
-  TicketListItem, TicketDetail, TicketFormData, TicketFilters, PanelData, CommentType,
+  TicketListItem, TicketDetail, TicketFormData, TicketFilters, PanelData, CommentType, TicketStatus,
 } from '../types/ticket'
 
 function buildParams(filters: TicketFilters): URLSearchParams {
@@ -54,6 +54,9 @@ export const ticketService = {
 
   cancel: (id: string, body: string) =>
     apiClient.post<TicketDetail>(`/api/tickets/${id}/cancel`, { body }).then(r => r.data),
+
+  changeStatus: (id: string, status: TicketStatus, comment: string) =>
+    apiClient.patch<TicketDetail>(`/api/tickets/${id}/status`, { status, comment }).then(r => r.data),
 
   attachmentUrl: (ticketId: string, attachmentId: string) =>
     `${apiClient.defaults.baseURL}/api/tickets/${ticketId}/attachments/${attachmentId}`,

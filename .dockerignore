@@ -1,0 +1,36 @@
+# Variables de entorno (NUNCA subir a una imagen)
+.env
+.env.local
+.env.*.local
+
+# Control de versiones
+.git/
+.gitignore
+.worktrees/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Node (frontend tiene su propio .dockerignore; esto cubre el contexto raíz del backend)
+node_modules/
+frontend/node_modules/
+dist/
+.pnpm-store/
+*.tsbuildinfo
+
+# Docker / datos persistentes
+postgres_data/
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentación pesada, no necesaria dentro de la imagen
+docs/
+specs/
+.claude/
+.specify/
