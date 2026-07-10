@@ -41,10 +41,20 @@ interface ApiErrorBody {
 
 | Atributo | Valor |
 |----------|-------|
-| Texto | `message` del ApiErrorBody, o genérico "Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo" |
+| Texto | el `message` recibido en el ApiErrorBody (incluido el genérico del backend para 500), o el genérico propio del frontend si NO llega ningún `message` interpretable (ver nota) |
 | Severidad | error |
 | Duración | ~4 s (default antd `message.error`) |
 | Dedupe | mensajes idénticos dentro de una ventana de ~3 s se muestran una sola vez |
+
+**Nota — dos genéricos distintos, intencional (no duplicación)**: existen dos textos "algo
+salió mal" con disparadores mutuamente excluyentes:
+- **Genérico del backend** ("Ocurrió un error interno. Intenta de nuevo más tarde."): lo emite
+  la API en todo 500 no controlado. El frontend lo muestra tal cual porque SÍ es un `message`
+  interpretable (FR-003 + FR-005).
+- **Genérico del frontend** ("Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo."):
+  lo genera el propio interceptor cuando NO llega ningún `message` del servidor — error de red,
+  timeout, CORS, cuerpo no JSON (FR-006). Nunca compite con el del backend: si hay respuesta con
+  `message`, ese es el que se muestra.
 
 No se persiste; no interactúa con la entidad `Notification` existente del sistema (campanita),
 que es un concepto distinto (notificaciones de negocio persistidas).

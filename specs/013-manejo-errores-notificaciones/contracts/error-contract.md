@@ -50,6 +50,7 @@ Toda respuesta con status HTTP ≥ 400 emitida por la API tiene cuerpo JSON:
 | Situación | Notificación mostrada |
 |-----------|----------------------|
 | Error con `message` string no vacío | El `message` exacto del servidor |
-| Error de red / timeout / cuerpo no JSON / sin `message` | "Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo" |
+| Error de red / timeout / cuerpo no JSON / sin `message` (genérico del frontend, ningún `message` del servidor llega) | "Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo" |
+| 500 no controlado (genérico del backend, SÍ llega como `message`) | "Ocurrió un error interno. Intenta de nuevo más tarde." (se muestra tal cual, no el genérico del frontend) |
 | Status 401 | Ninguna (redirección a login) |
 | Mensajes idénticos en < ~3 s | Una sola notificación |

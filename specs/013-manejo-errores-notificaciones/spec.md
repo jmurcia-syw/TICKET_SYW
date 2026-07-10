@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-10
 
-**Status**: Draft
+**Status**: In Progress (9/13 tareas completadas — ver tasks.md)
 
 **Input**: User description: "Implementación de Manejo Global de Errores y Notificaciones (API a Frontend). Actualmente, cuando la API del Backend devuelve un error, el Frontend no muestra ninguna alerta visual al usuario (la aplicación simplemente 'no funciona' o se congela sin dar feedback). Necesito estandarizar las respuestas de error y notificarlas correctamente en la interfaz."
 
@@ -125,14 +125,20 @@ comprobar que la alerta visual aparece inmediatamente con el texto específico d
   correcto: 400 para validaciones de negocio/datos inválidos, 403 para falta de permisos,
   404 para recursos inexistentes, 500 para errores internos no controlados.
 - **FR-003**: Los errores internos no controlados (500) NO DEBEN exponer detalles de
-  implementación (stack traces, consultas, rutas internas) en el cuerpo de la respuesta.
+  implementación (stack traces, consultas, rutas internas) en el cuerpo de la respuesta; el
+  `message` que la API devuelve en ese caso es el texto genérico "Ocurrió un error interno.
+  Intenta de nuevo más tarde." (genérico **del servidor**: existe siempre un cuerpo de
+  respuesta, así que el frontend lo muestra tal cual, ver FR-005).
 - **FR-004**: El frontend DEBE capturar de forma centralizada (en un único punto del cliente
   HTTP) todas las respuestas de error de la API, sin requerir cambios pantalla por pantalla.
 - **FR-005**: Ante un error capturado con `message` interpretable, el frontend DEBE mostrar una
   notificación visual inmediata con ese texto exacto.
-- **FR-006**: Ante un error sin mensaje interpretable (error de red, cuerpo no JSON, estructura
-  desconocida), el frontend DEBE mostrar el mensaje genérico "Ha ocurrido un error inesperado.
-  Por favor, inténtalo de nuevo".
+- **FR-006**: Ante un error sin mensaje interpretable — es decir, sin respuesta del servidor en
+  absoluto (error de red, timeout, CORS) o con cuerpo no JSON/sin campo `message` — el frontend
+  DEBE mostrar su propio mensaje genérico "Ha ocurrido un error inesperado. Por favor, inténtalo
+  de nuevo". Es un genérico **del frontend**, distinto y complementario al genérico del backend
+  de FR-003: se usa solo cuando NO llega ningún `message` interpretable del servidor, nunca
+  quando sí llega uno (incluido el genérico de un 500, que se muestra tal cual por FR-005).
 - **FR-007**: El manejo actual del error 401 (redirección al login) DEBE conservarse sin
   mostrar notificación de error adicional.
 - **FR-008**: Las notificaciones de error duplicadas (mismo mensaje) generadas en una ventana
@@ -177,7 +183,10 @@ comprobar que la alerta visual aparece inmediatamente con el texto específico d
 - **Restricción de alcance (Principio VII, constitución v1.2.0)**: NO se refactoriza la lógica
   interna de los controladores del backend. El trabajo se limita a envolver las respuestas de
   error existentes (manejadores de error/try-catch) y a configurar el interceptor y el
-  notificador en el frontend.
+  notificador en el frontend. **Excepción acotada**: al verificar los 3 casos críticos (US3), si
+  el `message` que ya emite una ruta no es apto para el usuario final, se permite corregir
+  ÚNICAMENTE ese literal de texto en el `return`/`abort` existente — nunca su lógica, condiciones
+  o estructura. Es corrección de un dato, no una refactorización.
 - **Restricción de pruebas (Principio VII)**: no se ejecuta la suite de pruebas de forma masiva;
   solo los tests específicos de lo modificado. Los tests nuevos del interceptor o del manejador
   de errores usan como máximo 5-10 registros/mocks simulados por test.

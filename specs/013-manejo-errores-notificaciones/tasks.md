@@ -6,7 +6,10 @@
 
 **Tests**: Incluidos SOLO los pedidos por el spec: un test backend del normalizador con ≤ 5-10
 casos/mocks. Prohibido ejecutar la suite completa (Principio VII); único comando permitido:
-`pytest backend/tests/test_error_contract.py`.
+`pytest tests/api/test_error_contract.py` (desde el contenedor `sywork_backend`, working dir
+`/repo/backend`) — el archivo vive en `backend/tests/api/` porque colocarlo directamente en
+`backend/tests/` producía un `INTERNALERROR` de pytest por conflicto de rutas con el paquete
+`backend` (ver research.md, Decisión 6).
 
 **Organization**: Tareas agrupadas por historia de usuario. US1 (frontend) y US2 (backend) son
 independientes y paralelizables; US3 valida ambas de punta a punta.

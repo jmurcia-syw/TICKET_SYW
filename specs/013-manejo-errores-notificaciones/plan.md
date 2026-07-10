@@ -106,7 +106,13 @@ frontend/src/
 **Structure Decision**: Web application existente (backend Flask + frontend React). Todo el
 trabajo backend se concentra en un archivo nuevo (`backend/api/errors.py`) más su registro en
 `create_app()`; todo el trabajo frontend en `apiClient.ts` + un helper nuevo. Ningún módulo de
-rutas ni página se refactoriza.
+rutas ni página se refactoriza (lógica, control de flujo, permisos o estructura intactos).
+
+**Excepción acotada (US3, verificación de los 3 casos críticos)**: si al reproducir un caso
+crítico el texto de `message` que ya emite la ruta no es apto para el usuario final, se permite
+editar ÚNICAMENTE ese literal de string en el `return`/`abort` existente de
+`backend/api/routes/` — cero cambios de lógica, condiciones o firma. No es una excepción al
+Principio VII (no-refactor); es la corrección de un dato (el texto), no del comportamiento.
 
 ## Complexity Tracking
 
