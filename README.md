@@ -3,12 +3,16 @@
 Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM
 de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre **GitHub Spec Kit**.
 
-> **Fase activa**: `Usuario/cliente por Proyecto, Asignación de Personal y Estructura de Skills`
-> (spec `010`) ✅ implementada — renombre de rol Encargado → **Usuario/cliente**, vínculo al
-> **Proyecto** (ya no al Cliente aislado), sección **Personal/Equipos** del Proyecto y Skills con
-> tipo/herramienta/proceso. Validada con tests dirigidos (project_members, skills,
-> tickets/client-contact) y `tsc -b` sin errores — por directriz de la spec (FR-020) no se corrió
-> la suite completa. Última suite completa conocida en verde: Fase 3 (332/332). Rama: `develp_Jp`
+> **Fase activa**: `Cronómetro Manual de Tiempo en el Ticket` (spec `012`, provisional) ✅
+> implementada — Iniciar/Pausar/Reanudar/Terminar por recurso en el detalle del ticket, personal
+> (solo lo ve quien lo inició), persiste en backend (sobrevive recargas y cierres de sesión) y al
+> Terminar genera un Registro de tiempo formal reutilizando las reglas de la spec `004` (bloqueo
+> en ticket cerrado, límite diario). Validada con 24/24 tests dirigidos, `tsc -b` sin errores y
+> recorrido E2E en navegador contra Docker real. Rama: `develp_Jp`
+>
+> **Spec lista, sin plan/tasks**: `Skills Requeridas en el Ticket` (spec `011`) — declarar
+> skills opcionales en el ticket para identificar habilidades necesarias; retomar con
+> `/speckit-plan` antes de mergear si se prioriza.
 
 ---
 
@@ -32,12 +36,13 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 
 > **Nota**: el renombre de rol Encargado → Usuario/cliente, su vínculo al Proyecto (en vez del
 > Cliente), la sección "Personal del Proyecto" con subgrupos "Equipo" y la ampliación de Skills
-> (spec `010`) son un refactor transversal sobre las Fases 1-3 ya completas — no forman parte de
-> la Fase 4 (SLAs) del roadmap SDD V3, que sigue pendiente.
+> (spec `010`), así como el cronómetro manual de tiempo (spec `012`, provisional) son cambios
+> transversales sobre las Fases 1-3 ya completas — no forman parte de la Fase 4 (SLAs) del
+> roadmap SDD V3, que sigue pendiente.
 
 ---
 
-## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`)
+## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`)
 
 ### Funcionalidad operativa
 
@@ -96,6 +101,12 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
   simples en Tarea/Subtarea sin cambio de estado.
 - **Registro de tiempo sobre Tareas**: un recurso puede registrar tiempo sobre una Tarea/Subtarea
   que creó, sin exigir el historial formal de asignaciones de Triage (que solo aplica a Ticket).
+- **Cronómetro manual de tiempo** (spec `012`, provisional): en el detalle del ticket, el recurso
+  asignado puede Iniciar/Pausar/Reanudar/Terminar un cronómetro propio; es personal (solo lo ve
+  quien lo inició), persiste en backend (sobrevive recargas y cierres de sesión) y admite un solo
+  cronómetro activo por recurso a la vez. Al "Terminar" genera un Registro de tiempo formal
+  reutilizando `WorkSessionService.create()` sin duplicar sus reglas (bloquea en ticket cerrado,
+  respeta el límite diario, exige un mínimo de 60 segundos acumulados).
 
 ### Seguridad
 
@@ -128,6 +139,10 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
   `test_ticket_service_client_contact.py`) + `tsc -b` sin errores; quickstart 0-6 según
   `tasks.md`. Por directriz explícita de la spec (FR-020) **no** se corrió la suite completa
   durante el desarrollo — pendiente confirmarla en verde tras este cambio.
+- **Validación de la spec `012`** (Cronómetro manual de tiempo): 24/24 tests dirigidos en verde
+  (`test_timer.py` + regresión de `work_sessions`), `tsc -b` sin errores, y recorrido E2E manual
+  en navegador contra Docker real (ciclo completo iniciar → pausar → reanudar → terminar,
+  persistencia entre recargas, bloqueo por duración mínima).
 - **Performance** con 500+ tickets: panel 64 ms (SC < 2 s), listado 52 ms (SC < 1 s) ✅
 - Typecheck frontend estricto sin errores ✅
 
@@ -374,6 +389,8 @@ docker exec sywork_backend python -m backend.scripts.seed_tickets 500   # datos 
 | `008` | [fase3-tareas](specs/008-fase3-tareas/spec.md) | Tarea sobre la misma tabla de Ticket, campo "Tipo de registro"; decisiones de Lista texto libre y FSM propia reemplazadas por la spec `009` | ✅ Completa — tasks 31/31 |
 | `009` | [tareas-listas-subtareas](specs/009-tareas-listas-subtareas/spec.md) | Listas administrables, Subtareas, ciclo de vida unificado con Ticket (10 estados, transición libre) y fix de Registro de tiempo | ✅ Completa — tasks 45/45, suite 332/332 |
 | `010` | [proyecto-personal-skills](specs/010-proyecto-personal-skills/spec.md) | Renombre Encargado → Usuario/cliente, vínculo al Proyecto (en vez del Cliente), Personal del Proyecto + "Equipo" estilo Teamwork, Skills con tipo/herramienta/proceso y semillas | ✅ Completa — tasks 35/35, tests dirigidos en verde (suite completa no corrida, FR-020) |
+| `011` | [ticket-skills-requeridas](specs/011-ticket-skills-requeridas/spec.md) | Skills opcionales en el ticket para identificar habilidades necesarias para resolverlo | ⏳ Spec lista, sin plan/tasks |
+| `012` | [cronometro-manual-ticket](specs/012-cronometro-manual-ticket/spec.md) | Cronómetro manual de tiempo (provisional) en el detalle del ticket: iniciar/pausar/reanudar/terminar por recurso, genera Registro de tiempo formal | ✅ Completa — tasks 21/21, 24/24 tests, validado E2E en navegador |
 
 Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.md`,
 `data-model.md`, `contracts/`, `tasks.md`, `quickstart.md`.
@@ -393,3 +410,5 @@ Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.
 - Spec `010`: correr la suite completa de tests (no ejecutada durante el desarrollo por
   directriz explícita FR-020) para confirmar ausencia de regresiones fuera de los archivos
   tocados.
+- Spec `011` (Skills Requeridas en el Ticket): tiene spec.md listo (16/16 checklist) pero falta
+  `/speckit-plan` y `/speckit-tasks` — retomar antes de mergear si se prioriza.
