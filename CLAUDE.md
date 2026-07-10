@@ -2,17 +2,18 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Cronómetro Manual de Tiempo en el Ticket (provisional)
-**Spec**: specs/012-cronometro-manual-ticket/spec.md
-**Plan**: specs/012-cronometro-manual-ticket/plan.md
-**Research**: specs/012-cronometro-manual-ticket/research.md
-**Data model**: specs/012-cronometro-manual-ticket/data-model.md
-**Contracts**: specs/012-cronometro-manual-ticket/contracts/
-**Quickstart**: specs/012-cronometro-manual-ticket/quickstart.md
+**Active feature**: Skills Requeridas en el Ticket
+**Spec**: specs/011-ticket-skills-requeridas/spec.md
+**Plan**: specs/011-ticket-skills-requeridas/plan.md
+**Research**: specs/011-ticket-skills-requeridas/research.md
+**Data model**: specs/011-ticket-skills-requeridas/data-model.md
+**Contracts**: specs/011-ticket-skills-requeridas/contracts/
+**Quickstart**: specs/011-ticket-skills-requeridas/quickstart.md
 **Constitution**: .specify/memory/constitution.md
 
-**Pending feature (spec lista, sin plan/tasks — retomar antes de mergear si se prioriza)**: Skills Requeridas en el Ticket
-**Spec**: specs/011-ticket-skills-requeridas/spec.md
+**Previous feature (completada)**: Cronómetro Manual de Tiempo en el Ticket (provisional)
+**Spec**: specs/012-cronometro-manual-ticket/spec.md
+**Plan**: specs/012-cronometro-manual-ticket/plan.md
 
 **Previous feature (completada)**: Usuario/cliente por Proyecto, Asignación de Personal y Estructura de Skills
 **Spec**: specs/010-proyecto-personal-skills/spec.md

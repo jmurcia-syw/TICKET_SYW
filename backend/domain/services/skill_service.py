@@ -28,8 +28,14 @@ class SkillService:
         if process_id and processes_repo and not processes_repo.get_by_id(process_id):
             raise SkillBusinessError("not_found", "Proceso no encontrado", status_code=404)
 
-    def validate_delete(self, skill_id: uuid.UUID, resources_repo=None) -> None:
+    def validate_delete(self, skill_id: uuid.UUID, resources_repo=None, tickets_repo=None) -> None:
         if resources_repo:
             count = resources_repo.count_active_resources_with_skill(skill_id)
             if count > 0:
                 raise SkillBusinessError("skill_in_use", f"El skill está asignado a {count} recurso(s) activo(s)", resource_count=count)
+        if tickets_repo:
+            # spec 011 FR-007: un skill referenciado como requerido por algún ticket (en
+            # cualquier estado) no puede eliminarse — el ticket debe conservar la referencia.
+            count = tickets_repo.count_tickets_with_skill(skill_id)
+            if count > 0:
+                raise SkillBusinessError("skill_in_use", f"El skill está asignado a {count} ticket(s)", ticket_count=count)

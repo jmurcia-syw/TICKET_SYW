@@ -11,7 +11,7 @@ import { clientService } from '../services/clientService'
 import { projectService } from '../services/projectService'
 import { clientContactService } from '../services/clientContactService'
 import { catalogService } from '../services/catalogService'
-import { resourceService } from '../services/resourceService'
+import { resourceService, skillService } from '../services/resourceService'
 import { taskListService } from '../services/taskListService'
 import type {
   TicketListItem, TicketFormData, TicketStatus, Priority, Severity,
@@ -20,7 +20,7 @@ import { STATUS_LABELS, TICKET_TYPE_LABELS, PRIORITY_LABELS, SEVERITY_LABELS } f
 import type { CatalogItem } from '../types/catalog'
 import type { ClientListItem } from '../types/client'
 import type { ProjectListItem } from '../types/project'
-import type { Resource } from '../types/resource'
+import type { Resource, Skill } from '../types/resource'
 import type { ClientContact } from '../types/clientContact'
 import type { TaskList } from '../types/taskList'
 import { vivid } from '../theme'
@@ -70,6 +70,7 @@ export default function TicketsPage() {
   const [tools, setTools] = useState<CatalogItem[]>([])
   const [processes, setProcesses] = useState<CatalogItem[]>([])
   const [resources, setResources] = useState<Resource[]>([])
+  const [skills, setSkills] = useState<Skill[]>([])
   const [recordTypes, setRecordTypes] = useState<CatalogItem[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [taskLists, setTaskLists] = useState<TaskList[]>([])
@@ -135,6 +136,8 @@ export default function TicketsPage() {
       .catch(() => message.error('No se pudo cargar el catálogo de procesos'))
     resourceService.list({ active: true, page_size: 100 }).then(r => setResources(r.items))
       .catch(() => message.error('No se pudo cargar la lista de recursos'))
+    skillService.list(true).then(r => setSkills(r.items))
+      .catch(() => message.error('No se pudo cargar el catálogo de skills'))
     // Fase 3: "Ticket" y "Tarea" son ambos creables — el default al abrir el form es "Ticket"
     // (no el primero alfabético, que sería "Tarea").
     catalogService.list('record-types').then(r => {
@@ -179,7 +182,11 @@ export default function TicketsPage() {
 
   const handleCreate = async (values: TicketFormData) => {
     try {
-      const created = await ticketService.create(values)
+      const { skill_ids, ...ticketFields } = values
+      const created = await ticketService.create(ticketFields)
+      if (skill_ids?.length) {
+        await ticketService.updateTicketSkills(created.id, skill_ids)
+      }
       message.success(`Ticket ${created.ticket_number} creado`)
       setFormOpen(false)
       form.resetFields()
@@ -415,6 +422,10 @@ export default function TicketsPage() {
                     options={processes.map(p => ({ value: p.id, label: p.name }))} />
                 </Form.Item>
               </Space>
+              <Form.Item name="skill_ids" label="Skills requeridas (opcional)">
+                <Select mode="multiple" allowClear placeholder="Sin Skills requeridas"
+                  options={skills.map(s => ({ value: s.id, label: `${s.code} — ${s.label}` }))} />
+              </Form.Item>
             </>
           </>}
         </Form>

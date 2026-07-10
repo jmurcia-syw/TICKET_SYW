@@ -133,6 +133,13 @@ export interface RelatedFromItem {
   record_type: 'Ticket' | 'Tarea'
 }
 
+/** Skill requerido para resolver el ticket, opcional (spec 011). */
+export interface TicketSkillRef {
+  id: string
+  code: string
+  label: string
+}
+
 export interface TicketDetail extends TicketListItem {
   description: string
   tool_id: string | null
@@ -159,6 +166,8 @@ export interface TicketDetail extends TicketListItem {
   assignments: TicketAssignment[]
   /** Subtareas (Nivel 5) de esta Tarea — vacío para Ticket y para Subtarea (spec 009). */
   subtasks: TicketListItem[]
+  /** Skills requeridas para resolverlo, opcional y editable en cualquier estado (spec 011). */
+  skills: TicketSkillRef[]
 }
 
 export interface TicketFormData {
@@ -184,6 +193,9 @@ export interface TicketFormData {
   parent_task_id?: string | null
   /** Encargado de la Tarea/Subtarea (spec 009) — opcional, default: el propio creador. */
   assignee_id?: string | null
+  /** Skills requeridas al crear (spec 011) — se aplican tras el `create()` vía el endpoint
+   * dedicado `PATCH /api/tickets/{id}/skills` (research.md Decisión 2); no viaja en el POST. */
+  skill_ids?: string[]
 }
 
 export interface TicketFilters {

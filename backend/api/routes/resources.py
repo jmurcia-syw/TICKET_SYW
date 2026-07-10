@@ -356,17 +356,19 @@ class SkillDetail(Resource):
     @ns.response(403, "Sin el permiso requerido", _error)
     @ns.response(204, "Skill eliminado correctamente")
     @ns.response(400, "UUID inválido", _error)
-    @ns.response(409, "No se puede eliminar: skill asignado a recursos", _error)
+    @ns.response(409, "No se puede eliminar: skill asignado a recursos o a tickets (spec 011)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     def delete(self, skill_id: str):
-        """Eliminar un skill. Retorna 409 si está asignado a algún recurso."""
+        """Eliminar un skill. Retorna 409 si está asignado a algún recurso o a algún ticket
+        como Skill requerida (spec 011, FR-007)."""
+        from backend.infra.repositories.ticket_repo import TicketRepository
         uid = parse_uuid(skill_id)
         if not uid:
             return {"error": "validation_error", "message": "ID de skill invalido"}, 400
         try:
             db = get_db()
             skill_repo = SkillRepository(db)
-            _skill_svc.validate_delete(uid, resources_repo=skill_repo)
+            _skill_svc.validate_delete(uid, resources_repo=skill_repo, tickets_repo=TicketRepository(db))
             skill_repo.delete(uid)
             return "", 204
         except SkillBusinessError as e:

@@ -5,7 +5,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.domain.entities.ticket import Ticket
-from backend.infra.models.ticket_model import TicketModel, StatusTransitionModel, AssignmentModel
+from backend.infra.models.ticket_model import TicketModel, StatusTransitionModel, AssignmentModel, ticket_skills_table
+from backend.infra.models.resource_model import SkillModel
 
 _SORTS = {
     "created_at": TicketModel.created_at.asc(),
@@ -100,6 +101,30 @@ class TicketRepository:
         self._db.commit()
         self._db.refresh(model)
         return model.to_entity()
+
+    def update_skills(self, ticket_id: uuid.UUID, skill_ids: list[uuid.UUID]) -> Optional[Ticket]:
+        """Reemplaza el set completo de Skills requeridas del ticket (spec 011, FR-001/FR-003).
+        IDs que no correspondan a un Skill existente se ignoran (mismo criterio que
+        ResourceRepository.update_skills)."""
+        model = self._db.get(TicketModel, ticket_id)
+        if not model:
+            return None
+        unique_ids = dict.fromkeys(skill_ids)  # dedupe preservando orden (FR-003)
+        model.skills = [self._db.get(SkillModel, sid) for sid in unique_ids if self._db.get(SkillModel, sid)]
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def count_tickets_with_skill(self, skill_id: uuid.UUID) -> int:
+        """Cuántos tickets (cualquier estado) tienen `skill_id` como Skill requerida (spec 011,
+        FR-007 — bloquea el borrado del skill mientras esté en uso, mismo criterio que
+        `count_active_resources_with_skill`)."""
+        return (
+            self._db.query(func.count())
+            .select_from(ticket_skills_table)
+            .filter(ticket_skills_table.c.skill_id == skill_id)
+            .scalar()
+        )
 
     def list_related_from(self, ticket_id: uuid.UUID) -> list[Ticket]:
         """Registros (Ticket o Tarea) que tienen a `ticket_id` como `related_ticket_id`
