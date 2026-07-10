@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Optional
 import uuid
 
+from backend.domain.entities.resource import Skill
+
 # ── Catálogos fijos (CHECKs en DB) ─────────────────────────────────────
 
 STATUSES = (
@@ -81,6 +83,7 @@ class Ticket:
     closed_at: Optional[datetime] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
+    skills: list[Skill] = field(default_factory=list)
 
     @property
     def number_display(self) -> str:

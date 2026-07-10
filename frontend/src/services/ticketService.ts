@@ -27,6 +27,11 @@ export const ticketService = {
   update: (id: string, data: Partial<TicketFormData> & { estimated_resolution_minutes?: number | null }) =>
     apiClient.patch<TicketDetail>(`/api/tickets/${id}`, data).then(r => r.data),
 
+  /** Reemplaza el set completo de Skills requeridas (spec 011) — funciona en cualquier estado
+   * del ticket, sin transición ni comentario. */
+  updateTicketSkills: (id: string, skillIds: string[]) =>
+    apiClient.patch<TicketDetail>(`/api/tickets/${id}/skills`, { skill_ids: skillIds }).then(r => r.data),
+
   assign: (id: string, assignee_id: string, mode: 'resolver' | 'pre_analysis') =>
     apiClient.post<{ ticket: TicketDetail; assignment: { id: string } }>(
       `/api/tickets/${id}/assign`, { assignee_id, mode }).then(r => r.data),

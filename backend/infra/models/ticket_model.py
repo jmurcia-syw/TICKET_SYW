@@ -1,9 +1,19 @@
 import uuid
-from sqlalchemy import BigInteger, Column, ForeignKey, Integer, Text, TIMESTAMP
+from sqlalchemy import BigInteger, Column, ForeignKey, Integer, Table, Text, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func, text
 from backend.infra.models import Base
+from backend.infra.models.resource_model import SkillModel
 from backend.domain.entities.ticket import Ticket
+
+ticket_skills_table = Table(
+    "ticket_skills",
+    Base.metadata,
+    Column("ticket_id", UUID(as_uuid=True), ForeignKey("tickets.id"), primary_key=True),
+    Column("skill_id", UUID(as_uuid=True), ForeignKey("skills.id"), primary_key=True),
+    Column("assigned_at", TIMESTAMP(timezone=True), server_default=text("now()")),
+)
 
 
 class TicketModel(Base):
@@ -39,6 +49,8 @@ class TicketModel(Base):
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
+    skills = relationship("SkillModel", secondary=ticket_skills_table, lazy="joined")
+
     def to_entity(self) -> Ticket:
         return Ticket(
             id=self.id,
@@ -69,6 +81,7 @@ class TicketModel(Base):
             closed_at=self.closed_at,
             created_at=self.created_at,
             updated_at=self.updated_at,
+            skills=[s.to_entity() for s in (self.skills or [])],
         )
 
 

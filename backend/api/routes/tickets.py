@@ -209,6 +209,20 @@ _related_from_out = ns.model("RelatedFromItem", {
     "record_type": fields.String(description="Ticket | Tarea"),
 })
 
+_ticket_skill_ref = ns.model("TicketSkillRef", {
+    "id": fields.String(description="UUID del skill"),
+    "code": fields.String(description="Código del skill"),
+    "label": fields.String(description="Etiqueta del skill"),
+})
+
+_ticket_skills_update = ns.model("TicketSkillsUpdate", {
+    "skill_ids": fields.List(
+        fields.String, required=True,
+        description="Lista completa de UUIDs de Skills requeridas (reemplaza el set actual, "
+                     "spec 011 FR-001/FR-003). Array vacío deja el ticket sin Skills requeridas.",
+        example=[]),
+})
+
 _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "description": fields.String(),
     "tool_id": fields.String(allow_null=True),
@@ -242,6 +256,8 @@ _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "comments": fields.List(fields.Nested(_comment_out)),
     "transitions": fields.List(fields.Nested(_transition_out)),
     "assignments": fields.List(fields.Nested(_assignment_out)),
+    "skills": fields.List(fields.Nested(_ticket_skill_ref),
+                          description="Skills requeridas para resolverlo, opcional (spec 011)"),
 })
 
 _assignment_result_ref = ns.model("AssignmentResult", {
@@ -395,6 +411,7 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
         "comments": [_comment_to_dict(c) for c in CommentRepository(db).list_for_ticket(ticket.id)],
         "transitions": TicketRepository(db).list_transitions(ticket.id),
         "assignments": TicketRepository(db).list_assignments(ticket.id),
+        "skills": [{"id": str(s.id), "code": s.code, "label": s.label} for s in (ticket.skills or [])],
     })
     return d
 
@@ -698,6 +715,38 @@ class TicketDetail(Resource):
             return _ticket_detail(updated, db), 200
         except DomainError as e:
             return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
+
+
+@ns.route("/<string:ticket_id>/skills")
+@ns.param("ticket_id", "UUID del ticket")
+class TicketSkills(Resource):
+    @ns.doc("update_ticket_skills")
+    @ns.expect(_ticket_skills_update, validate=False)
+    @ns.response(200, "Skills requeridas actualizadas (reemplaza la lista completa)", _ticket_detail_out)
+    @ns.response(400, "UUID inválido o cuerpo sin skill_ids", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:edit", _error)
+    @ns.response(404, "Ticket no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("tickets", "edit")
+    def patch(self, ticket_id: str):
+        """Reemplaza el set completo de Skills requeridas del ticket (spec 011). Funciona en
+        cualquier estado del ticket, incluidos Cerrado y Cancelado (FR-002) — no pasa por
+        `locked_fields_for`, no dispara notificación ni exige comentario (FR-006)."""
+        uid = parse_uuid(ticket_id)
+        if not uid:
+            return {"error": "validation_error", "message": "ID de ticket inválido"}, 400
+        data = request.get_json(silent=True) or {}
+        skill_ids = [parse_uuid(sid) for sid in data.get("skill_ids", [])]
+        skill_ids = [s for s in skill_ids if s]
+        try:
+            db = get_db()
+            updated = TicketRepository(db).update_skills(uid, skill_ids)
+            if not updated:
+                return {"error": "not_found", "message": "Ticket no encontrado"}, 404
+            return _ticket_detail(updated, db), 200
         except Exception:
             return server_error()
 

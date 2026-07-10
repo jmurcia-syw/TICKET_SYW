@@ -22,6 +22,7 @@ import CommentComposer from '../components/tickets/CommentComposer'
 import TaskStatusChanger from '../components/tickets/TaskStatusChanger'
 import SubtaskList from '../components/tickets/SubtaskList'
 import AssignModal from '../components/tickets/AssignModal'
+import TicketSkillsSelector from '../components/tickets/TicketSkillsSelector'
 import TicketWorkSessions from '../components/worksessions/TicketWorkSessions'
 import TicketTimerWidget from '../components/worksessions/TicketTimerWidget'
 import TicketBreadcrumb from '../components/tickets/TicketBreadcrumb'
@@ -380,6 +381,12 @@ export default function TicketDetailPage() {
                   ? <Select size="small" value={severity} onChange={setSeverity} style={{ width: 90 }}
                       options={Object.entries(SEVERITY_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
                   : ticket.severity.toUpperCase()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Skills requeridas">
+                <TicketSkillsSelector
+                  ticketId={ticket.id} skills={ticket.skills} editable={canEdit}
+                  onUpdated={skills => setTicket({ ...ticket, skills })}
+                />
               </Descriptions.Item>
               <Descriptions.Item label="Fecha de inicio">
                 {timeSummary.startDate
