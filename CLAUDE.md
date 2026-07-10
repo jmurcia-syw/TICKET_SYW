@@ -2,14 +2,21 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Usuario/cliente por Proyecto, Asignación de Personal y Estructura de Skills
+**Active feature**: Cronómetro Manual de Tiempo en el Ticket (provisional)
+**Spec**: specs/012-cronometro-manual-ticket/spec.md
+**Plan**: specs/012-cronometro-manual-ticket/plan.md
+**Research**: specs/012-cronometro-manual-ticket/research.md
+**Data model**: specs/012-cronometro-manual-ticket/data-model.md
+**Contracts**: specs/012-cronometro-manual-ticket/contracts/
+**Quickstart**: specs/012-cronometro-manual-ticket/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Pending feature (spec lista, sin plan/tasks — retomar antes de mergear si se prioriza)**: Skills Requeridas en el Ticket
+**Spec**: specs/011-ticket-skills-requeridas/spec.md
+
+**Previous feature (completada)**: Usuario/cliente por Proyecto, Asignación de Personal y Estructura de Skills
 **Spec**: specs/010-proyecto-personal-skills/spec.md
 **Plan**: specs/010-proyecto-personal-skills/plan.md
-**Research**: specs/010-proyecto-personal-skills/research.md
-**Data model**: specs/010-proyecto-personal-skills/data-model.md
-**Contracts**: specs/010-proyecto-personal-skills/contracts/
-**Quickstart**: specs/010-proyecto-personal-skills/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada, validada end-to-end contra Docker real)**: Listas de Tareas, Subtareas, ciclo de vida unificado y fix de Registro de tiempo
 **Spec**: specs/009-tareas-listas-subtareas/spec.md

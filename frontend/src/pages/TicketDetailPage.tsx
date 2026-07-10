@@ -23,6 +23,7 @@ import TaskStatusChanger from '../components/tickets/TaskStatusChanger'
 import SubtaskList from '../components/tickets/SubtaskList'
 import AssignModal from '../components/tickets/AssignModal'
 import TicketWorkSessions from '../components/worksessions/TicketWorkSessions'
+import TicketTimerWidget from '../components/worksessions/TicketTimerWidget'
 import TicketBreadcrumb from '../components/tickets/TicketBreadcrumb'
 import { useAuthStore } from '../store/authStore'
 import { palette, vivid } from '../theme'
@@ -49,6 +50,7 @@ export default function TicketDetailPage() {
   const { hasPermission } = useAuthStore()
   const canAssign = hasPermission('tickets', 'assign')
   const canEdit = hasPermission('tickets', 'edit')
+  const canTrackTime = hasPermission('work_sessions', 'manage')
 
   const [ticket, setTicket] = useState<TicketDetail | null>(null)
   const [resolutionTypes, setResolutionTypes] = useState<CatalogItem[]>([])
@@ -63,6 +65,10 @@ export default function TicketDetailPage() {
   const [listId, setListId] = useState<string | undefined>()
   const [relatedOptions, setRelatedOptions] = useState<TicketListItem[]>([])
   const [relatedTicketId, setRelatedTicketId] = useState<string | undefined>()
+  /** Fuerza el remount (y por lo tanto el refetch) de `TicketWorkSessions` cuando el
+   * cronómetro (spec 012) termina y crea un Registro de tiempo nuevo — son componentes
+   * hermanos, cada uno con su propio fetch independiente. */
+  const [timerFinishedCount, setTimerFinishedCount] = useState(0)
   /** Revelado fluido del resumen de tiempo (Fase 2.2, US1 FR-004/FR-005): expandido por defecto
    * y al cerrar el modal de tiempo; se colapsa al hacer scroll hacia abajo, se re-expande al
    * volver a scrollear hacia arriba (ver research.md Decisión 2). */
@@ -204,7 +210,17 @@ export default function TicketDetailPage() {
             title={<span><HistoryOutlined style={{ color: vivid.green.text, marginRight: 8 }} />Registros de tiempo</span>}
             style={{ marginTop: 16, transition: 'opacity 200ms cubic-bezier(0.23, 1, 0.32, 1)' }}
           >
+            {canTrackTime && (
+              <>
+                <TicketTimerWidget
+                  ticketId={ticket.id}
+                  onFinished={() => setTimerFinishedCount(c => c + 1)}
+                />
+                <Divider style={{ margin: '12px 0' }} />
+              </>
+            )}
             <TicketWorkSessions
+              key={timerFinishedCount}
               ticketId={ticket.id}
               ticketNumber={ticket.ticket_number}
               ticketTitle={ticket.title}

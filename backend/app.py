@@ -93,6 +93,11 @@ def create_app() -> Flask:
     api.add_namespace(ns_project_members)
     api.add_namespace(ns_project_teams)
 
+    # ── spec 012 — Cronómetro manual de tiempo (provisional) ───────────────────
+    from backend.api.routes.timer import ns as ns_timer
+
+    api.add_namespace(ns_timer)
+
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")
 
