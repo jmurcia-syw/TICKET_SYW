@@ -24,6 +24,11 @@ def create_app() -> Flask:
     from backend.infra.database import close_db
     app.teardown_appcontext(close_db)
 
+    # spec 013: contrato estándar de error {success, message, code} en TODA
+    # respuesta >= 400, sin modificar los returns de las rutas.
+    from backend.api.errors import register_error_handling
+    register_error_handling(app)
+
     api = Api(
         app,
         version="1.0",

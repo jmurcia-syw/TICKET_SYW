@@ -2,14 +2,18 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Skills Requeridas en el Ticket
+**Active feature**: Manejo Global de Errores y Notificaciones (API a Frontend)
+**Spec**: specs/013-manejo-errores-notificaciones/spec.md
+**Plan**: specs/013-manejo-errores-notificaciones/plan.md
+**Research**: specs/013-manejo-errores-notificaciones/research.md
+**Data model**: specs/013-manejo-errores-notificaciones/data-model.md
+**Contracts**: specs/013-manejo-errores-notificaciones/contracts/
+**Quickstart**: specs/013-manejo-errores-notificaciones/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada)**: Skills Requeridas en el Ticket
 **Spec**: specs/011-ticket-skills-requeridas/spec.md
 **Plan**: specs/011-ticket-skills-requeridas/plan.md
-**Research**: specs/011-ticket-skills-requeridas/research.md
-**Data model**: specs/011-ticket-skills-requeridas/data-model.md
-**Contracts**: specs/011-ticket-skills-requeridas/contracts/
-**Quickstart**: specs/011-ticket-skills-requeridas/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada)**: Cronómetro Manual de Tiempo en el Ticket (provisional)
 **Spec**: specs/012-cronometro-manual-ticket/spec.md
