@@ -42,10 +42,17 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 
 ---
 
-## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`)
+## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`) + Manejo global de errores (spec `013`)
 
 ### Funcionalidad operativa
 
+- **Manejo global de errores y notificaciones** (spec `013`): toda respuesta de error de la
+  API (todos los endpoints) sale con el contrato estándar `{success: false, message, code}`
+  (+ campo legado `error`), aplicado por un normalizador global sin tocar las rutas; los 500
+  no controlados nunca exponen detalles internos. El frontend captura todo error en el
+  interceptor central de axios y muestra un toast (antd) con el mensaje del servidor o un
+  genérico amigable, con dedupe de mensajes repetidos (~3 s); el 401 conserva la redirección
+  a login sin toast.
 - **Tickets** (`TK-nnnnnn` consecutivo): creación con clasificación completa (tipo,
   prioridad, severidad, herramienta, proceso, escalamiento N1-N4, cliente/proyecto),
   listado con filtros combinables, detalle con historial completo.

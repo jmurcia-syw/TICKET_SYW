@@ -20,10 +20,16 @@ def parse_uuid(value):
 
 
 def error_model(ns, name="Error"):
-    """Register the standard {error, message} error schema on a namespace."""
+    """Register the standard error schema on a namespace (spec 013 contract).
+
+    El normalizador global (backend/api/errors.py) garantiza success/code en
+    toda respuesta >= 400 aunque la ruta solo devuelva {error, message}.
+    """
     return ns.model(name, {
-        "error": fields.String(description="Codigo de error", example="not_found"),
-        "message": fields.String(description="Descripcion del error"),
+        "success": fields.Boolean(description="Siempre false en errores", example=False),
+        "message": fields.String(description="Descripcion del error, apta para usuario final"),
+        "code": fields.String(description="Codigo estable UPPER_SNAKE_CASE", example="NOT_FOUND"),
+        "error": fields.String(description="Codigo legado snake_case (deprecado)", example="not_found"),
     })
 
 

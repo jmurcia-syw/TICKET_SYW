@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { ConfigProvider } from 'antd'
+import { useEffect } from 'react'
+import { App as AntApp, ConfigProvider } from 'antd'
 import esES from 'antd/locale/es_ES'
+import { bindMessageApi } from './services/errorNotifier'
 import LoginPage from './pages/LoginPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
@@ -63,12 +65,25 @@ function AppRoutes() {
   )
 }
 
+// Liga la instancia de mensajes del <App> de antd al notificador global de
+// errores para que los toasts respeten tema y locale del ConfigProvider.
+function MessageApiBinder() {
+  const { message } = AntApp.useApp()
+  useEffect(() => {
+    bindMessageApi(message)
+  }, [message])
+  return null
+}
+
 export default function App() {
   return (
     <ConfigProvider locale={esES} theme={theme}>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <AntApp>
+        <MessageApiBinder />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   )
 }
