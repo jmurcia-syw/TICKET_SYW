@@ -19,6 +19,32 @@ class SkillRepository:
             q = q.filter(SkillModel.active == active)
         return [m.to_entity() for m in q.order_by(SkillModel.code).all()]
 
+    def list_all_with_catalogs(self, active: bool | None = True) -> list[dict]:
+        """Skills con nombre de herramienta/proceso resueltos (spec 010, contracts/skills.md)."""
+        from backend.infra.models.catalog_model import ToolCatalogModel, ProcessCatalogModel
+        q = (
+            self._db.query(SkillModel, ToolCatalogModel.name, ProcessCatalogModel.name)
+            .outerjoin(ToolCatalogModel, ToolCatalogModel.id == SkillModel.tool_id)
+            .outerjoin(ProcessCatalogModel, ProcessCatalogModel.id == SkillModel.process_id)
+        )
+        if active is not None:
+            q = q.filter(SkillModel.active == active)
+        rows = q.order_by(SkillModel.code).all()
+        return [
+            {
+                "id": str(m.id),
+                "code": m.code,
+                "label": m.label,
+                "active": m.active,
+                "skill_type": m.skill_type,
+                "tool_id": str(m.tool_id) if m.tool_id else None,
+                "tool_name": tool_name,
+                "process_id": str(m.process_id) if m.process_id else None,
+                "process_name": process_name,
+            }
+            for m, tool_name, process_name in rows
+        ]
+
     def get_by_id(self, skill_id: uuid.UUID) -> Optional[Skill]:
         model = self._db.get(SkillModel, skill_id)
         return model.to_entity() if model else None
@@ -28,8 +54,22 @@ class SkillRepository:
         return model.to_entity() if model else None
 
     def create(self, skill: Skill) -> Skill:
-        model = SkillModel(id=skill.id, code=skill.code, label=skill.label, active=skill.active)
+        model = SkillModel(id=skill.id, code=skill.code, label=skill.label, active=skill.active,
+                           skill_type=skill.skill_type, tool_id=skill.tool_id,
+                           process_id=skill.process_id)
         self._db.add(model)
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def update(self, skill_id: uuid.UUID, data: dict) -> Optional[Skill]:
+        """PATCH parcial de label/skill_type/tool_id/process_id (spec 010)."""
+        model = self._db.get(SkillModel, skill_id)
+        if not model:
+            return None
+        for field in ("label", "skill_type", "tool_id", "process_id"):
+            if field in data:
+                setattr(model, field, data[field])
         self._db.commit()
         self._db.refresh(model)
         return model.to_entity()

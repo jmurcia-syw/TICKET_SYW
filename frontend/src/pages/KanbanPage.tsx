@@ -11,8 +11,10 @@ import type { Resource } from '../types/resource'
 import { getKanbanTransition, reachableFrom } from '../config/kanbanTransitions'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
+import SavedFiltersBar from '../components/tickets/SavedFiltersBar'
 import { avatarColor, initials, palette, vivid, TICKET_STATUS_CHIP } from '../theme'
 import { useAuthStore } from '../store/authStore'
+import type { TicketFilterCriteria } from '../store/savedFiltersStore'
 
 // Estados activos del ciclo de vida (docs/PROPUESTA_VISUAL.html — "Vista Kanban").
 // CERRADO y CANCELADO son finales y no aportan al tablero operativo.
@@ -192,6 +194,20 @@ export default function KanbanPage() {
 
   const priorityOptions = useMemo(() => Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label })), [])
 
+  const currentCriteria: TicketFilterCriteria = {
+    status: statusFilter.length ? statusFilter : undefined,
+    assignee_id: assigneeFilter,
+    priority: priorityFilter,
+    escalation_level: levelFilter,
+  }
+
+  const applySavedFilter = (criteria: TicketFilterCriteria) => {
+    setStatusFilter(criteria.status ?? [])
+    setAssigneeFilter(criteria.assignee_id)
+    setPriorityFilter(criteria.priority)
+    setLevelFilter(criteria.escalation_level)
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
@@ -214,6 +230,10 @@ export default function KanbanPage() {
             value={levelFilter} onChange={setLevelFilter}
             options={LEVEL_OPTIONS.map(l => ({ value: l, label: l.toUpperCase() }))} />
         </div>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <SavedFiltersBar currentCriteria={currentCriteria} onApply={applySavedFilter} />
       </div>
 
       {loading && !columns ? (

@@ -3,8 +3,9 @@
 Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM
 de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre **GitHub Spec Kit**.
 
-> **Fase activa**: `Fase 2.2 — Mis Tareas y Encargado asignable por Cliente` ✅ implementada y
-> validada end-to-end contra Docker real (quickstart 6/6 escenarios) · Rama: `develp_Jp`
+> **Fase activa**: `Fase 3 — Tareas: ciclo de vida unificado, Listas y Subtareas` ✅ implementada y
+> validada end-to-end contra Docker real (quickstart 0-6 · suite completa 332/332 · `tsc -b` sin
+> errores) · Rama: `develp_Jp`
 
 ---
 
@@ -15,7 +16,7 @@ de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre *
 | **1a — Maestros** | Clientes, Proyectos, Recursos/Skills, Roles/Permisos, login dual, compensación protegida (spec `001`) | ✅ **Completa** |
 | **1b — Tickets** | Ciclo de vida de 9 estados (FSM), comentarios tipificados con adjuntos, Triage Push + Gold Standard Dataset, Panel de Asignación, notificaciones, enforcement JWT total (spec `002`) | ✅ **Completa** (validación E2E 26/26) |
 | **2 — Registro de tiempos** | Registro diario de tiempos por recurso (hora inicio/fin), rol Encargado (autoservicio con Cliente fijo), breadcrumbs de navegación, Encargado seleccionable/editable por Cliente en el ticket, "Mis Tareas" (specs `004`, `005`, `006`, `007`) | ✅ **Completa** |
-| 3 | Tareas (misma tabla, campo "Tipo de registro" + registro relacionado) | ⏳ Pendiente |
+| **3 — Tareas** | Tarea/Subtarea sobre la misma tabla de Ticket (jerarquía Cliente → Proyecto → Lista → Tarea → Subtarea), ciclo de vida unificado con Ticket (10 estados, transición libre + comentario), visibles en Kanban, Listas administrables tipo Teamwork/Asana, Subtareas con Encargado propio, fix de Registro de tiempo para creador de la Tarea (specs `008`, `009`) | ✅ **Completa** |
 | 4 | SLAs por prioridad/cliente/proyecto con estados que pausan el contador | ⏳ Pendiente |
 | 5 | Asignación por disponibilidad + calendarios por país/recurso | ⏳ Pendiente |
 | 6 | Motor FSM automatizado + triggers de comentarios + Google Chat | ⏳ Pendiente |
@@ -28,7 +29,7 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 
 ---
 
-## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos y Encargados)
+## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos y Encargados) + Fase 3 (Tareas)
 
 ### Funcionalidad operativa
 
@@ -63,6 +64,17 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
   tickets de autoservicio o en estados finales (Cerrado/Cancelado).
 - **Mis Tareas** y **breadcrumbs de navegación** estilo Teamwork (Kanban → Detalle → Volver
   respeta el origen exacto).
+- **Tareas y Subtareas** (Fase 3, misma tabla/entidad que Ticket, jerarquía Cliente → Proyecto →
+  Lista → Tarea → Subtarea): mismo ciclo de 10 estados que el Ticket con **transición libre**
+  (cualquier estado a cualquier otro, exige comentario) en vez de una FSM propia; mismos campos
+  de clasificación (Tipo, Severidad, Herramienta, Proceso, Nivel de escalamiento) visibles y
+  editables; aparecen en el **Kanban** junto a los Tickets con badge de tipo de registro.
+- **Listas de tareas administrables**: entidad real por Proyecto (ya no texto libre), sidebar
+  tipo Teamwork/Asana con conteo de tareas, creación y renombrado.
+- **Subtareas** con Encargado y estado propios (no heredan el estado del padre), comentarios
+  simples en Tarea/Subtarea sin cambio de estado.
+- **Registro de tiempo sobre Tareas**: un recurso puede registrar tiempo sobre una Tarea/Subtarea
+  que creó, sin exigir el historial formal de asignaciones de Triage (que solo aplica a Ticket).
 
 ### Seguridad
 
@@ -86,6 +98,10 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
   escenarios del quickstart validados contra Docker real (creación con/sin Encargado,
   autoservicio inmutable, reasignación, bloqueo por estado, limpieza al cambiar Cliente,
   permiso de lectura para Resolutor)
+- **Validación E2E** de la Fase 3 (Tareas, Listas y Subtareas, spec `009`): quickstart
+  Escenarios 0-6 contra Docker real (migración de datos, registro de tiempo por creador,
+  transición libre + Kanban, Listas administrables, Subtareas con Encargado propio, comentarios
+  simples, regresión de Ticket sin cambios); suite completa `332/332` tests en verde
 - **Performance** con 500+ tickets: panel 64 ms (SC < 2 s), listado 52 ms (SC < 1 s) ✅
 - Typecheck frontend estricto sin errores ✅
 
@@ -123,25 +139,25 @@ backend/
 │                      # client_contact, work_session, ...
 ├── infra/             # Capa 2
 │   ├── models/        # SQLAlchemy (tickets, comments, catalogs, notifications, maestros,
-│   │                  # client_contacts, work_sessions)
+│   │                  # client_contacts, work_sessions, task_lists)
 │   ├── repositories/  # paginación, filtros, historiales append-only
 │   ├── storage/       # adjuntos en filesystem (uploads/tickets/{id}/)
-│   └── migrations/    # Alembic 001..022
+│   └── migrations/    # Alembic 001..024
 └── api/               # Capa 3
     ├── middleware/    # auth.py (JWT + usuario activo), rbac.py (@require_permission)
     └── routes/        # tickets, catalogs, notifications, assignment_panel, client_contacts,
-                       # work_sessions + maestros
+                       # work_sessions, task_lists + maestros
 
 frontend/src/
 ├── components/tickets/     # TicketStatusTag, AssignModal, CommentThread, CommentComposer,
-│                           # TicketBreadcrumb
+│                           # TicketBreadcrumb, TaskStatusChanger, SubtaskList
 ├── components/worksessions/ # WorkSessionForm, TimeLogModal, TicketWorkSessions
 ├── components/common/      # NotificationBell, ProtectedRoute, ConfirmationModal, ...
 ├── pages/                  # TicketsPage, TicketDetailPage, AssignmentPanelPage, CatalogsPage,
-│                           # MyTasksPage, WorkSessionsPage, TimeReportPage, ClientContactsPage
-│                           # + maestros
+│                           # MyTasksPage, WorkSessionsPage, TimeReportPage, ClientContactsPage,
+│                           # ProjectListsPage, KanbanPage + maestros
 ├── services/                # ticketService, catalogService, notificationService,
-│                            # clientContactService, workSessionService + maestros
+│                            # clientContactService, workSessionService, taskListService + maestros
 ├── store/               # authStore (Zustand: token, permisos, hasPermission)
 └── types/               # tipos estrictos por dominio
 ```
@@ -328,6 +344,8 @@ docker exec sywork_backend python -m backend.scripts.seed_tickets 500   # datos 
 | `005` | [ticket-tiempo-encargado-nav](specs/005-ticket-tiempo-encargado-nav/spec.md) | Registro de tiempo en el detalle, rol Encargado, breadcrumbs | ✅ Completa |
 | `006` | [ticket-detalle-tiempo-ui](specs/006-ticket-detalle-tiempo-ui/spec.md) | Refactor visual/navegación del detalle del ticket | ✅ Completa |
 | `007` | [ticket-encargado-cliente](specs/007-ticket-encargado-cliente/spec.md) | Encargado solicitante asignable por Cliente en el ticket | ✅ Completa — quickstart 6/6 |
+| `008` | [fase3-tareas](specs/008-fase3-tareas/spec.md) | Tarea sobre la misma tabla de Ticket, campo "Tipo de registro"; decisiones de Lista texto libre y FSM propia reemplazadas por la spec `009` | ✅ Completa — tasks 31/31 |
+| `009` | [tareas-listas-subtareas](specs/009-tareas-listas-subtareas/spec.md) | Listas administrables, Subtareas, ciclo de vida unificado con Ticket (10 estados, transición libre) y fix de Registro de tiempo | ✅ Completa — tasks 45/45, suite 332/332 |
 
 Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.md`,
 `data-model.md`, `contracts/`, `tasks.md`, `quickstart.md`.
@@ -343,4 +361,4 @@ Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.
   frontend (T071).
 - El cifrado pgcrypto es placeholder de desarrollo → reemplazar por `pgp_sym_encrypt`
   antes de producción.
-- Fase 3 (Tareas) y siguientes del roadmap SDD V3 aún no iniciadas.
+- Fase 4 (SLAs) y siguientes del roadmap SDD V3 aún no iniciadas.

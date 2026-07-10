@@ -110,12 +110,21 @@ export default function TicketDetailPage() {
   }, [])
   useEffect(() => {
     if (ticket?.client?.id) {
-      clientContactService.list({ client_id: ticket.client.id, page_size: 100 }).then(r => setContacts(r.items))
-        .catch(() => message.error('No se pudo cargar la lista de encargados'))
       ticketService.list({ client_id: ticket.client.id, page_size: 100 }).then(r => setRelatedOptions(r.items))
         .catch(() => message.error('No se pudo cargar la lista de registros del cliente'))
     }
   }, [ticket?.client?.id])
+  useEffect(() => {
+    /** Spec 010 (US2): el solicitante se alimenta del personal del Proyecto del ticket;
+     * sin proyecto se mantiene la fuente por Cliente (spec 007). */
+    if (ticket?.project?.id) {
+      clientContactService.list({ project_id: ticket.project.id, page_size: 100 }).then(r => setContacts(r.items))
+        .catch(() => message.error('No se pudo cargar la lista de usuarios/cliente'))
+    } else if (ticket?.client?.id) {
+      clientContactService.list({ client_id: ticket.client.id, page_size: 100 }).then(r => setContacts(r.items))
+        .catch(() => message.error('No se pudo cargar la lista de usuarios/cliente'))
+    }
+  }, [ticket?.project?.id, ticket?.client?.id])
   useEffect(() => {
     if (ticket?.project?.id) {
       taskListService.listByProject(ticket.project.id).then(setTaskLists)
@@ -127,7 +136,7 @@ export default function TicketDetailPage() {
 
   const locked = new Set(ticket.locked_fields)
   /** Fase 2.2, FR-009: no editable cuando el solicitante se resolvió automáticamente del
-   * creador (Encargado, autoservicio) — solo editable cuando es una asignación manual o cuando
+   * creador (Usuario/cliente, autoservicio) — solo editable cuando es una asignación manual o cuando
    * todavía no hay ninguna. */
   const encargadoAutoDerivado = !ticket.client_contact_id && !!ticket.requester?.is_encargado
   const encargadoEditable = canEdit && !locked.has('client_contact_id') && !encargadoAutoDerivado
@@ -167,7 +176,13 @@ export default function TicketDetailPage() {
         </span>
         <h2 style={{ margin: 0 }}>{ticket.title}</h2>
         <TicketStatusTag status={ticket.status} />
-        {isTask && <Tag>{isSubtask ? 'Subtarea' : 'Tarea'}</Tag>}
+        <span style={{
+          fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 999,
+          background: isTask ? vivid.purple.bg : vivid.blue.bg,
+          color: isTask ? vivid.purple.text : vivid.blue.text,
+        }}>
+          {isSubtask ? 'Subtarea' : isTask ? 'Tarea' : 'Ticket'}
+        </span>
         <PriorityBadge priority={ticket.priority} full />
         {canAssign && !isTask && (ticket.status === 'nuevo' || ticket.status === 'pre_analisis') && (
           <Button type="primary" icon={<UserSwitchOutlined />} onClick={() => setAssignOpen(true)}>
@@ -271,7 +286,7 @@ export default function TicketDetailPage() {
           <Card title="Clasificación" size="small" style={{ marginTop: 16 }}>
             <Descriptions column={1} size="small">
               <Descriptions.Item label="Cliente">{ticket.client?.name}</Descriptions.Item>
-              <Descriptions.Item label="Encargado solicitante">
+              <Descriptions.Item label="Usuario/cliente solicitante">
                 {encargadoEditable ? (
                   <Select
                     size="small" allowClear placeholder="Sin encargado asignado" style={{ width: 200 }}

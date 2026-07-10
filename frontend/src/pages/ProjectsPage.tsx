@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tooltip, message } from 'antd'
-import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined, UnorderedListOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined, UnorderedListOutlined, TeamOutlined } from '@ant-design/icons'
 import type { ColumnsType, TableProps } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { projectService } from '../services/projectService'
@@ -132,6 +132,9 @@ export default function ProjectsPage() {
               <Button size="small" icon={<UnorderedListOutlined />} onClick={() => navigate(`/projects/${r.id}/lists`)} />
             </Tooltip>
           )}
+          <Tooltip title="Personal del proyecto">
+            <Button size="small" icon={<TeamOutlined />} onClick={() => navigate(`/projects/${r.id}/people`)} />
+          </Tooltip>
           {canManage && <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} /></Tooltip>}
           {canManage && (r.active
             ? <Tooltip title="Desactivar"><Button size="small" danger icon={<StopOutlined />} onClick={() => setConfirmDeactivate(r.id)} /></Tooltip>

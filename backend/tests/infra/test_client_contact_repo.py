@@ -16,7 +16,7 @@ def repo(db_session):
 
 
 def _make_encargado_user(db_session, unique_name):
-    role = RoleRepository(db_session).get_by_name("Encargado")
+    role = RoleRepository(db_session).get_by_name("Usuario/cliente")
     user = User(
         id=uuid.uuid4(), email=f"encargado.{unique_name}@clienteexterno.com",
         username=f"encargado_{unique_name}", role=role,

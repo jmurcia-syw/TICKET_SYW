@@ -14,3 +14,9 @@ admin / admin@sywork.net                | Admin        | U3lXb3JrX0RldjIwMjYh
 coordinador / coordinador@sywork.net    | Coordinador  | U3lXb3JrX0RldjIwMjYh
 qm / qm@sywork.net                      | QM           | U3lXb3JrX0RldjIwMjYh
 resolutor / resolutor@sywork.net        | Resolutor    | U3lXb3JrX0RldjIwMjYh
+jmurcia2@sywork.net
+mzvV6I3Oiwrz
+
+
+docker exec sywork_backend alembic upgrade head
+docker exec sywork_backend python -m pytest tests/ -q

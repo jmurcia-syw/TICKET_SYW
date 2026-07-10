@@ -43,3 +43,23 @@ spec-kit init
 ├──────────────────────────────────────┼─────────────┼──────────────┤
 │ resolutor / resolutor@sywork.net     │ Resolutor   │ vX8gVLcMTdDm │
 └──────────────────────────────────────┴─────────────┴──────────────┘
+admin / jmurcia@sywork.net             │ Admin  Zm7DaHfIu4Ys
+
+
+
+begin
+  dbms_scheduler.create_job (
+     job_name           =>  'JOB_PROC_ITEM_COSTO',
+     job_type           =>  'PLSQL_BLOCK',
+     job_action         =>  'begin
+
+    PROC_ITEM_COSTO('300000027519332'); --ARIS MINING MARMATO S.A.S.
+    PROC_ITEM_COSTO('300000004171006'); --ARIS MINING SEGOVIA
+
+end;',
+     start_date         =>  systimestamp, 
+     repeat_interval    =>  ' FREQ=DAILY; BYHOUR=01,02,03,04,05,06,07,08,09,10,11,12,13,14,15,16,17,18,19,20,21,22,23; BYMINUTE=0,30',
+     enabled            =>  true,
+     comments           =>  'Verificaicon PROC_ITEM_COSTO actualizado'
+  );
+end;
