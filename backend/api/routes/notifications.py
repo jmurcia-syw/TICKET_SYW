@@ -28,7 +28,7 @@ class NotificationList(Resource):
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
     @ns.response(403, "Sin el permiso requerido", _error)
     # Toda cuenta autenticada ve SUS notificaciones; alcanza con tener algún permiso sobre
-    # tickets (view para los roles internos, view_own para Encargado, Fase 2.1).
+    # tickets (view para los roles internos, view_own para Usuario/cliente, Fase 2.1).
     @require_authenticated()
     def get(self):
         """Notificaciones del usuario autenticado (propias, nunca de otros)"""

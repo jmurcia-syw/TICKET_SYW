@@ -143,9 +143,9 @@ export interface TicketDetail extends TicketListItem {
   /** Registros (Ticket o Tarea) que referencian a este como "Registro relacionado" (Fase 3). */
   related_from: RelatedFromItem[]
   created_by: string
-  /** Encargado solicitante asignado manualmente (Fase 2.2) — `null` si no hay o si `requester`
+  /** Usuario/cliente solicitante asignado manualmente (Fase 2.2) — `null` si no hay o si `requester`
    * se resuelve automáticamente del creador (Fase 2.1). Editable solo cuando no es `null` o
-   * cuando `requester` no viene de un creador con rol Encargado (ver TicketDetailPage). */
+   * cuando `requester` no viene de un creador con rol Usuario/cliente (ver TicketDetailPage). */
   client_contact_id: string | null
   requester: TicketRequester | null
   resolved_at: string | null
@@ -164,14 +164,14 @@ export interface TicketDetail extends TicketListItem {
 export interface TicketFormData {
   title: string
   description: string
-  /** Requeridos para todos los roles salvo Encargado (alta simplificada, Fase 2.1 US3):
-   * el backend los completa automáticamente (incident/medium/s3 + cliente del Encargado). */
+  /** Requeridos para todos los roles salvo Usuario/cliente (alta simplificada, Fase 2.1 US3):
+   * el backend los completa automáticamente (incident/medium/s3 + cliente del Usuario/cliente). */
   ticket_type?: TicketType
   priority?: Priority
   severity?: Severity
   client_id?: string
   project_id?: string | null
-  /** Encargado solicitante (Fase 2.2) — opcional, debe pertenecer al `client_id` elegido. */
+  /** Usuario/cliente solicitante (Fase 2.2) — opcional, debe pertenecer al `client_id` elegido. */
   client_contact_id?: string | null
   tool_id?: string | null
   process_id?: string | null

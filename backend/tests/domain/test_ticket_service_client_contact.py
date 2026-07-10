@@ -24,6 +24,7 @@ class FakeContact:
     def __init__(self, client_id):
         self.id = uuid.uuid4()
         self.client_id = client_id
+        self.user_id = uuid.uuid4()
 
 
 class FakeClientContactsRepo:
@@ -152,7 +153,7 @@ def test_validate_patch_rejects_when_creator_is_encargado():
         svc.validate_patch(
             ticket, {"client_contact_id": str(contact.id)},
             client_contacts_repo=FakeClientContactsRepo(contact),
-            users_repo=FakeUsersRepo(FakeUser("Encargado")),
+            users_repo=FakeUsersRepo(FakeUser("Usuario/cliente")),
         )
     assert exc_info.value.code == "requester_immutable"
 
@@ -180,3 +181,93 @@ def test_validate_patch_allows_clearing_client_contact():
         users_repo=FakeUsersRepo(FakeUser("Coordinador")),
     )
     assert clean["client_contact_id"] is None
+
+
+# ── Solicitante por Proyecto y autoservicio acotado (spec 010, US2) ──────────
+
+class FakeProjectMembersRepo:
+    def __init__(self, member_user_ids=()):
+        self._member_user_ids = set(member_user_ids)
+
+    def is_member(self, project_id, user_id):
+        return user_id in self._member_user_ids
+
+
+class FakeProject:
+    def __init__(self, client_id, active=True):
+        self.id = uuid.uuid4()
+        self.client_id = client_id
+        self.active = active
+
+
+class FakeProjectsRepo:
+    def __init__(self, project=None):
+        self._project = project
+
+    def get_by_id(self, project_id):
+        return self._project
+
+
+def test_validate_create_rejects_contact_not_in_project():
+    client = FakeClient(active=True)
+    project = FakeProject(client_id=client.id)
+    contact = FakeContact(client_id=client.id)
+    svc = TicketService()
+    with pytest.raises(TicketBusinessError) as exc_info:
+        svc.validate_create(
+            client_id=client.id, project_id=project.id, tool_id=None, process_id=None,
+            related_ticket_id=None, clients_repo=FakeClientsRepo(client),
+            projects_repo=FakeProjectsRepo(project),
+            tools_repo=None, processes_repo=None, tickets_repo=None,
+            client_contact_id=contact.id, client_contacts_repo=FakeClientContactsRepo(contact),
+            project_members_repo=FakeProjectMembersRepo(),  # sin membresías
+        )
+    assert exc_info.value.code == "contact_not_in_project"
+
+
+def test_validate_create_accepts_contact_linked_to_project():
+    client = FakeClient(active=True)
+    project = FakeProject(client_id=client.id)
+    contact = FakeContact(client_id=client.id)
+    svc = TicketService()
+    svc.validate_create(
+        client_id=client.id, project_id=project.id, tool_id=None, process_id=None,
+        related_ticket_id=None, clients_repo=FakeClientsRepo(client),
+        projects_repo=FakeProjectsRepo(project),
+        tools_repo=None, processes_repo=None, tickets_repo=None,
+        client_contact_id=contact.id, client_contacts_repo=FakeClientContactsRepo(contact),
+        project_members_repo=FakeProjectMembersRepo({contact.user_id}),
+    )
+
+
+def test_validate_create_rejects_self_service_on_unlinked_project():
+    client = FakeClient(active=True)
+    project = FakeProject(client_id=client.id)
+    creator_id = uuid.uuid4()
+    svc = TicketService()
+    with pytest.raises(TicketBusinessError) as exc_info:
+        svc.validate_create(
+            client_id=client.id, project_id=project.id, tool_id=None, process_id=None,
+            related_ticket_id=None, clients_repo=FakeClientsRepo(client),
+            projects_repo=FakeProjectsRepo(project),
+            tools_repo=None, processes_repo=None, tickets_repo=None,
+            project_members_repo=FakeProjectMembersRepo(),
+            creator_is_client_user=True, creator_user_id=creator_id,
+        )
+    assert exc_info.value.code == "project_not_assigned"
+
+
+def test_validate_patch_rejects_contact_not_in_ticket_project():
+    client_id = uuid.uuid4()
+    contact = FakeContact(client_id=client_id)
+    ticket = _make_ticket(client_id)
+    ticket.project_id = uuid.uuid4()
+    svc = TicketService()
+    with pytest.raises(TicketBusinessError) as exc_info:
+        svc.validate_patch(
+            ticket, {"client_contact_id": str(contact.id)},
+            client_contacts_repo=FakeClientContactsRepo(contact),
+            users_repo=FakeUsersRepo(FakeUser("Coordinador")),
+            project_members_repo=FakeProjectMembersRepo(),
+        )
+    assert exc_info.value.code == "contact_not_in_project"

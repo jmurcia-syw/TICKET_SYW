@@ -76,7 +76,7 @@ def create_app() -> Flask:
 
     api.add_namespace(ns_work_sessions)
 
-    # ── Fase 2.1 — Rol Encargado (client_contacts) ─────────────────────────────
+    # ── Fase 2.1 — Rol Usuario/cliente (client_contacts) ─────────────────────────────
     from backend.api.routes.client_contacts import ns as ns_client_contacts
 
     api.add_namespace(ns_client_contacts)
@@ -86,6 +86,12 @@ def create_app() -> Flask:
 
     api.add_namespace(ns_project_lists)
     api.add_namespace(ns_task_lists)
+
+    # ── spec 010 — Personal del Proyecto y subgrupos "Equipo" ───────────────────
+    from backend.api.routes.project_members import ns_project_members, ns_teams as ns_project_teams
+
+    api.add_namespace(ns_project_members)
+    api.add_namespace(ns_project_teams)
 
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")

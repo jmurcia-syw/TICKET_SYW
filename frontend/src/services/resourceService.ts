@@ -1,6 +1,6 @@
 import apiClient from './apiClient'
 import type { PaginatedResponse } from '../types/api'
-import type { Resource, ResourceFormData, Skill, ResourceCompensation, CompensationFormData } from '../types/resource'
+import type { Resource, ResourceFormData, Skill, SkillType, ResourceCompensation, CompensationFormData } from '../types/resource'
 
 export const resourceService = {
   list: (params?: { page?: number; page_size?: number; search?: string; skill_code?: string; active?: boolean }) =>
@@ -38,8 +38,11 @@ export const skillService = {
   list: (active?: boolean) =>
     apiClient.get<{ items: Skill[]; total: number }>('/api/skills', { params: { active } }).then(r => r.data),
 
-  create: (data: { code: string; label: string }) =>
+  create: (data: { code: string; label: string; skill_type: SkillType; tool_id?: string | null; process_id?: string | null }) =>
     apiClient.post<Skill>('/api/skills', data).then(r => r.data),
+
+  update: (id: string, data: { label?: string; skill_type?: SkillType; tool_id?: string | null; process_id?: string | null }) =>
+    apiClient.patch<Skill>(`/api/skills/${id}`, data).then(r => r.data),
 
   delete: (id: string) =>
     apiClient.delete(`/api/skills/${id}`).then(r => r.data),

@@ -22,11 +22,16 @@ class SkillModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
     code = Column(Text, nullable=False, unique=True)
     label = Column(Text, nullable=False)
+    skill_type = Column(Text, nullable=False, default="tecnico")
+    tool_id = Column(UUID(as_uuid=True), ForeignKey("catalog_tools.id"), nullable=True)
+    process_id = Column(UUID(as_uuid=True), ForeignKey("catalog_processes.id"), nullable=True)
     active = Column(Boolean, nullable=False, default=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
     def to_entity(self) -> Skill:
-        return Skill(id=self.id, code=self.code, label=self.label, active=self.active, created_at=self.created_at)
+        return Skill(id=self.id, code=self.code, label=self.label, skill_type=self.skill_type,
+                     tool_id=self.tool_id, process_id=self.process_id,
+                     active=self.active, created_at=self.created_at)
 
 
 class ResourceModel(Base):

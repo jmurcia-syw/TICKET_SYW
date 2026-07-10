@@ -1,0 +1,8 @@
+{
+  "name": "project-skills",
+  "description": "Custom project skills: api-design-principles, interface-design, vercel-react-best-practices, brainstorming, error-handling-patterns",
+  "version": "1.0.0",
+  "author": {
+    "name": "jmurcia-syw"
+  }
+}

@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 interface Props {
   children: ReactNode
   /** `action` acepta una sola acción o una lista de alternativas (cualquiera habilita el
-   * acceso) — ej. Tickets: `['view', 'view_own']` para Coordinador/Resolutor vs Encargado. */
+   * acceso) — ej. Tickets: `['view', 'view_own']` para Coordinador/Resolutor vs Usuario/cliente. */
   requiredPermission?: { module: string; action: string | string[] }
 }
 

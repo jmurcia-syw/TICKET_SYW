@@ -4,17 +4,26 @@ from typing import Optional
 import uuid
 
 
+SKILL_TYPES = ("funcional", "tecnico")
+
+
 @dataclass
 class Skill:
     id: uuid.UUID
     code: str
     label: str
+    skill_type: str = "tecnico"
+    tool_id: Optional[uuid.UUID] = None
+    process_id: Optional[uuid.UUID] = None
     active: bool = True
     created_at: datetime = field(default_factory=datetime.utcnow)
 
     @classmethod
-    def create(cls, code: str, label: str) -> "Skill":
-        return cls(id=uuid.uuid4(), code=code.upper(), label=label)
+    def create(cls, code: str, label: str, skill_type: str = "tecnico",
+               tool_id: Optional[uuid.UUID] = None,
+               process_id: Optional[uuid.UUID] = None) -> "Skill":
+        return cls(id=uuid.uuid4(), code=code.upper(), label=label,
+                   skill_type=skill_type, tool_id=tool_id, process_id=process_id)
 
 
 @dataclass

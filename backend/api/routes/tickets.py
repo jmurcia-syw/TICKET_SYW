@@ -14,6 +14,7 @@ from backend.api.middleware.rbac import require_permission, require_authenticate
 from backend.api.routes._shared import parse_uuid, error_model, server_error
 from backend.domain.entities.comment import Comment, Attachment, COMMENT_TYPE_LABELS
 from backend.domain.entities.ticket import Ticket, STATUSES, STATUS_LABELS
+from backend.domain.entities.user import USUARIO_CLIENTE_ROLE_NAME
 from backend.domain.errors import DomainError
 from backend.domain.fsm import ticket_fsm
 from backend.domain.services.assignment_service import AssignmentService
@@ -26,6 +27,7 @@ from backend.infra.repositories.client_contact_repo import ClientContactReposito
 from backend.infra.repositories.client_repo import ClientRepository
 from backend.infra.repositories.comment_repo import CommentRepository
 from backend.infra.repositories.notification_repo import NotificationRepository
+from backend.infra.repositories.project_member_repo import ProjectMemberRepository
 from backend.infra.repositories.project_repo import ProjectRepository
 from backend.infra.repositories.resource_repo import ResourceRepository
 from backend.infra.repositories.task_list_repo import TaskListRepository
@@ -57,7 +59,7 @@ _ticket_input = ns.model("TicketInput", {
     "severity": fields.String(description="s1 | s2 | s3 | s4 — mismo criterio que ticket_type"),
     "client_id": fields.String(required=True),
     "project_id": fields.String(description="Opcional: proyecto activo del cliente"),
-    "client_contact_id": fields.String(description="Opcional: Encargado solicitante — debe "
+    "client_contact_id": fields.String(description="Opcional: Usuario/cliente solicitante — debe "
                                                      "pertenecer al cliente indicado (Fase 2.2)"),
     "tool_id": fields.String(description="Catálogo herramienta"),
     "process_id": fields.String(description="Catálogo proceso"),
@@ -195,9 +197,9 @@ _assignment_out = ns.model("TicketAssignment", {
 })
 
 _requester_out = ns.model("TicketRequester", {
-    "id": fields.String(description="UUID del solicitante (Encargado manual o creador automático)"),
+    "id": fields.String(description="UUID del solicitante (Usuario/cliente manual o creador automático)"),
     "name": fields.String(description="Nombre para mostrar"),
-    "is_encargado": fields.Boolean(description="true si el solicitante tiene rol Encargado"),
+    "is_encargado": fields.Boolean(description="true si el solicitante tiene rol Usuario/cliente"),
 })
 
 _related_from_out = ns.model("RelatedFromItem", {
@@ -221,7 +223,7 @@ _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
                                         "(Nivel 4); vacío para Ticket y para Subtarea (spec 009)"),
     "created_by": fields.String(description="UUID de quien creó el ticket"),
     "client_contact_id": fields.String(allow_null=True,
-                                       description="Encargado solicitante asignado manualmente "
+                                       description="Usuario/cliente solicitante asignado manualmente "
                                                     "(Fase 2.2); null si no hay o si se resuelve "
                                                     "automáticamente del creador (Fase 2.1)"),
     "requester": fields.Nested(_requester_out, allow_null=True,
@@ -329,7 +331,7 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
 
 
 def _requester(ticket: Ticket, db) -> dict | None:
-    """Resuelve el solicitante (Fase 2.2): prioriza `client_contact_id` (Encargado asignado
+    """Resuelve el solicitante (Fase 2.2): prioriza `client_contact_id` (Usuario/cliente asignado
     manualmente); si no está presente, cae al comportamiento ya existente de Fase 2.1
     (`created_by` resuelto a nombre + `is_encargado`)."""
     if ticket.client_contact_id:
@@ -342,7 +344,7 @@ def _requester(ticket: Ticket, db) -> dict | None:
     if not creator:
         return None
     return {"id": str(creator.id), "name": creator.username,
-            "is_encargado": creator.role.name == "Encargado"}
+            "is_encargado": creator.role.name == USUARIO_CLIENTE_ROLE_NAME}
 
 
 def _is_task(ticket: Ticket, db) -> bool:
@@ -456,7 +458,7 @@ class TicketList(Resource):
     @require_authenticated()
     def get(self):
         """Listado paginado con filtros combinables. Con solo `tickets:view_own`
-        (Encargado) se ignora cualquier filtro y se fuerza `created_by = usuario actual`."""
+        (Usuario/cliente) se ignora cualquier filtro y se fuerza `created_by = usuario actual`."""
         if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")):
             return {"error": "forbidden", "message": "Acceso denegado"}, 403
         try:
@@ -495,16 +497,19 @@ class TicketList(Resource):
     @ns.response(403, "Sin permiso tickets:create", _error)
     @ns.response(404, "Cliente, proyecto, catálogo o client_contact_id no encontrado", _error)
     @ns.response(409, "Cliente/proyecto/catálogo inactivo, record_type_id no permitido, el "
-                      "Encargado no tiene cliente asociado (no_client_contact), o "
+                      "Usuario/cliente no tiene cliente asociado (no_client_contact), "
                       "client_contact_id no pertenece al cliente indicado "
-                      "(client_contact_mismatch)", _error)
+                      "(client_contact_mismatch), el solicitante no es personal del proyecto "
+                      "(contact_not_in_project, spec 010), o el autoservicio eligió un proyecto "
+                      "al que no está vinculado (project_not_assigned, spec 010)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "create")
     def post(self):
         """Crear un ticket, una Tarea o una Subtarea (FR-001/002; Fase 3; spec 009 FR-001..
-        FR-016). Un Encargado solo envía `title`/`description`: el resto se completa
+        FR-016). Un Usuario/cliente solo envía `title`/`description` (y opcionalmente un
+        `project_id` de sus proyectos vinculados, spec 010): el resto se completa
         automáticamente (research.md Decisión 4 de la spec 008) y nunca puede crear una Tarea.
-        Un registro no-Encargado con `record_type_id` de "Tarea" no está obligado a enviar
+        Un registro no-Usuario/cliente con `record_type_id` de "Tarea" no está obligado a enviar
         `ticket_type`/`priority`/`severity` (se defaultean en silencio si se omiten, spec 008
         Decisión 1 — pero, a diferencia de la spec 008, si se envían se respetan) y nace en
         estado "nuevo" como cualquier registro (spec 009 revierte el estado inicial "pendiente"
@@ -513,7 +518,7 @@ class TicketList(Resource):
         if not data:
             return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
         db = get_db()
-        is_encargado = g.current_user.role.name == "Encargado"
+        is_encargado = g.current_user.role.name == USUARIO_CLIENTE_ROLE_NAME
         if is_encargado:
             for field_name in ("title", "description"):
                 if not data.get(field_name):
@@ -524,7 +529,10 @@ class TicketList(Resource):
                         "message": "Tu cuenta no tiene un cliente asociado; contactá al equipo de soporte"}, 409
             client_id = contact.client_id
             ticket_type, priority, severity = "incident", "medium", "s3"
-            project_id = tool_id = process_id = related_id = record_type_id = client_contact_id = None
+            # Spec 010 (FR-007): el autoservicio puede elegir Proyecto, acotado a sus
+            # membresías (validado en validate_create → 409 project_not_assigned)
+            project_id = parse_uuid(data["project_id"]) if data.get("project_id") else None
+            tool_id = process_id = related_id = record_type_id = client_contact_id = None
             list_id = parent_task_id = None
         else:
             for field_name in ("title", "description", "client_id"):
@@ -588,6 +596,9 @@ class TicketList(Resource):
                 client_contacts_repo=ClientContactRepository(db),
                 list_id=list_id, task_lists_repo=TaskListRepository(db),
                 parent_task_id=parent_task_id,
+                project_members_repo=ProjectMemberRepository(db),
+                creator_is_client_user=is_encargado,
+                creator_user_id=g.current_user.id,
             )
             if parent_task_id:
                 parent_ticket = TicketRepository(db).get_by_id(parent_task_id)
@@ -633,7 +644,7 @@ class TicketDetail(Resource):
     @require_authenticated()
     def get(self, ticket_id: str):
         """Detalle completo: campos, locked_fields, close_eligible, historiales. Con solo
-        `tickets:view_own` (Encargado), un ticket ajeno responde 404 (no 403 — no confirma
+        `tickets:view_own` (Usuario/cliente), un ticket ajeno responde 404 (no 403 — no confirma
         su existencia)."""
         if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")):
             return {"error": "forbidden", "message": "Acceso denegado"}, 403
@@ -655,8 +666,10 @@ class TicketDetail(Resource):
     @ns.response(403, "Sin permiso tickets:edit", _error)
     @ns.response(404, "Ticket, o client_contact_id, no encontrado", _error)
     @ns.response(409, "Campo bloqueado por el estado actual (`field_locked`), "
-                      "client_contact_id no pertenece al cliente (`client_contact_mismatch`), o "
-                      "el ticket fue creado por un Encargado (`requester_immutable`)", _error)
+                      "client_contact_id no pertenece al cliente (`client_contact_mismatch`), "
+                      "el solicitante no es personal del proyecto (`contact_not_in_project`, "
+                      "spec 010), o el ticket fue creado por un Usuario/cliente "
+                      "(`requester_immutable`)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "edit")
     def patch(self, ticket_id: str):
@@ -673,6 +686,7 @@ class TicketDetail(Resource):
                 ticket, dict(data),
                 client_contacts_repo=ClientContactRepository(db), users_repo=UserRepository(db),
                 tickets_repo=TicketRepository(db), task_lists_repo=TaskListRepository(db),
+                project_members_repo=ProjectMemberRepository(db),
             )
             for uuid_field in ("tool_id", "process_id", "related_ticket_id"):
                 if uuid_field in clean and clean[uuid_field] is not None:

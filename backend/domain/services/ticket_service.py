@@ -6,6 +6,7 @@ from backend.domain.entities.ticket import (
     Ticket, STATUSES, TICKET_TYPES, PRIORITIES, SEVERITIES, ESCALATION_LEVELS, locked_fields_for,
 )
 from backend.domain.entities.comment import Comment
+from backend.domain.entities.user import USUARIO_CLIENTE_ROLE_NAME
 from backend.domain.errors import DomainError
 
 
@@ -48,7 +49,10 @@ class TicketService:
                         client_contact_id: Optional[uuid.UUID] = None,
                         client_contacts_repo=None,
                         list_id: Optional[uuid.UUID] = None, task_lists_repo=None,
-                        parent_task_id: Optional[uuid.UUID] = None) -> None:
+                        parent_task_id: Optional[uuid.UUID] = None,
+                        project_members_repo=None,
+                        creator_is_client_user: bool = False,
+                        creator_user_id: Optional[uuid.UUID] = None) -> None:
         client = clients_repo.get_by_id(client_id)
         if not client:
             raise TicketValidationError("not_found", "Cliente no encontrado", status_code=404)
@@ -81,10 +85,22 @@ class TicketService:
         if client_contact_id:
             contact = client_contacts_repo.get_by_id(client_contact_id)
             if not contact:
-                raise TicketValidationError("not_found", "El Encargado indicado no existe", status_code=404)
+                raise TicketValidationError("not_found", "El Usuario/cliente indicado no existe", status_code=404)
             if contact.client_id != client_id:
                 raise TicketBusinessError(
-                    "client_contact_mismatch", "El Encargado indicado no pertenece al cliente del ticket")
+                    "client_contact_mismatch", "El Usuario/cliente indicado no pertenece al cliente del ticket")
+            # Spec 010 (US2): con proyecto, el solicitante debe ser personal del proyecto
+            if project_id and project_members_repo is not None \
+                    and not project_members_repo.is_member(project_id, contact.user_id):
+                raise TicketBusinessError(
+                    "contact_not_in_project",
+                    "El Usuario/cliente indicado no está asignado al proyecto del ticket")
+        # Spec 010 (FR-007): el autoservicio del Usuario/cliente queda acotado a sus proyectos
+        if creator_is_client_user and project_id and project_members_repo is not None \
+                and creator_user_id is not None \
+                and not project_members_repo.is_member(project_id, creator_user_id):
+            raise TicketBusinessError(
+                "project_not_assigned", "No estás asignado a este proyecto")
         if list_id:
             task_list = task_lists_repo.get_by_id(list_id)
             if not task_list:
@@ -107,7 +123,7 @@ class TicketService:
     def resolve_record_type(self, record_type_id: Optional[uuid.UUID], record_types_repo) -> uuid.UUID:
         """Resuelve el catálogo dinámico de tipo de registro (FR-029). Desde la Fase 3, tanto
         "Ticket" como "Tarea" son valores creables — el bloqueo que reservaba "Tarea" para esta
-        fase (FR-030) se retira aquí. Un Encargado nunca llega a este método con "Tarea" porque
+        fase (FR-030) se retira aquí. Un Usuario/cliente nunca llega a este método con "Tarea" porque
         su branch de autoservicio no lee `record_type_id` (ver `api/routes/tickets.py`)."""
         if record_type_id is None:
             item = record_types_repo.get_by_name("Ticket")
@@ -131,7 +147,7 @@ class TicketService:
 
     def validate_patch(self, ticket: Ticket, data: dict,
                        client_contacts_repo=None, users_repo=None, tickets_repo=None,
-                       task_lists_repo=None) -> dict:
+                       task_lists_repo=None, project_members_repo=None) -> dict:
         """Filtra los campos del PATCH: rechaza status, campos desconocidos y bloqueados."""
         if "status" in data:
             raise TicketValidationError(
@@ -190,11 +206,11 @@ class TicketService:
         if "client_contact_id" in data:
             if users_repo is not None:
                 creator = users_repo.get_by_id(ticket.created_by)
-                if creator and creator.role.name == "Encargado":
+                if creator and creator.role.name == USUARIO_CLIENTE_ROLE_NAME:
                     raise TicketBusinessError(
                         "requester_immutable",
-                        "El Encargado solicitante no se puede editar: el ticket fue creado por "
-                        "un usuario Encargado")
+                        "El Usuario/cliente solicitante no se puede editar: el ticket fue creado por "
+                        "un usuario con rol Usuario/cliente")
             if data["client_contact_id"] is not None:
                 try:
                     contact_id = uuid.UUID(str(data["client_contact_id"]))
@@ -203,11 +219,17 @@ class TicketService:
                 contact = client_contacts_repo.get_by_id(contact_id)
                 if not contact:
                     raise TicketValidationError(
-                        "not_found", "El Encargado indicado no existe", status_code=404)
+                        "not_found", "El Usuario/cliente indicado no existe", status_code=404)
                 if contact.client_id != ticket.client_id:
                     raise TicketBusinessError(
                         "client_contact_mismatch",
-                        "El Encargado indicado no pertenece al cliente del ticket")
+                        "El Usuario/cliente indicado no pertenece al cliente del ticket")
+                # Spec 010 (US2): con proyecto, el solicitante debe ser personal del proyecto
+                if ticket.project_id and project_members_repo is not None \
+                        and not project_members_repo.is_member(ticket.project_id, contact.user_id):
+                    raise TicketBusinessError(
+                        "contact_not_in_project",
+                        "El Usuario/cliente indicado no está asignado al proyecto del ticket")
                 data["client_contact_id"] = contact_id
         return data
 

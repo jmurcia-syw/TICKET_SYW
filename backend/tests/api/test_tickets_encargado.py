@@ -98,7 +98,7 @@ def test_encargado_without_client_contact_gets_409(client, unique_name):
 
     app = client.application
     with app.app_context():
-        role = RoleRepository(get_db()).get_by_name("Encargado")
+        role = RoleRepository(get_db()).get_by_name("Usuario/cliente")
         orphan = UserRepository(get_db()).create(User(
             id=uuid.uuid4(), email=f"orphan.{unique_name}@clienteexterno.com",
             username=f"orphan_{unique_name}", role=role,

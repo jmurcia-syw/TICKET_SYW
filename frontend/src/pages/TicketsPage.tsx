@@ -23,6 +23,7 @@ import type { ProjectListItem } from '../types/project'
 import type { Resource } from '../types/resource'
 import type { ClientContact } from '../types/clientContact'
 import type { TaskList } from '../types/taskList'
+import { vivid } from '../theme'
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
@@ -45,9 +46,9 @@ export default function TicketsPage() {
   const navigate = useNavigate()
   const canCreate = hasPermission('tickets', 'create')
   const canAssign = hasPermission('tickets', 'assign')
-  /** Encargado (Fase 2.1 US3): alta simplificada (solo título/descripción), sin acceso a
+  /** Usuario/cliente (Fase 2.1 US3, renombrado spec 010): alta simplificada (solo título/descripción), sin acceso a
    * catálogos/clientes/recursos internos — el backend ya filtra su listado a lo propio. */
-  const isEncargado = role?.name === 'Encargado'
+  const isEncargado = role?.name === 'Usuario/cliente'
 
   const [tickets, setTickets] = useState<TicketListItem[]>([])
   const [total, setTotal] = useState(0)
@@ -64,6 +65,7 @@ export default function TicketsPage() {
 
   const [clients, setClients] = useState<ClientListItem[]>([])
   const [projects, setProjects] = useState<ProjectListItem[]>([])
+  const [myProjects, setMyProjects] = useState<ProjectListItem[]>([])
   const [contacts, setContacts] = useState<ClientContact[]>([])
   const [tools, setTools] = useState<CatalogItem[]>([])
   const [processes, setProcesses] = useState<CatalogItem[]>([])
@@ -118,6 +120,12 @@ export default function TicketsPage() {
   useEffect(() => { loadStats() }, [loadStats])
 
   useEffect(() => {
+    if (!isEncargado) return
+    // Spec 010 (FR-007): el autoservicio elige Proyecto solo entre sus vinculados
+    clientContactService.myProjects().then(r => setMyProjects(r.items)).catch(() => undefined)
+  }, [isEncargado])
+
+  useEffect(() => {
     if (isEncargado) return  // sin permiso sobre clients/catalogs/resources — alta simplificada
     clientService.list({ active: true, page_size: 100 }).then(r => setClients(r.items))
       .catch(() => message.error('No se pudo cargar la lista de clientes'))
@@ -141,12 +149,9 @@ export default function TicketsPage() {
       projectService.list({ client_id: selectedClientId, active: true, page_size: 100 })
         .then(r => setProjects(r.items))
         .catch(() => message.error('No se pudo cargar la lista de proyectos'))
-      clientContactService.list({ client_id: selectedClientId, page_size: 100 })
-        .then(r => setContacts(r.items))
-        .catch(() => message.error('No se pudo cargar la lista de encargados'))
       form.setFieldValue('project_id', undefined)
-      // Encargado (Fase 2.2): acotado al cliente elegido — se limpia al cambiar de cliente
-      // para no dejar seleccionado uno de un cliente distinto (FR-005).
+      // Se limpia al cambiar de cliente para no dejar seleccionado uno de un cliente
+      // distinto (FR-005 spec 007; la fuente ahora es el proyecto, spec 010).
       form.setFieldValue('client_contact_id', undefined)
     } else {
       setProjects([])
@@ -158,9 +163,17 @@ export default function TicketsPage() {
     if (selectedProjectId) {
       taskListService.listByProject(selectedProjectId).then(setTaskLists)
         .catch(() => message.error('No se pudo cargar la lista de Listas del proyecto'))
+      // Spec 010 (US2): el solicitante se alimenta del personal del Proyecto — se limpia
+      // y recarga al cambiar de proyecto.
+      clientContactService.list({ project_id: selectedProjectId, page_size: 100 })
+        .then(r => setContacts(r.items))
+        .catch(() => message.error('No se pudo cargar la lista de usuarios/cliente'))
       form.setFieldValue('list_id', undefined)
+      form.setFieldValue('client_contact_id', undefined)
     } else {
       setTaskLists([])
+      setContacts([])
+      form.setFieldValue('client_contact_id', undefined)
     }
   }, [selectedProjectId, form])
 
@@ -210,6 +223,21 @@ export default function TicketsPage() {
     { title: 'Número', dataIndex: 'ticket_number', width: 110,
       render: (v: string) => <span className="tabular-nums">{v}</span> },
     {
+      title: 'Tipo', dataIndex: 'record_type', key: 'record_type', width: 105,
+      render: (rt: TicketListItem['record_type'], t: TicketListItem) => {
+        const isSubtask = rt === 'Tarea' && !!t.parent_task_id
+        const chip = rt === 'Tarea' ? vivid.purple : vivid.blue
+        return (
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 999,
+            background: chip.bg, color: chip.text,
+          }}>
+            {isSubtask ? 'Subtarea' : rt}
+          </span>
+        )
+      },
+    },
+    {
       title: 'Título', dataIndex: 'title', ellipsis: true,
       ...textColumnFilter('Buscar título o número...', search, setSearch),
     },
@@ -225,12 +253,12 @@ export default function TicketsPage() {
       onFilter: () => true,
     },
     {
-      title: 'Prioridad', dataIndex: 'priority', key: 'priority', width: 90,
+      title: 'Prioridad', dataIndex: 'priority', key: 'priority', width: 125,
       render: (p: Priority) => <PriorityBadge priority={p} />,
       ...serverColumnFilter(priorityOptions.map(o => ({ text: o.label, value: o.value })), priorityFilter),
     },
     {
-      title: 'Sev.', dataIndex: 'severity', key: 'severity', width: 70,
+      title: 'Severidad', dataIndex: 'severity', key: 'severity', width: 120,
       render: (s: string) => s.toUpperCase(),
       ...serverColumnFilter(severityOptions.map(o => ({ text: o.label, value: o.value })), severityFilter),
     },
@@ -324,6 +352,13 @@ export default function TicketsPage() {
           <Form.Item name="description" label="Descripción" rules={[{ required: true, message: 'La descripción es requerida' }]}>
             <Input.TextArea rows={3} />
           </Form.Item>
+          {isEncargado && (
+            <Form.Item name="project_id" label="Proyecto (opcional)">
+              <Select allowClear disabled={myProjects.length === 0}
+                placeholder={myProjects.length === 0 ? 'Sin proyectos vinculados' : 'Proyecto'}
+                options={myProjects.map(p => ({ value: p.id, label: p.name }))} />
+            </Form.Item>
+          )}
           {!isEncargado && <>
             <Form.Item name="record_type_id" label="Tipo de registro"
               rules={[{ required: true, message: 'Selecciona el tipo de registro' }]}>
@@ -339,11 +374,11 @@ export default function TicketsPage() {
                   disabled={!selectedClientId} style={{ width: 220 }}
                   options={projects.map(p => ({ value: p.id, label: p.name }))} />
               </Form.Item>
-              <Form.Item name="client_contact_id" label="Encargado (opcional)">
+              <Form.Item name="client_contact_id" label="Usuario/cliente (opcional)">
                 <Select allowClear placeholder={
-                  !selectedClientId ? 'Elige cliente primero'
-                    : contacts.length === 0 ? 'Sin encargados registrados' : 'Encargado'
-                } disabled={!selectedClientId || contacts.length === 0} style={{ width: 220 }}
+                  !selectedProjectId ? 'Elige proyecto primero'
+                    : contacts.length === 0 ? 'Sin personal Usuario/cliente en el proyecto' : 'Usuario/cliente'
+                } disabled={!selectedProjectId || contacts.length === 0} style={{ width: 220 }}
                   options={contacts.map(c => ({ value: c.id, label: c.username }))} />
               </Form.Item>
               {isTaskSelected && (

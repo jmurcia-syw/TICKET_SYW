@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { TicketStatus, Priority, Severity } from '../types/ticket'
+import type { TicketStatus, Priority, Severity, EscalationLevel } from '../types/ticket'
 
 export interface TicketFilterCriteria {
   search?: string
@@ -8,6 +8,8 @@ export interface TicketFilterCriteria {
   client_id?: string
   priority?: Priority
   severity?: Severity
+  /** Solo lo usa el Kanban (no tiene equivalente en Tickets/Mis Tareas). */
+  escalation_level?: EscalationLevel
   /** Sentinel especial `'__me__'`: se resuelve en runtime al `resource_id` del usuario actual
    * (ver `SavedFiltersBar`, `resourceService.me()`) — solo lo usa el preset "Asignado a mí", así
    * sigue siendo válido aunque cambie el recurso asociado al usuario (research.md Decisión 3). */

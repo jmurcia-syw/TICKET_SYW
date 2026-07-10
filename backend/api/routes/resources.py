@@ -1,6 +1,7 @@
 from datetime import date
 
 from flask_restx import Namespace, Resource, fields
+from backend.infra.repositories.catalog_repo import CatalogRepository
 from backend.infra.repositories.resource_repo import ResourceRepository, SkillRepository, CompensationRepository
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.database import get_db
@@ -29,6 +30,12 @@ _skill_out = ns.model("Skill", {
     "code": fields.String(description="Código único (UPPER_SNAKE_CASE)", example="JDE_GL"),
     "label": fields.String(description="Nombre descriptivo", example="JD Edwards General Ledger"),
     "active": fields.Boolean(description="Estado activo"),
+    "skill_type": fields.String(description="funcional | tecnico (obligatorio, spec 010)",
+                                example="funcional"),
+    "tool_id": fields.String(allow_null=True, description="Herramienta (catalog_tools, opcional)"),
+    "tool_name": fields.String(allow_null=True, description="Nombre de la herramienta (join)"),
+    "process_id": fields.String(allow_null=True, description="Proceso (catalog_processes, opcional)"),
+    "process_name": fields.String(allow_null=True, description="Nombre del proceso (join)"),
 })
 
 _skill_list_out = ns.model("SkillList", {
@@ -39,6 +46,17 @@ _skill_list_out = ns.model("SkillList", {
 _skill_input = ns.model("SkillInput", {
     "code": fields.String(required=True, description="Código único (UPPER_SNAKE_CASE)", example="ORACLE_FUSION"),
     "label": fields.String(required=True, description="Nombre descriptivo", example="Oracle Fusion Cloud"),
+    "skill_type": fields.String(required=True, description="funcional | tecnico (spec 010, FR-013)",
+                                example="tecnico"),
+    "tool_id": fields.String(description="UUID de catalog_tools (opcional)"),
+    "process_id": fields.String(description="UUID de catalog_processes (opcional)"),
+})
+
+_skill_update_input = ns.model("SkillUpdateInput", {
+    "label": fields.String(description="Nuevo nombre descriptivo"),
+    "skill_type": fields.String(description="funcional | tecnico"),
+    "tool_id": fields.String(description="UUID de catalog_tools, null para limpiar"),
+    "process_id": fields.String(description="UUID de catalog_processes, null para limpiar"),
 })
 
 _skill_ref = ns.model("SkillRef", {
@@ -228,11 +246,8 @@ class SkillList(Resource):
         active = None if active_param == "all" else active_param.lower() == "true"
         try:
             db = get_db()
-            skills = SkillRepository(db).list_all(active=active)
-            return {
-                "items": [{"id": str(s.id), "code": s.code, "label": s.label, "active": s.active} for s in skills],
-                "total": len(skills),
-            }, 200
+            items = SkillRepository(db).list_all_with_catalogs(active=active)
+            return {"items": items, "total": len(items)}, 200
         except Exception:
             return server_error()
 
@@ -241,11 +256,14 @@ class SkillList(Resource):
     @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_skill_input, validate=False)
     @ns.response(201, "Skill creado", _skill_out)
-    @ns.response(400, "Datos inválidos", _error)
+    @ns.response(400, "Datos inválidos o skill_type ausente/inválido (spec 010)", _error)
+    @ns.response(404, "Herramienta o proceso no encontrado", _error)
     @ns.response(409, "Código de skill duplicado", _error)
     @ns.response(500, "Error interno del servidor", _error)
     def post(self):
-        """Crear un nuevo skill. El código se normaliza a UPPER_SNAKE_CASE automáticamente."""
+        """Crear un nuevo skill. El código se normaliza a UPPER_SNAKE_CASE automáticamente.
+        `skill_type` es obligatorio (funcional | tecnico); herramienta y proceso opcionales
+        (spec 010, FR-013/FR-014)."""
         from flask import request
         data = request.get_json(silent=True)
         if not data:
@@ -256,18 +274,26 @@ class SkillList(Resource):
             return {"error": "validation_error", "message": "El campo 'code' es requerido"}, 400
         if not label:
             return {"error": "validation_error", "message": "El campo 'label' es requerido"}, 400
+        tool_id = parse_uuid(data["tool_id"]) if data.get("tool_id") else None
+        process_id = parse_uuid(data["process_id"]) if data.get("process_id") else None
         try:
             db = get_db()
             repo = SkillRepository(db)
+            skill_type = _skill_svc.validate_type(data.get("skill_type"))
+            _skill_svc.validate_catalog_refs(
+                tool_id, process_id,
+                tools_repo=CatalogRepository(db, "tools"),
+                processes_repo=CatalogRepository(db, "processes"))
             if repo.get_by_code(code):
                 return {"error": "code_duplicate", "message": f"Ya existe un skill con codigo {code}"}, 409
-            skill = Skill.create(code=code, label=label)
+            skill = Skill.create(code=code, label=label, skill_type=skill_type,
+                                 tool_id=tool_id, process_id=process_id)
             created = repo.create(skill)
-            return (
-                {"id": str(created.id), "code": created.code, "label": created.label, "active": created.active},
-                201,
-                {"Location": f"/api/skills/{created.id}"},
-            )
+            items = repo.list_all_with_catalogs(active=None)
+            body = next((s for s in items if s["id"] == str(created.id)), None)
+            return body, 201, {"Location": f"/api/skills/{created.id}"}
+        except SkillBusinessError as e:
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
         except Exception:
             return server_error()
 
@@ -275,6 +301,56 @@ class SkillList(Resource):
 @ns.route("/skills/<string:skill_id>")
 @ns.param("skill_id", "UUID del skill")
 class SkillDetail(Resource):
+    @ns.doc("update_skill")
+    @ns.expect(_skill_update_input, validate=False)
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.response(200, "Skill actualizado", _skill_out)
+    @ns.response(400, "Datos inválidos o skill_type inválido", _error)
+    @ns.response(404, "Skill, herramienta o proceso no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def patch(self, skill_id: str):
+        """Editar label, tipo, herramienta o proceso de un skill (spec 010, FR-018)"""
+        from flask import request
+        uid = parse_uuid(skill_id)
+        if not uid:
+            return {"error": "validation_error", "message": "ID de skill invalido"}, 400
+        data = request.get_json(silent=True)
+        if not data:
+            return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
+        updates: dict = {}
+        if "label" in data:
+            label = (data.get("label") or "").strip()
+            if not label:
+                return {"error": "validation_error", "message": "El campo 'label' no puede quedar vacío"}, 400
+            updates["label"] = label
+        try:
+            db = get_db()
+            repo = SkillRepository(db)
+            if not repo.get_by_id(uid):
+                return {"error": "not_found", "message": "Skill no encontrado"}, 404
+            if "skill_type" in data:
+                updates["skill_type"] = _skill_svc.validate_type(data.get("skill_type"))
+            tool_id = process_id = None
+            if "tool_id" in data:
+                tool_id = parse_uuid(data["tool_id"]) if data.get("tool_id") else None
+                updates["tool_id"] = tool_id
+            if "process_id" in data:
+                process_id = parse_uuid(data["process_id"]) if data.get("process_id") else None
+                updates["process_id"] = process_id
+            _skill_svc.validate_catalog_refs(
+                tool_id, process_id,
+                tools_repo=CatalogRepository(db, "tools"),
+                processes_repo=CatalogRepository(db, "processes"))
+            updated = repo.update(uid, updates)
+            items = repo.list_all_with_catalogs(active=None)
+            body = next((s for s in items if s["id"] == str(updated.id)), None)
+            return body, 200
+        except SkillBusinessError as e:
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
+
     @ns.doc("delete_skill")
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
     @ns.response(403, "Sin el permiso requerido", _error)

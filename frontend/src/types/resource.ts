@@ -1,8 +1,15 @@
+export type SkillType = 'funcional' | 'tecnico'
+
 export interface Skill {
   id: string
   code: string
   label: string
   active?: boolean
+  skill_type?: SkillType
+  tool_id?: string | null
+  tool_name?: string | null
+  process_id?: string | null
+  process_name?: string | null
 }
 
 export interface Resource {

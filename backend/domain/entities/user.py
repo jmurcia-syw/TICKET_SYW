@@ -5,6 +5,10 @@ import uuid
 
 from backend.domain.entities.role import Role
 
+# Rol externo de cliente (renombrado de "Encargado" a "Usuario/cliente" en la spec 010,
+# migración 025). Única fuente de verdad del nombre para dominio y API.
+USUARIO_CLIENTE_ROLE_NAME = "Usuario/cliente"
+
 
 @dataclass
 class User:

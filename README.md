@@ -3,8 +3,12 @@
 Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM
 de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre **GitHub Spec Kit**.
 
-> **Fase activa**: `Fase 2.2 — Mis Tareas y Encargado asignable por Cliente` ✅ implementada y
-> validada end-to-end contra Docker real (quickstart 6/6 escenarios) · Rama: `develp_Jp`
+> **Fase activa**: `Usuario/cliente por Proyecto, Asignación de Personal y Estructura de Skills`
+> (spec `010`) ✅ implementada — renombre de rol Encargado → **Usuario/cliente**, vínculo al
+> **Proyecto** (ya no al Cliente aislado), sección **Personal/Equipos** del Proyecto y Skills con
+> tipo/herramienta/proceso. Validada con tests dirigidos (project_members, skills,
+> tickets/client-contact) y `tsc -b` sin errores — por directriz de la spec (FR-020) no se corrió
+> la suite completa. Última suite completa conocida en verde: Fase 3 (332/332). Rama: `develp_Jp`
 
 ---
 
@@ -14,8 +18,8 @@ de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre *
 |-------------|-------------|--------|
 | **1a — Maestros** | Clientes, Proyectos, Recursos/Skills, Roles/Permisos, login dual, compensación protegida (spec `001`) | ✅ **Completa** |
 | **1b — Tickets** | Ciclo de vida de 9 estados (FSM), comentarios tipificados con adjuntos, Triage Push + Gold Standard Dataset, Panel de Asignación, notificaciones, enforcement JWT total (spec `002`) | ✅ **Completa** (validación E2E 26/26) |
-| **2 — Registro de tiempos** | Registro diario de tiempos por recurso (hora inicio/fin), rol Encargado (autoservicio con Cliente fijo), breadcrumbs de navegación, Encargado seleccionable/editable por Cliente en el ticket, "Mis Tareas" (specs `004`, `005`, `006`, `007`) | ✅ **Completa** |
-| 3 | Tareas (misma tabla, campo "Tipo de registro" + registro relacionado) | ⏳ Pendiente |
+| **2 — Registro de tiempos** | Registro diario de tiempos por recurso (hora inicio/fin), rol Usuario/cliente (autoservicio con Cliente fijo), breadcrumbs de navegación, Usuario/cliente seleccionable/editable por Cliente en el ticket, "Mis Tareas" (specs `004`, `005`, `006`, `007`) | ✅ **Completa** |
+| **3 — Tareas** | Tarea/Subtarea sobre la misma tabla de Ticket (jerarquía Cliente → Proyecto → Lista → Tarea → Subtarea), ciclo de vida unificado con Ticket (10 estados, transición libre + comentario), visibles en Kanban, Listas administrables tipo Teamwork/Asana, Subtareas con Usuario/cliente propio, fix de Registro de tiempo para creador de la Tarea (specs `008`, `009`) | ✅ **Completa** |
 | 4 | SLAs por prioridad/cliente/proyecto con estados que pausan el contador | ⏳ Pendiente |
 | 5 | Asignación por disponibilidad + calendarios por país/recurso | ⏳ Pendiente |
 | 6 | Motor FSM automatizado + triggers de comentarios + Google Chat | ⏳ Pendiente |
@@ -26,9 +30,14 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 `docs/Regla de actividad de estados.xlsx` (flujo de estados, codificado en
 `backend/domain/fsm/ticket_fsm.py`).
 
+> **Nota**: el renombre de rol Encargado → Usuario/cliente, su vínculo al Proyecto (en vez del
+> Cliente), la sección "Personal del Proyecto" con subgrupos "Equipo" y la ampliación de Skills
+> (spec `010`) son un refactor transversal sobre las Fases 1-3 ya completas — no forman parte de
+> la Fase 4 (SLAs) del roadmap SDD V3, que sigue pendiente.
+
 ---
 
-## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos y Encargados)
+## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`)
 
 ### Funcionalidad operativa
 
@@ -54,15 +63,39 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 - **Registro de tiempos** (Fase 2): registro manual estilo Teamwork desde el detalle del
   ticket (hora inicio/fin con duración calculada, o duración manual + nota), historial completo
   por ticket, Registro de Tiempos diario y Reporte de Tiempos agregados por recurso/cliente.
-- **Rol Encargado**: usuario de cliente externo con alta simplificada (solo email/usuario,
-  contraseña provisional), flujo de creación de ticket autoservicio restringido a su Cliente
-  fijo, sin acceso a Maestros/Catálogos/Panel de Asignación.
-- **Encargado solicitante asignable por Cliente**: al crear o editar un ticket, Coordinador/
-  Resolutor pueden elegir el Encargado (contacto del Cliente) como solicitante desde una lista
-  filtrada por Cliente; el campo se limpia si cambia el Cliente y queda bloqueado/no editable en
-  tickets de autoservicio o en estados finales (Cerrado/Cancelado).
+- **Rol Usuario/cliente** (antes "Encargado", renombrado en spec `010` sin alterar permisos ni
+  credenciales existentes): usuario de cliente externo con alta simplificada (solo email/usuario,
+  contraseña provisional), flujo de creación de ticket autoservicio, sin acceso a Maestros/
+  Catálogos/Panel de Asignación.
+- **Usuario/cliente vinculado al Proyecto** (spec `010`, reemplaza el filtro por Cliente de la
+  spec `007`): al crear o editar un ticket, Coordinador/Resolutor eligen el solicitante desde una
+  lista filtrada por **Proyecto** (personal asignado a ese Proyecto); el campo se limpia si
+  cambia el Proyecto y queda bloqueado/no editable en tickets de autoservicio o en estados
+  finales (Cerrado/Cancelado). El autoservicio del Usuario/cliente queda acotado a los Proyectos
+  a los que está vinculado (dentro de su Cliente fijo); la migración `025` conserva el histórico
+  de solicitantes y backfillea las membresías desde los tickets existentes.
+- **Personal del Proyecto y "Equipo"** (spec `010`, estilo Teamwork): sección "Asignar Personal"
+  en la vista de edición del Proyecto (`/projects/:id/people`) para vincular cualquier usuario
+  activo del sistema (Resolutor, Coordinador, QM, Usuario/cliente, Admin) con nombre/correo/tipo;
+  subgrupos "Equipo" para agrupar personal ya asignado (una persona puede estar en varios); solo
+  Coordinador/Admin (`projects:edit`) mutan, el resto consulta en solo lectura.
+- **Skills con estructura** (spec `010`): cada Skill declara **tipo** obligatorio (funcional |
+  técnico), **herramienta** y **proceso** opcionales (catálogos existentes); 10 skills semilla de
+  referencia (JDE_GL, JDE_AP, JDE_MTC, BSFN, SQL_JDE, OIC, APEX, BI, JAVA/PYTHON/REACT, DBA) y
+  backfill de tipo para las preexistentes.
 - **Mis Tareas** y **breadcrumbs de navegación** estilo Teamwork (Kanban → Detalle → Volver
   respeta el origen exacto).
+- **Tareas y Subtareas** (Fase 3, misma tabla/entidad que Ticket, jerarquía Cliente → Proyecto →
+  Lista → Tarea → Subtarea): mismo ciclo de 10 estados que el Ticket con **transición libre**
+  (cualquier estado a cualquier otro, exige comentario) en vez de una FSM propia; mismos campos
+  de clasificación (Tipo, Severidad, Herramienta, Proceso, Nivel de escalamiento) visibles y
+  editables; aparecen en el **Kanban** junto a los Tickets con badge de tipo de registro.
+- **Listas de tareas administrables**: entidad real por Proyecto (ya no texto libre), sidebar
+  tipo Teamwork/Asana con conteo de tareas, creación y renombrado.
+- **Subtareas** con Usuario/cliente y estado propios (no heredan el estado del padre), comentarios
+  simples en Tarea/Subtarea sin cambio de estado.
+- **Registro de tiempo sobre Tareas**: un recurso puede registrar tiempo sobre una Tarea/Subtarea
+  que creó, sin exigir el historial formal de asignaciones de Triage (que solo aplica a Ticket).
 
 ### Seguridad
 
@@ -79,13 +112,22 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 
 ### Verificación
 
-- Tests de dominio + API contra Postgres real en Docker ✅ (suite dirigida por feature;
-  la última incorporación — Encargado asignable por Cliente, spec `007` — 20/20 tests en verde)
+- Tests de dominio + API contra Postgres real en Docker ✅ (suite dirigida por feature)
 - **Validación E2E** de la Fase 1 (6 escenarios del quickstart): 26/26 checks ✅
-- **Validación E2E** de la Fase 2.2 (Encargado asignable por Cliente, spec `007`): 6/6
-  escenarios del quickstart validados contra Docker real (creación con/sin Encargado,
+- **Validación E2E** de la Fase 2.2 (Usuario/cliente asignable por Cliente, spec `007`): 6/6
+  escenarios del quickstart validados contra Docker real (creación con/sin Usuario/cliente,
   autoservicio inmutable, reasignación, bloqueo por estado, limpieza al cambiar Cliente,
   permiso de lectura para Resolutor)
+- **Validación E2E** de la Fase 3 (Tareas, Listas y Subtareas, spec `009`): quickstart
+  Escenarios 0-6 contra Docker real (migración de datos, registro de tiempo por creador,
+  transición libre + Kanban, Listas administrables, Subtareas con Usuario/cliente propio,
+  comentarios simples, regresión de Ticket sin cambios); suite completa `332/332` tests en verde
+- **Validación de la spec `010`** (Usuario/cliente por Proyecto, Personal y Skills): tests
+  dirigidos en verde (`test_project_members.py`, `test_skills_structure.py`,
+  `test_tickets_client_contact.py`, `test_tickets_encargado.py`,
+  `test_ticket_service_client_contact.py`) + `tsc -b` sin errores; quickstart 0-6 según
+  `tasks.md`. Por directriz explícita de la spec (FR-020) **no** se corrió la suite completa
+  durante el desarrollo — pendiente confirmarla en verde tras este cambio.
 - **Performance** con 500+ tickets: panel 64 ms (SC < 2 s), listado 52 ms (SC < 1 s) ✅
 - Typecheck frontend estricto sin errores ✅
 
@@ -96,7 +138,7 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 ### Backend
 - **Python 3.12** + **Flask 3.x** + **Flask-RESTX** (Swagger en `/swagger`)
 - **python-transitions** (FSM del ciclo de vida — Capa 1, dominio puro)
-- **SQLAlchemy 2.x** + **Alembic** (revisión `022` — dueño único del schema)
+- **SQLAlchemy 2.x** + **Alembic** (revisión `025` — dueño único del schema)
 - **PostgreSQL 16** on-premise con RLS y pgcrypto
 - **Flask-JWT-Extended** + login provisional usuario/contraseña + **Google OAuth2** (`@sywork.net`)
 
@@ -117,31 +159,32 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 backend/
 ├── domain/            # Capa 1 — sin imports de Flask/SQLAlchemy
 │   ├── entities/      # Ticket, Comment, Notification, Client, Project, Resource, User, Role,
-│   │                  # ClientContact, WorkSession
+│   │                  # ClientContact, WorkSession, ProjectMember, ProjectTeam
 │   ├── fsm/           # ticket_fsm.py — matriz de 16 transiciones (python-transitions)
 │   └── services/      # ticket, comment, assignment, notification, compensation,
-│                      # client_contact, work_session, ...
+│                      # client_contact, work_session, project_member, skill, ...
 ├── infra/             # Capa 2
 │   ├── models/        # SQLAlchemy (tickets, comments, catalogs, notifications, maestros,
-│   │                  # client_contacts, work_sessions)
+│   │                  # client_contacts, work_sessions, task_lists, project_member_model)
 │   ├── repositories/  # paginación, filtros, historiales append-only
 │   ├── storage/       # adjuntos en filesystem (uploads/tickets/{id}/)
-│   └── migrations/    # Alembic 001..022
+│   └── migrations/    # Alembic 001..025
 └── api/               # Capa 3
     ├── middleware/    # auth.py (JWT + usuario activo), rbac.py (@require_permission)
     └── routes/        # tickets, catalogs, notifications, assignment_panel, client_contacts,
-                       # work_sessions + maestros
+                       # work_sessions, task_lists, project_members + maestros
 
 frontend/src/
 ├── components/tickets/     # TicketStatusTag, AssignModal, CommentThread, CommentComposer,
-│                           # TicketBreadcrumb
+│                           # TicketBreadcrumb, TaskStatusChanger, SubtaskList
 ├── components/worksessions/ # WorkSessionForm, TimeLogModal, TicketWorkSessions
 ├── components/common/      # NotificationBell, ProtectedRoute, ConfirmationModal, ...
 ├── pages/                  # TicketsPage, TicketDetailPage, AssignmentPanelPage, CatalogsPage,
-│                           # MyTasksPage, WorkSessionsPage, TimeReportPage, ClientContactsPage
-│                           # + maestros
+│                           # MyTasksPage, WorkSessionsPage, TimeReportPage, ClientContactsPage,
+│                           # ProjectListsPage, ProjectPeoplePage, KanbanPage, SkillsPage + maestros
 ├── services/                # ticketService, catalogService, notificationService,
-│                            # clientContactService, workSessionService + maestros
+│                            # clientContactService, workSessionService, taskListService,
+│                            # projectMemberService, resourceService + maestros
 ├── store/               # authStore (Zustand: token, permisos, hasPermission)
 └── types/               # tipos estrictos por dominio
 ```
@@ -328,6 +371,9 @@ docker exec sywork_backend python -m backend.scripts.seed_tickets 500   # datos 
 | `005` | [ticket-tiempo-encargado-nav](specs/005-ticket-tiempo-encargado-nav/spec.md) | Registro de tiempo en el detalle, rol Encargado, breadcrumbs | ✅ Completa |
 | `006` | [ticket-detalle-tiempo-ui](specs/006-ticket-detalle-tiempo-ui/spec.md) | Refactor visual/navegación del detalle del ticket | ✅ Completa |
 | `007` | [ticket-encargado-cliente](specs/007-ticket-encargado-cliente/spec.md) | Encargado solicitante asignable por Cliente en el ticket | ✅ Completa — quickstart 6/6 |
+| `008` | [fase3-tareas](specs/008-fase3-tareas/spec.md) | Tarea sobre la misma tabla de Ticket, campo "Tipo de registro"; decisiones de Lista texto libre y FSM propia reemplazadas por la spec `009` | ✅ Completa — tasks 31/31 |
+| `009` | [tareas-listas-subtareas](specs/009-tareas-listas-subtareas/spec.md) | Listas administrables, Subtareas, ciclo de vida unificado con Ticket (10 estados, transición libre) y fix de Registro de tiempo | ✅ Completa — tasks 45/45, suite 332/332 |
+| `010` | [proyecto-personal-skills](specs/010-proyecto-personal-skills/spec.md) | Renombre Encargado → Usuario/cliente, vínculo al Proyecto (en vez del Cliente), Personal del Proyecto + "Equipo" estilo Teamwork, Skills con tipo/herramienta/proceso y semillas | ✅ Completa — tasks 35/35, tests dirigidos en verde (suite completa no corrida, FR-020) |
 
 Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.md`,
 `data-model.md`, `contracts/`, `tasks.md`, `quickstart.md`.
@@ -343,4 +389,7 @@ Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.
   frontend (T071).
 - El cifrado pgcrypto es placeholder de desarrollo → reemplazar por `pgp_sym_encrypt`
   antes de producción.
-- Fase 3 (Tareas) y siguientes del roadmap SDD V3 aún no iniciadas.
+- Fase 4 (SLAs) y siguientes del roadmap SDD V3 aún no iniciadas.
+- Spec `010`: correr la suite completa de tests (no ejecutada durante el desarrollo por
+  directriz explícita FR-020) para confirmar ausencia de regresiones fuera de los archivos
+  tocados.

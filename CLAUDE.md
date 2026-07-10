@@ -2,14 +2,18 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Listas de Tareas, Subtareas, ciclo de vida unificado y fix de Registro de tiempo
+**Active feature**: Usuario/cliente por Proyecto, Asignación de Personal y Estructura de Skills
+**Spec**: specs/010-proyecto-personal-skills/spec.md
+**Plan**: specs/010-proyecto-personal-skills/plan.md
+**Research**: specs/010-proyecto-personal-skills/research.md
+**Data model**: specs/010-proyecto-personal-skills/data-model.md
+**Contracts**: specs/010-proyecto-personal-skills/contracts/
+**Quickstart**: specs/010-proyecto-personal-skills/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada, validada end-to-end contra Docker real)**: Listas de Tareas, Subtareas, ciclo de vida unificado y fix de Registro de tiempo
 **Spec**: specs/009-tareas-listas-subtareas/spec.md
 **Plan**: specs/009-tareas-listas-subtareas/plan.md
-**Research**: specs/009-tareas-listas-subtareas/research.md
-**Data model**: specs/009-tareas-listas-subtareas/data-model.md
-**Contracts**: specs/009-tareas-listas-subtareas/contracts/
-**Quickstart**: specs/009-tareas-listas-subtareas/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada)**: Fase 3 — Manejo de Tareas
 **Spec**: specs/008-fase3-tareas/spec.md

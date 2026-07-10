@@ -22,7 +22,7 @@ export const maestrosNavItems: NavLeaf[] = [
   { key: '/team', icon: <UserOutlined />, label: 'Equipo', module: 'resources' },
   { key: '/skills', icon: <StarOutlined />, label: 'Skills', module: 'skills' },
   { key: '/roles', icon: <SafetyCertificateOutlined />, label: 'Roles y Permisos', module: 'roles' },
-  { key: '/client-contacts', icon: <UserOutlined />, label: 'Encargados', module: 'client_contacts', action: 'manage' },
+  { key: '/client-contacts', icon: <UserOutlined />, label: 'Usuarios/cliente', module: 'client_contacts', action: 'manage' },
 ]
 
 /** Ítems de la Fase 1 — Tickets (van al nivel raíz del menú, antes de Maestros). */

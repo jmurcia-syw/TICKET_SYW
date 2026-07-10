@@ -148,11 +148,11 @@ def resolver_auth(app, resolver_user):
 
 @pytest.fixture()
 def encargado_user(db_session, unique_name, ticket_client):
-    """Usuario de rol Encargado vinculado a `ticket_client` vía client_contacts (Fase 2.1)."""
+    """Usuario de rol Usuario/cliente (antes Encargado, spec 010) vinculado a `ticket_client` vía client_contacts (Fase 2.1)."""
     from backend.domain.entities.client_contact import ClientContact
     from backend.infra.repositories.client_contact_repo import ClientContactRepository
     from backend.infra.repositories.role_repo import RoleRepository
-    encargado_role = RoleRepository(db_session).get_by_name("Encargado")
+    encargado_role = RoleRepository(db_session).get_by_name("Usuario/cliente")
     user = User(
         id=uuid.uuid4(), email=f"encargado.{unique_name}@clienteexterno.com",
         username=f"encargado_{unique_name}", role=encargado_role,
@@ -166,7 +166,7 @@ def encargado_user(db_session, unique_name, ticket_client):
 
 @pytest.fixture()
 def encargado_auth(app, encargado_user):
-    """Header Authorization del usuario Encargado de prueba."""
+    """Header Authorization del usuario de rol Usuario/cliente de prueba."""
     from flask_jwt_extended import create_access_token
     with app.app_context():
         token = create_access_token(identity=str(encargado_user.id))
