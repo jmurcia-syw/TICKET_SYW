@@ -25,3 +25,7 @@ Thumbs.db
 
 # Adjuntos de tickets (Fase 1)
 uploads/
+
+# Celery beat runtime schedule (local)
+celerybeat-schedule
+celerybeat-schedule.*

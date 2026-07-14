@@ -61,5 +61,33 @@ services:
       - ./frontend:/app
       - /app/node_modules
 
+  redis:
+    image: redis:7-alpine
+    container_name: sywork_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: sywork_worker
+    restart: unless-stopped
+    command: celery -A backend.workers.celery_app worker --loglevel=info --beat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      FLASK_ENV: ${FLASK_ENV:-development}
+    volumes:
+      - .:/repo
+      - /repo/backend/__pycache__
+
 volumes:
   postgres_data:

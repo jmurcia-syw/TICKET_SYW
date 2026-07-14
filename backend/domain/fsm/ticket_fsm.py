@@ -38,6 +38,41 @@ TRANSITIONS: list[dict] = [
 ]
 
 # Etiquetas en español de las acciones, para mensajes de error útiles (FR-008)
+
+# ── SLA (Fase 4, spec 014) — diccionarios de solo lectura, no alteran TRANSITIONS ──────────
+#
+# 2 fases de SLA (data-model.md, revisado 2026-07-14 según docs/SLAv1.xlsx): "Contacto" y
+# "Diagnóstico, Análisis y Ejecución". OJO: el estado FSM `contacto` mapea a la fase de SLA
+# `ejecucion`, NO a la fase de SLA `contacto` — es una colisión de nombres intencional (al
+# ENTRAR al estado `contacto` es cuando la fase de Contacto se da por completada/congelada y
+# arranca a medirse la fase de Ejecución). No copiar `SLA_PHASE_FOR_STATE[s] = s` a ciegas.
+SLA_PHASE_FOR_STATE: dict[str, str | None] = {
+    "nuevo": "contacto",
+    "pre_analisis": "contacto",
+    "contacto": "ejecucion",
+    "en_analisis": "ejecucion",
+    "en_ejecucion": "ejecucion",
+    "en_pruebas": "ejecucion",
+    "pendiente_usuario": None,  # mantiene la fase vigente, no la cambia (solo pausa)
+    "resuelto": "cerrado",
+    "cerrado": "cerrado",
+    "cancelado": "cerrado",
+}
+
+# Estados cuyo tiempo transcurrido cuenta para el consumo de SLA (FR-004/FR-005).
+STATE_COUNTS_FOR_SLA: dict[str, bool] = {
+    "nuevo": True,
+    "pre_analisis": True,
+    "contacto": True,
+    "en_analisis": True,
+    "en_ejecucion": True,
+    "en_pruebas": True,
+    "pendiente_usuario": False,
+    "resuelto": False,
+    "cerrado": False,
+    "cancelado": False,
+}
+
 TRIGGER_LABELS = {
     "assign_resolver": "Asignar resolutor",
     "assign_qm": "Pasar a Pre-Análisis (QM)",

@@ -49,6 +49,16 @@ class TicketModel(Base):
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
+    # SLA (Fase 4, spec 014)
+    sla_rule_id = Column(UUID(as_uuid=True), ForeignKey("sla_rules.id"), nullable=True)
+    sla_phase = Column(Text, nullable=True)
+    sla_phase_limit_minutes = Column(Integer, nullable=True)
+    sla_consumed_seconds = Column(Integer, nullable=False, default=0)
+    sla_last_resume_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    sla_status = Column(Text, nullable=False, default="sin_sla")
+    sla_contact_result = Column(Text, nullable=True)
+    sla_contact_consumed_seconds = Column(Integer, nullable=True)
+
     skills = relationship("SkillModel", secondary=ticket_skills_table, lazy="joined")
 
     def to_entity(self) -> Ticket:
@@ -82,6 +92,14 @@ class TicketModel(Base):
             created_at=self.created_at,
             updated_at=self.updated_at,
             skills=[s.to_entity() for s in (self.skills or [])],
+            sla_rule_id=self.sla_rule_id,
+            sla_phase=self.sla_phase,
+            sla_phase_limit_minutes=self.sla_phase_limit_minutes,
+            sla_consumed_seconds=self.sla_consumed_seconds,
+            sla_last_resume_at=self.sla_last_resume_at,
+            sla_status=self.sla_status,
+            sla_contact_result=self.sla_contact_result,
+            sla_contact_consumed_seconds=self.sla_contact_consumed_seconds,
         )
 
 

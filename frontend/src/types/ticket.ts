@@ -1,3 +1,5 @@
+import type { TicketSlaState } from './sla'
+
 /** Catálogo único de 10 estados, compartido por Ticket y Tarea/Subtarea (spec 009) — una
  * Tarea puede transicionar a cualquiera de ellos sin restricción de secuencia (ver
  * ticketService.changeStatus). */
@@ -63,6 +65,8 @@ export interface TicketListItem {
   /** Si no es null, este registro es una Subtarea (Nivel 5) de la Tarea indicada. */
   parent_task_id: string | null
   created_at: string
+  /** Resumen de SLA (Fase 4, spec 014) — solo `phase`/`status`, sin el detalle completo. */
+  sla: Pick<TicketSlaState, 'phase' | 'status'>
 }
 
 /** "125" min → "2h 05m"; null → '—'. Usado en el tablero Kanban. */
@@ -168,6 +172,8 @@ export interface TicketDetail extends TicketListItem {
   subtasks: TicketListItem[]
   /** Skills requeridas para resolverlo, opcional y editable en cualquier estado (spec 011). */
   skills: TicketSkillRef[]
+  /** Estado de SLA (Fase 4, spec 014) — 'sin_sla' para Tareas/Subtareas (FR-012). */
+  sla: TicketSlaState
 }
 
 export interface TicketFormData {
@@ -211,6 +217,9 @@ export interface TicketFilters {
   assignee_id?: string
   escalation_level?: EscalationLevel
   sort?: string
+  /** Fase 4, spec 014 — indicadores agregados de SLA (Historia 3). */
+  sla_status?: TicketSlaState['status']
+  sla_expiring_within_hours?: number
 }
 
 export interface PanelRow {

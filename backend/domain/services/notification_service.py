@@ -10,6 +10,7 @@ _MESSAGES = {
     "resolution_rejected": "El usuario rechazó la resolución del ticket {number}",
     "closed": "El ticket {number} fue cerrado",
     "close_eligible": "El ticket {number} lleva 3+ días resuelto sin respuesta del usuario; puedes cerrarlo",
+    "sla_breached": "El ticket {number} incumplió su tiempo límite de SLA",
 }
 
 

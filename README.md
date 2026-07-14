@@ -3,16 +3,15 @@
 Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM
 de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre **GitHub Spec Kit**.
 
-> **Fase activa**: `Cronómetro Manual de Tiempo en el Ticket` (spec `012`, provisional) ✅
-> implementada — Iniciar/Pausar/Reanudar/Terminar por recurso en el detalle del ticket, personal
-> (solo lo ve quien lo inició), persiste en backend (sobrevive recargas y cierres de sesión) y al
-> Terminar genera un Registro de tiempo formal reutilizando las reglas de la spec `004` (bloqueo
-> en ticket cerrado, límite diario). Validada con 24/24 tests dirigidos, `tsc -b` sin errores y
-> recorrido E2E en navegador contra Docker real. Rama: `develp_Jp`
->
-> **Spec lista, sin plan/tasks**: `Skills Requeridas en el Ticket` (spec `011`) — declarar
-> skills opcionales en el ticket para identificar habilidades necesarias; retomar con
-> `/speckit-plan` antes de mergear si se prioriza.
+> **Fase activa**: `SLAs por Proyecto y Prioridad` (spec `014`, Fase 4 SDD V3) ✅ implementada —
+> reglas de SLA configurables por Proyecto × Prioridad (sin fallback), contador de 2 fases
+> (Contacto / Diagnóstico-Análisis-Ejecución) en el detalle del ticket con pausa/reanudación
+> automática según el estado del ticket, indicadores agregados en el listado y dashboard, y
+> detección proactiva de vencimientos vía tarea periódica Celery+Redis (primera materialización
+> de ese stack en el repo) que notifica al Resolutor asignado y a los Coordinadores del proyecto.
+> El SLA nunca bloquea transiciones del FSM (solo calcula/mide) y no aplica a Tareas/Subtareas en
+> esta fase. Validada con 63 tests dirigidos (suite completa 437/437) y recorrido E2E contra
+> Docker real, incluyendo el worker Celery en ejecución. Rama: `develp_Jp`
 
 ---
 
@@ -24,7 +23,7 @@ de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre *
 | **1b — Tickets** | Ciclo de vida de 9 estados (FSM), comentarios tipificados con adjuntos, Triage Push + Gold Standard Dataset, Panel de Asignación, notificaciones, enforcement JWT total (spec `002`) | ✅ **Completa** (validación E2E 26/26) |
 | **2 — Registro de tiempos** | Registro diario de tiempos por recurso (hora inicio/fin), rol Usuario/cliente (autoservicio con Cliente fijo), breadcrumbs de navegación, Usuario/cliente seleccionable/editable por Cliente en el ticket, "Mis Tareas" (specs `004`, `005`, `006`, `007`) | ✅ **Completa** |
 | **3 — Tareas** | Tarea/Subtarea sobre la misma tabla de Ticket (jerarquía Cliente → Proyecto → Lista → Tarea → Subtarea), ciclo de vida unificado con Ticket (10 estados, transición libre + comentario), visibles en Kanban, Listas administrables tipo Teamwork/Asana, Subtareas con Usuario/cliente propio, fix de Registro de tiempo para creador de la Tarea (specs `008`, `009`) | ✅ **Completa** |
-| 4 | SLAs por prioridad/cliente/proyecto con estados que pausan el contador | ⏳ Pendiente |
+| **4 — SLAs** | SLAs configurables por Proyecto × Prioridad, contador de 2 fases con pausa/reanudación según estado del ticket, indicadores en listado/dashboard y notificación proactiva de vencimientos vía Celery+Redis (spec `014`) | ✅ **Completa** |
 | 5 | Asignación por disponibilidad + calendarios por país/recurso | ⏳ Pendiente |
 | 6 | Motor FSM automatizado + triggers de comentarios + Google Chat | ⏳ Pendiente |
 | 7 | Focus Room + agente IA asistente (evaluar Triage Agent) | ⏳ Pendiente |
@@ -36,16 +35,26 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 
 > **Nota**: el renombre de rol Encargado → Usuario/cliente, su vínculo al Proyecto (en vez del
 > Cliente), la sección "Personal del Proyecto" con subgrupos "Equipo" y la ampliación de Skills
-> (spec `010`), así como el cronómetro manual de tiempo (spec `012`, provisional) son cambios
-> transversales sobre las Fases 1-3 ya completas — no forman parte de la Fase 4 (SLAs) del
-> roadmap SDD V3, que sigue pendiente.
+> (spec `010`), el cronómetro manual de tiempo (spec `012`, provisional), las Skills requeridas
+> del ticket (spec `011`) y el manejo global de errores (spec `013`) son cambios transversales
+> sobre las Fases 1-3 ya completas, previos a la Fase 4 (SLAs, spec `014`) ya completada arriba.
 
 ---
 
-## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`) + Manejo global de errores (spec `013`)
+## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`) + Manejo global de errores (spec `013`) + SLAs (spec `014`, Fase 4)
 
 ### Funcionalidad operativa
 
+- **SLAs por Proyecto y Prioridad** (spec `014`, Fase 4 SDD V3): Admin/Coordinador configura
+  reglas de SLA por combinación exacta Proyecto × Prioridad (sin reglas de respaldo/fallback),
+  cada una con tiempo límite de Contacto y de Diagnóstico-Análisis-Ejecución. El ticket calcula
+  su fase y consumo en tiempo real (sin persistir en cada lectura), pausa automáticamente en
+  `pendiente_usuario` y reanuda sin reiniciar el contador, congela el resultado de Contacto al
+  pasar a Ejecución. El listado y el dashboard muestran el estado agregado (`corriendo` /
+  `pausado` / `vencido` / `sin_sla`) con filtros server-side y el stat "Vencen hoy". Una tarea
+  periódica Celery (cada 5 min, sobre Redis) detecta vencimientos y notifica al Resolutor
+  asignado y a los Coordinadores del proyecto. El cómputo de SLA nunca bloquea ni condiciona una
+  transición del FSM (solo mide) y por ahora solo aplica a Tickets, no a Tareas/Subtareas.
 - **Manejo global de errores y notificaciones** (spec `013`): toda respuesta de error de la
   API (todos los endpoints) sale con el contrato estándar `{success: false, message, code}`
   (+ campo legado `error`), aplicado por un normalizador global sin tocar las rutas; los 500
@@ -398,6 +407,8 @@ docker exec sywork_backend python -m backend.scripts.seed_tickets 500   # datos 
 | `010` | [proyecto-personal-skills](specs/010-proyecto-personal-skills/spec.md) | Renombre Encargado → Usuario/cliente, vínculo al Proyecto (en vez del Cliente), Personal del Proyecto + "Equipo" estilo Teamwork, Skills con tipo/herramienta/proceso y semillas | ✅ Completa — tasks 35/35, tests dirigidos en verde (suite completa no corrida, FR-020) |
 | `011` | [ticket-skills-requeridas](specs/011-ticket-skills-requeridas/spec.md) | Skills opcionales en el ticket para identificar habilidades necesarias para resolverlo | ⏳ Spec lista, sin plan/tasks |
 | `012` | [cronometro-manual-ticket](specs/012-cronometro-manual-ticket/spec.md) | Cronómetro manual de tiempo (provisional) en el detalle del ticket: iniciar/pausar/reanudar/terminar por recurso, genera Registro de tiempo formal | ✅ Completa — tasks 21/21, 24/24 tests, validado E2E en navegador |
+| `013` | [manejo-errores-notificaciones](specs/013-manejo-errores-notificaciones/spec.md) | Normalizador global de errores de la API (`{success,message,code}`) + notificaciones toast en el frontend | ✅ Completa |
+| `014` | [sla-tickets-tareas](specs/014-sla-tickets-tareas/spec.md) | SLAs configurables por Proyecto × Prioridad, contador de 2 fases, indicadores agregados y notificación proactiva de vencimientos vía Celery+Redis (Fase 4 SDD V3) | ✅ Completa — tasks 30/30, 63 tests dirigidos, suite 437/437, quickstart 3/3 validado contra Docker real |
 
 Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.md`,
 `data-model.md`, `contracts/`, `tasks.md`, `quickstart.md`.
@@ -413,9 +424,11 @@ Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.
   frontend (T071).
 - El cifrado pgcrypto es placeholder de desarrollo → reemplazar por `pgp_sym_encrypt`
   antes de producción.
-- Fase 4 (SLAs) y siguientes del roadmap SDD V3 aún no iniciadas.
+- Fase 5 (Asignación por disponibilidad + calendarios) y siguientes del roadmap SDD V3 aún no
+  iniciadas.
 - Spec `010`: correr la suite completa de tests (no ejecutada durante el desarrollo por
   directriz explícita FR-020) para confirmar ausencia de regresiones fuera de los archivos
   tocados.
-- Spec `011` (Skills Requeridas en el Ticket): tiene spec.md listo (16/16 checklist) pero falta
-  `/speckit-plan` y `/speckit-tasks` — retomar antes de mergear si se prioriza.
+- Spec `014` (SLAs): FR-011 (recalcular SLA al cambiar el Proyecto de un ticket) solo es
+  parcialmente alcanzable — `project_id` no está hoy en los campos editables (`PATCHABLE_FIELDS`)
+  de ningún endpoint, así que solo el cambio de Prioridad ejercita esa lógica en producción.

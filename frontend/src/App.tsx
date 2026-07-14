@@ -13,6 +13,7 @@ import ProjectPeoplePage from './pages/ProjectPeoplePage'
 import TeamPage from './pages/TeamPage'
 import SkillsPage from './pages/SkillsPage'
 import RolesPermissionsPage from './pages/RolesPermissionsPage'
+import SlaRulesPage from './pages/SlaRulesPage'
 import ClientContactsPage from './pages/ClientContactsPage'
 import TicketsPage from './pages/TicketsPage'
 import MyTasksPage from './pages/MyTasksPage'
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route path="users" element={<Navigate to="/team" replace />} />
         <Route path="skills" element={<ProtectedRoute requiredPermission={{ module: 'skills', action: 'view' }}><SkillsPage /></ProtectedRoute>} />
         <Route path="roles" element={<ProtectedRoute requiredPermission={{ module: 'roles', action: 'view' }}><RolesPermissionsPage /></ProtectedRoute>} />
+        <Route path="sla-rules" element={<ProtectedRoute requiredPermission={{ module: 'sla_rules', action: 'manage' }}><SlaRulesPage /></ProtectedRoute>} />
         <Route path="client-contacts" element={<ProtectedRoute requiredPermission={{ module: 'client_contacts', action: 'manage' }}><ClientContactsPage /></ProtectedRoute>} />
       </Route>
     </Routes>
