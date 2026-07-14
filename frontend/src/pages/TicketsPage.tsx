@@ -25,6 +25,7 @@ import type { ClientContact } from '../types/clientContact'
 import type { TaskList } from '../types/taskList'
 import { vivid } from '../theme'
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
+import SlaStatusTag from '../components/tickets/SlaStatusTag'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
 import PageToolbar from '../components/common/PageToolbar'
@@ -40,6 +41,13 @@ const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ v
 const priorityOptions = Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }))
 const severityOptions = Object.entries(SEVERITY_LABELS).map(([value, label]) => ({ value, label }))
 const typeOptions = Object.entries(TICKET_TYPE_LABELS).map(([value, label]) => ({ value, label }))
+const SLA_STATUS_OPTIONS = [
+  { text: 'Corriendo', value: 'corriendo' },
+  { text: 'Pausado', value: 'pausado' },
+  { text: 'Vencido', value: 'vencido' },
+  { text: 'Detenido', value: 'detenido' },
+  { text: 'Sin SLA', value: 'sin_sla' },
+]
 
 export default function TicketsPage() {
   const { hasPermission, role } = useAuthStore()
@@ -60,8 +68,9 @@ export default function TicketsPage() {
   const [priorityFilter, setPriorityFilter] = useState<Priority | undefined>()
   const [severityFilter, setSeverityFilter] = useState<Severity | undefined>()
   const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>()
+  const [slaStatusFilter, setSlaStatusFilter] = useState<TicketListItem['sla']['status'] | undefined>()
   const [assigningId, setAssigningId] = useState<string | null>(null)
-  const [stats, setStats] = useState<{ nuevo: number; enProgreso: number; pendienteUsuario: number; resuelto: number } | null>(null)
+  const [stats, setStats] = useState<{ nuevo: number; enProgreso: number; pendienteUsuario: number; resuelto: number; vencenHoy: number } | null>(null)
 
   const [clients, setClients] = useState<ClientListItem[]>([])
   const [projects, setProjects] = useState<ProjectListItem[]>([])
@@ -94,25 +103,27 @@ export default function TicketsPage() {
         priority: priorityFilter,
         severity: severityFilter,
         assignee_id: assigneeFilter,
+        sla_status: slaStatusFilter,
       })
       setTickets(res.items)
       setTotal(res.total)
     } finally {
       setLoading(false)
     }
-  }, [page, search, statusFilter, clientFilter, priorityFilter, severityFilter, assigneeFilter])
+  }, [page, search, statusFilter, clientFilter, priorityFilter, severityFilter, assigneeFilter, slaStatusFilter])
 
   useEffect(() => { load() }, [load])
 
   const loadStats = useCallback(async () => {
     try {
-      const [nuevo, enProgreso, pendienteUsuario, resuelto] = await Promise.all([
+      const [nuevo, enProgreso, pendienteUsuario, resuelto, vencenHoy] = await Promise.all([
         ticketService.list({ status: ['nuevo'], page_size: 1 }).then(r => r.total),
         ticketService.list({ status: IN_PROGRESS_STATUSES, page_size: 1 }).then(r => r.total),
         ticketService.list({ status: ['pendiente_usuario'], page_size: 1 }).then(r => r.total),
         ticketService.list({ status: ['resuelto'], page_size: 1 }).then(r => r.total),
+        ticketService.list({ sla_expiring_within_hours: 24, page_size: 1 }).then(r => r.total),
       ])
-      setStats({ nuevo, enProgreso, pendienteUsuario, resuelto })
+      setStats({ nuevo, enProgreso, pendienteUsuario, resuelto, vencenHoy })
     } catch {
       message.error('No se pudieron cargar las estadísticas de tickets')
     }
@@ -224,6 +235,7 @@ export default function TicketsPage() {
     setPriorityFilter((filters.priority?.[0] as Priority) || undefined)
     setSeverityFilter((filters.severity?.[0] as Severity) || undefined)
     setAssigneeFilter((filters.assignee?.[0] as string) || undefined)
+    setSlaStatusFilter((filters.sla?.[0] as TicketListItem['sla']['status']) || undefined)
   }
 
   const columns: ColumnsType<TicketListItem> = [
@@ -258,6 +270,11 @@ export default function TicketsPage() {
       filters: statusOptions.map(o => ({ text: o.label, value: o.value })),
       filteredValue: statusFilter.length ? statusFilter : null,
       onFilter: () => true,
+    },
+    {
+      title: 'SLA', dataIndex: 'sla', key: 'sla', width: 110,
+      render: (sla: TicketListItem['sla']) => <SlaStatusTag status={sla.status} />,
+      ...serverColumnFilter(SLA_STATUS_OPTIONS, slaStatusFilter),
     },
     {
       title: 'Prioridad', dataIndex: 'priority', key: 'priority', width: 125,
@@ -309,8 +326,8 @@ export default function TicketsPage() {
           <StatCard label="Resueltos" value={stats?.resuelto ?? '—'} icon={<CheckCircleOutlined />} color="green" sub="Pendientes de cierre" />
         </Col>
         <Col xs={12} md={8} lg={4}>
-          <StatCard label="Vencen hoy" value="—" icon={<FieldTimeOutlined />} color="red" placeholder
-            placeholderHint="Contador de SLA — llega en Fase 4 (Gestión de SLAs)" />
+          <StatCard label="Vencen hoy" value={stats?.vencenHoy ?? '—'} icon={<FieldTimeOutlined />} color="red"
+            sub="SLA vence en menos de 24h" />
         </Col>
       </Row>
 

@@ -5,6 +5,7 @@ estado son atómicas: comentario + transición + notificación en la misma trans
 (Decisión 2 de research.md).
 """
 from datetime import datetime, timedelta, timezone
+import logging
 import uuid
 
 from flask import g, request, send_file
@@ -17,6 +18,7 @@ from backend.domain.entities.ticket import Ticket, STATUSES, STATUS_LABELS
 from backend.domain.entities.user import USUARIO_CLIENTE_ROLE_NAME
 from backend.domain.errors import DomainError
 from backend.domain.fsm import ticket_fsm
+from backend.domain.services import sla_service
 from backend.domain.services.assignment_service import AssignmentService
 from backend.domain.services.comment_service import CommentService
 from backend.domain.services.notification_service import NotificationService
@@ -30,10 +32,13 @@ from backend.infra.repositories.notification_repo import NotificationRepository
 from backend.infra.repositories.project_member_repo import ProjectMemberRepository
 from backend.infra.repositories.project_repo import ProjectRepository
 from backend.infra.repositories.resource_repo import ResourceRepository
+from backend.infra.repositories.sla_rule_repo import SlaRuleRepository
 from backend.infra.repositories.task_list_repo import TaskListRepository
 from backend.infra.repositories.ticket_repo import TicketRepository
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.storage import attachments as attachment_storage
+
+logger = logging.getLogger(__name__)
 
 ns = Namespace("tickets", description="Gestión de tickets y su ciclo de vida", path="/api/tickets")
 
@@ -121,6 +126,11 @@ _resource_ref = ns.model("ResourceRef", {
     "full_name": fields.String(description="Nombre completo"),
 })
 
+_sla_summary_out = ns.model("TicketSlaSummary", {
+    "phase": fields.String(allow_null=True, description="contacto | ejecucion | cerrado | null"),
+    "status": fields.String(description="sin_sla | corriendo | pausado | vencido | detenido"),
+})
+
 _ticket_out = ns.model("Ticket", {
     "id": fields.String(description="UUID del ticket"),
     "ticket_number": fields.String(description="Consecutivo legible", example="TK-000123"),
@@ -143,6 +153,9 @@ _ticket_out = ns.model("Ticket", {
     "parent_task_id": fields.String(allow_null=True, description="Si no es null, este "
                                                                   "registro es una Subtarea"),
     "created_at": fields.String(description="Fecha de creación ISO-8601"),
+    "sla": fields.Nested(_sla_summary_out, description="Resumen de SLA (Fase 4, spec 014) "
+                                                        "para pintar el indicador sin abrir "
+                                                        "el detalle (FR-008)"),
 })
 
 _ticket_list_out = ns.model("TicketList", {
@@ -223,6 +236,16 @@ _ticket_skills_update = ns.model("TicketSkillsUpdate", {
         example=[]),
 })
 
+_sla_out = ns.model("TicketSla", {
+    "phase": fields.String(allow_null=True, description="contacto | ejecucion | cerrado | null"),
+    "status": fields.String(description="sin_sla | corriendo | pausado | vencido | detenido"),
+    "phase_limit_minutes": fields.Integer(allow_null=True),
+    "consumed_seconds": fields.Integer(),
+    "rule_id": fields.String(allow_null=True),
+    "contact_result": fields.String(allow_null=True, description="pendiente | cumplido | vencido | null"),
+    "contact_consumed_seconds": fields.Integer(allow_null=True),
+})
+
 _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "description": fields.String(),
     "tool_id": fields.String(allow_null=True),
@@ -258,6 +281,9 @@ _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "assignments": fields.List(fields.Nested(_assignment_out)),
     "skills": fields.List(fields.Nested(_ticket_skill_ref),
                           description="Skills requeridas para resolverlo, opcional (spec 011)"),
+    "sla": fields.Nested(_sla_out, description="Estado de SLA (Fase 4, spec 014) — solo "
+                                               "calculado para record_type 'Ticket' (FR-012); "
+                                               "'sin_sla' para Tareas/Subtareas"),
 })
 
 _assignment_result_ref = ns.model("AssignmentResult", {
@@ -323,6 +349,7 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
     project = ProjectRepository(db).get_by_id(ticket.project_id) if ticket.project_id else None
     assignee = ResourceRepository(db).get_by_id(ticket.assignee_id) if ticket.assignee_id else None
     task_list = TaskListRepository(db).get_by_id(ticket.list_id) if ticket.list_id else None
+    sla_state = sla_service.compute_state(ticket, datetime.now(timezone.utc))
     return {
         "id": str(ticket.id),
         "ticket_number": ticket.number_display,
@@ -343,6 +370,7 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
         "record_type": _record_type_name(ticket.record_type_id, db),
         "parent_task_id": str(ticket.parent_task_id) if ticket.parent_task_id else None,
         "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+        "sla": {"phase": sla_state["phase"], "status": sla_state["status"]},
     }
 
 
@@ -412,6 +440,7 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
         "transitions": TicketRepository(db).list_transitions(ticket.id),
         "assignments": TicketRepository(db).list_assignments(ticket.id),
         "skills": [{"id": str(s.id), "code": s.code, "label": s.label} for s in (ticket.skills or [])],
+        "sla": sla_service.compute_state(ticket, datetime.now(timezone.utc)),
     })
     return d
 
@@ -436,13 +465,33 @@ def _get_ticket_or_404(db, ticket_id: str):
     return ticket, None
 
 
+def _sla_updates_for_transition(db, ticket: Ticket, new_status: str) -> dict:
+    """Efecto lateral de SLA sobre una transición de estado (Fase 4, spec 014, FR-014).
+
+    Nunca debe romper la transición ya validada/aplicada por el llamador: cualquier excepción
+    se registra en el log y se ignora, devolviendo un dict vacío (sin cambios de SLA) — el SLA
+    es de solo medición, no una regla de negocio que pueda bloquear el ciclo de vida del ticket.
+    Solo aplica a `record_type` == "Ticket" (FR-012); para Tareas/Subtareas siempre es un no-op.
+    """
+    try:
+        if _is_task(ticket, db):
+            return {}
+        updates = sla_service.apply_transition(
+            ticket, new_status, datetime.now(timezone.utc), SlaRuleRepository(db))
+        return updates or {}
+    except Exception:
+        logger.exception("SLA sync failed for ticket %s (-> %s)", ticket.id, new_status)
+        return {}
+
+
 def _apply_transition(db, ticket: Ticket, trigger: str, actor_id: uuid.UUID,
                       comment_id: uuid.UUID | None = None,
                       extra_fields: dict | None = None) -> Ticket:
     """Ejecuta la transición FSM y registra el histórico (sin commit)."""
     new_status = ticket_fsm.apply(ticket.status, trigger)
     repo = TicketRepository(db)
-    fields_to_set = {"status": new_status, **(extra_fields or {})}
+    fields_to_set = {"status": new_status, **_sla_updates_for_transition(db, ticket, new_status),
+                     **(extra_fields or {})}
     updated = repo.update_fields(ticket.id, **fields_to_set)
     repo.add_transition(ticket.id, ticket.status, new_status, actor_id,
                         comment_id=comment_id, commit=True)
@@ -466,6 +515,11 @@ class TicketList(Resource):
         "assignee_id": {"description": "Filtrar por UUID de recurso asignado", "type": "string"},
         "escalation_level": {"description": "n1 | n2 | n3 | n4", "type": "string"},
         "sort": {"description": "created_at | -created_at | priority | status (default -created_at)", "type": "string"},
+        "sla_status": {"description": "sin_sla | corriendo | pausado | vencido | detenido "
+                                       "(Fase 4, spec 014)", "type": "string"},
+        "sla_expiring_within_hours": {"description": "Tickets con SLA corriendo cuyo tiempo "
+                                                       "restante cae dentro de N horas (Fase 4, "
+                                                       "FR-009)", "type": "integer"},
     })
     @ns.response(200, "Listado de tickets", _ticket_list_out)
     @ns.response(400, "Parámetros inválidos", _error)
@@ -485,6 +539,13 @@ class TicketList(Resource):
             return {"error": "validation_error", "message": "page y page_size deben ser enteros"}, 400
         own_only = not current_user_has("tickets", "view")
         statuses = None if own_only else (request.args.getlist("status") or None)
+        sla_expiring_within_hours = None
+        if not own_only and request.args.get("sla_expiring_within_hours") is not None:
+            try:
+                sla_expiring_within_hours = int(request.args["sla_expiring_within_hours"])
+            except ValueError:
+                return {"error": "validation_error",
+                        "message": "sla_expiring_within_hours debe ser un entero"}, 400
         try:
             db = get_db()
             items, total = TicketRepository(db).list_paginated(
@@ -500,6 +561,8 @@ class TicketList(Resource):
                 escalation_level=None if own_only else (request.args.get("escalation_level") or None),
                 sort=request.args.get("sort", "-created_at"),
                 created_by=g.current_user.id if own_only else None,
+                sla_status=None if own_only else (request.args.get("sla_status") or None),
+                sla_expiring_within_hours=sla_expiring_within_hours,
             )
             return {"items": [_ticket_summary(t, db) for t in items],
                     "total": total, "page": page, "page_size": page_size}, 200
@@ -627,6 +690,15 @@ class TicketList(Resource):
                 # propia editable después (spec 009, Assumptions).
                 if parent_ticket and list_id is None:
                     list_id = parent_ticket.list_id
+            # SLA (Fase 4, spec 014, FR-012): solo se calcula para record_type "Ticket", nunca
+            # para Tareas/Subtareas. Un fallo aquí no debe impedir la creación del ticket.
+            sla_fields: dict = {}
+            if not is_task:
+                try:
+                    sla_fields = sla_service.initial_state(
+                        project_id, priority, SlaRuleRepository(db), datetime.now(timezone.utc))
+                except Exception:
+                    logger.exception("SLA init failed for new ticket")
             ticket = Ticket(
                 id=uuid.uuid4(), ticket_number=0,  # lo asigna la secuencia
                 title=str(data["title"]).strip(), description=str(data["description"]).strip(),
@@ -639,6 +711,7 @@ class TicketList(Resource):
                 related_ticket_id=related_id, created_by=g.current_user.id,
                 client_contact_id=client_contact_id, list_id=list_id,
                 parent_task_id=parent_task_id, assignee_id=task_assignee_id,
+                **sla_fields,
             )
             created = TicketRepository(db).create(ticket)
             return _ticket_detail(created, db), 201, {"Location": f"/api/tickets/{created.id}"}
@@ -711,6 +784,18 @@ class TicketDetail(Resource):
                     if not parsed:
                         return {"error": "validation_error", "message": f"{uuid_field} inválido"}, 400
                     clean[uuid_field] = parsed
+            # SLA (FR-011, clarificación 2026-07-14): `project_id` no es editable en este
+            # sistema (no está en PATCHABLE_FIELDS) — en la práctica solo `priority` puede
+            # disparar el recálculo de la regla aplicable a la fase vigente.
+            if "priority" in clean and clean["priority"] != ticket.priority and not _is_task(ticket, db):
+                try:
+                    sla_updates = sla_service.recalc_rule_for_project_or_priority_change(
+                        ticket, ticket.project_id, clean["priority"],
+                        datetime.now(timezone.utc), SlaRuleRepository(db))
+                    if sla_updates:
+                        clean.update(sla_updates)
+                except Exception:
+                    logger.exception("SLA recalculation failed for ticket %s (priority change)", ticket.id)
             updated = TicketRepository(db).update_fields(ticket.id, **clean)
             return _ticket_detail(updated, db), 200
         except DomainError as e:
@@ -795,7 +880,9 @@ class TicketAssign(Resource):
             )
             CommentRepository(db).add(comment, commit=False)
             new_status = ticket_fsm.apply(ticket.status, trigger)
-            ticket_repo.update_fields(ticket.id, status=new_status, assignee_id=assignee_id)
+            sla_updates = _sla_updates_for_transition(db, ticket, new_status)
+            ticket_repo.update_fields(ticket.id, status=new_status, assignee_id=assignee_id,
+                                      **sla_updates)
             ticket_repo.add_transition(ticket.id, ticket.status, new_status,
                                        g.current_user.id, comment_id=comment.id, commit=False)
             assignment_id = ticket_repo.add_assignment(
@@ -879,7 +966,8 @@ class TicketComments(Resource):
                     extra["resolution_accepted_at"] = None
                 new_status = ticket_fsm.apply(ticket.status, trigger)
                 ticket_repo = TicketRepository(db)
-                ticket_repo.update_fields(ticket.id, status=new_status, **extra)
+                sla_updates = _sla_updates_for_transition(db, ticket, new_status)
+                ticket_repo.update_fields(ticket.id, status=new_status, **sla_updates, **extra)
                 ticket_repo.add_transition(ticket.id, ticket.status, new_status,
                                            actor_id, comment_id=comment.id, commit=False)
                 # notificación al resolutor cuando el usuario responde (FR-023)
@@ -984,7 +1072,9 @@ class TicketResolution(Resource):
             # rechazo → vuelve a EN EJECUCIÓN + notificación al resolutor
             new_status = ticket_fsm.apply(ticket.status, "reject_resolution")
             ticket_repo = TicketRepository(db)
-            ticket_repo.update_fields(ticket.id, status=new_status, resolution_accepted_at=None)
+            sla_updates = _sla_updates_for_transition(db, ticket, new_status)
+            ticket_repo.update_fields(ticket.id, status=new_status, resolution_accepted_at=None,
+                                      **sla_updates)
             ticket_repo.add_transition(ticket.id, ticket.status, new_status, actor_id,
                                        comment_id=comment.id, commit=False)
             if ticket.assignee_id:
@@ -1046,9 +1136,10 @@ class TicketClose(Resource):
             CommentRepository(db).add(comment, commit=False)
             new_status = ticket_fsm.apply(ticket.status, "close")
             ticket_repo = TicketRepository(db)
+            sla_updates = _sla_updates_for_transition(db, ticket, new_status)
             ticket_repo.update_fields(ticket.id, status=new_status,
                                       resolution_type_id=resolution_type_id,
-                                      closed_at=datetime.now(timezone.utc))
+                                      closed_at=datetime.now(timezone.utc), **sla_updates)
             ticket_repo.add_transition(ticket.id, ticket.status, new_status, actor_id,
                                        comment_id=comment.id, commit=False)
             # FR-024: notificar a Coordinadores y QMs activos
@@ -1095,7 +1186,8 @@ class TicketCancel(Resource):
             CommentRepository(db).add(comment, commit=False)
             new_status = ticket_fsm.apply(ticket.status, "cancel")
             ticket_repo = TicketRepository(db)
-            ticket_repo.update_fields(ticket.id, status=new_status)
+            sla_updates = _sla_updates_for_transition(db, ticket, new_status)
+            ticket_repo.update_fields(ticket.id, status=new_status, **sla_updates)
             ticket_repo.add_transition(ticket.id, ticket.status, new_status,
                                        g.current_user.id, comment_id=comment.id, commit=False)
             db.commit()

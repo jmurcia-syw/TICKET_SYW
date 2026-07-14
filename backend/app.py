@@ -103,6 +103,11 @@ def create_app() -> Flask:
 
     api.add_namespace(ns_timer)
 
+    # ── spec 014 — SLAs por Proyecto y Prioridad (Fase 4) ──────────────────────
+    from backend.api.routes.sla_rules import ns as ns_sla_rules
+
+    api.add_namespace(ns_sla_rules)
+
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")
 

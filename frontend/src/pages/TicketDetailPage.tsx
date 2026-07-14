@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Col, Descriptions, Divider, InputNumber, Row, Select, Space, Spin, Tag, Tooltip, message } from 'antd'
+import { Button, Card, Col, Descriptions, Divider, InputNumber, Row, Select, Space, Spin, Tooltip, message } from 'antd'
 import {
   UserSwitchOutlined, SaveOutlined, ClockCircleOutlined,
   FieldTimeOutlined, PlayCircleOutlined, HistoryOutlined, UnorderedListOutlined,
@@ -21,6 +21,7 @@ import CommentThread from '../components/tickets/CommentThread'
 import CommentComposer from '../components/tickets/CommentComposer'
 import TaskStatusChanger from '../components/tickets/TaskStatusChanger'
 import SubtaskList from '../components/tickets/SubtaskList'
+import SlaCounter from '../components/tickets/SlaCounter'
 import AssignModal from '../components/tickets/AssignModal'
 import TicketSkillsSelector from '../components/tickets/TicketSkillsSelector'
 import TicketWorkSessions from '../components/worksessions/TicketWorkSessions'
@@ -266,18 +267,7 @@ export default function TicketDetailPage() {
             title={<span><ClockCircleOutlined style={{ color: vivid.red.text, marginRight: 8 }} />SLA</span>}
             style={{ borderColor: palette.slate200, background: palette.slate50 }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-              <span style={{ fontSize: 22, fontWeight: 700, color: palette.slate400 }}>—:—:—</span>
-              <Tooltip title="Tiempos de atención/análisis/resolución por prioridad — llega en Fase 4 (Gestión de SLAs)">
-                <Tag>Próximamente · Fase 4</Tag>
-              </Tooltip>
-            </div>
-            <div style={{ height: 6, background: palette.slate200, borderRadius: 3, marginBottom: 6 }}>
-              <div style={{ height: 6, borderRadius: 3, background: palette.slate300, width: '0%' }} />
-            </div>
-            <div style={{ fontSize: 11, color: palette.slate400 }}>
-              Contador de atención/análisis/resolución por prioridad y cliente
-            </div>
+            <SlaCounter sla={ticket.sla} />
           </Card>
 
           <Card

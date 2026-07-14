@@ -84,6 +84,16 @@ class Ticket:
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     skills: list[Skill] = field(default_factory=list)
+    # SLA (Fase 4, spec 014) — snapshot de consumo de la fase de SLA vigente. Solo se calcula
+    # para record_type "Ticket" (FR-012); en Tareas/Subtareas quedan en None.
+    sla_rule_id: Optional[uuid.UUID] = None
+    sla_phase: Optional[str] = None
+    sla_phase_limit_minutes: Optional[int] = None
+    sla_consumed_seconds: int = 0
+    sla_last_resume_at: Optional[datetime] = None
+    sla_status: str = "sin_sla"
+    sla_contact_result: Optional[str] = None
+    sla_contact_consumed_seconds: Optional[int] = None
 
     @property
     def number_display(self) -> str:

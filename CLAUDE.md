@@ -2,14 +2,18 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Manejo Global de Errores y Notificaciones (API a Frontend)
+**Active feature**: SLAs por Proyecto y Prioridad (Fase 4 SDD V3)
+**Spec**: specs/014-sla-tickets-tareas/spec.md
+**Plan**: specs/014-sla-tickets-tareas/plan.md
+**Research**: specs/014-sla-tickets-tareas/research.md
+**Data model**: specs/014-sla-tickets-tareas/data-model.md
+**Contracts**: specs/014-sla-tickets-tareas/contracts/
+**Quickstart**: specs/014-sla-tickets-tareas/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada)**: Manejo Global de Errores y Notificaciones (API a Frontend)
 **Spec**: specs/013-manejo-errores-notificaciones/spec.md
 **Plan**: specs/013-manejo-errores-notificaciones/plan.md
-**Research**: specs/013-manejo-errores-notificaciones/research.md
-**Data model**: specs/013-manejo-errores-notificaciones/data-model.md
-**Contracts**: specs/013-manejo-errores-notificaciones/contracts/
-**Quickstart**: specs/013-manejo-errores-notificaciones/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada)**: Skills Requeridas en el Ticket
 **Spec**: specs/011-ticket-skills-requeridas/spec.md

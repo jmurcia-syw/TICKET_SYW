@@ -30,7 +30,9 @@ class TicketRepository:
                        severity: str | None = None, ticket_type: str | None = None,
                        assignee_id: uuid.UUID | None = None, escalation_level: str | None = None,
                        sort: str = "-created_at",
-                       created_by: uuid.UUID | None = None) -> tuple[list[Ticket], int]:
+                       created_by: uuid.UUID | None = None,
+                       sla_status: str | None = None,
+                       sla_expiring_within_hours: int | None = None) -> tuple[list[Ticket], int]:
         q = self._db.query(TicketModel)
         if created_by:
             q = q.filter(TicketModel.created_by == created_by)
@@ -58,10 +60,35 @@ class TicketRepository:
             q = q.filter(TicketModel.assignee_id == assignee_id)
         if escalation_level:
             q = q.filter(TicketModel.escalation_level == escalation_level)
+        if sla_status:
+            q = q.filter(TicketModel.sla_status == sla_status)
+        if sla_expiring_within_hours is not None:
+            # FR-009: tickets cuya fase de SLA vigente sigue corriendo (no vencida aún) y cuyo
+            # tiempo restante (calculado en tiempo real, no el snapshot) cae dentro de la
+            # ventana pedida. `remaining` puede dar negativo si ya venció entre lecturas —
+            # se excluye explícitamente (ese caso ya lo cubre sla_status=vencido).
+            remaining = (
+                TicketModel.sla_phase_limit_minutes * 60 - TicketModel.sla_consumed_seconds
+                - func.coalesce(func.extract("epoch", func.now() - TicketModel.sla_last_resume_at), 0)
+            )
+            q = q.filter(
+                TicketModel.sla_status == "corriendo",
+                TicketModel.sla_phase_limit_minutes.isnot(None),
+                remaining <= sla_expiring_within_hours * 3600,
+                remaining > 0,
+            )
         total = q.count()
         order = _SORTS.get(sort, _SORTS["-created_at"])
         models = q.order_by(order).offset((page - 1) * page_size).limit(page_size).all()
         return [m.to_entity() for m in models], total
+
+    def list_active_sla_running(self) -> list[Ticket]:
+        """Tickets con la fase de SLA vigente corriendo (candidatos a evaluar vencimiento,
+        usado por la tarea periódica `check_sla_breaches`, spec 014 Historia 3)."""
+        models = (self._db.query(TicketModel)
+                  .filter(TicketModel.sla_status == "corriendo")
+                  .all())
+        return [m.to_entity() for m in models]
 
     def create(self, ticket: Ticket) -> Ticket:
         model = TicketModel(
@@ -85,6 +112,14 @@ class TicketRepository:
             assignee_id=ticket.assignee_id,
             created_by=ticket.created_by,
             client_contact_id=ticket.client_contact_id,
+            sla_rule_id=ticket.sla_rule_id,
+            sla_phase=ticket.sla_phase,
+            sla_phase_limit_minutes=ticket.sla_phase_limit_minutes,
+            sla_consumed_seconds=ticket.sla_consumed_seconds,
+            sla_last_resume_at=ticket.sla_last_resume_at,
+            sla_status=ticket.sla_status,
+            sla_contact_result=ticket.sla_contact_result,
+            sla_contact_consumed_seconds=ticket.sla_contact_consumed_seconds,
         )
         self._db.add(model)
         self._db.commit()
