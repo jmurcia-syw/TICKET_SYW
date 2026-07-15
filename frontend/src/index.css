@@ -8,3 +8,35 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Contenido enriquecido (spec 017): editor (RichTextEditor) y visor (RichTextViewer) */
+.sywork-rich-editor-content,
+.sywork-rich-viewer {
+  word-break: break-word;
+}
+.sywork-rich-editor-content p,
+.sywork-rich-viewer p {
+  margin: 0 0 4px;
+}
+.sywork-rich-editor-content ul,
+.sywork-rich-editor-content ol,
+.sywork-rich-viewer ul,
+.sywork-rich-viewer ol {
+  padding-left: 1.4em;
+  margin: 0 0 4px;
+}
+.sywork-rich-editor-content img,
+.sywork-rich-viewer img {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+.sywork-rich-editor-content a,
+.sywork-rich-viewer a {
+  color: #1677ff;
+}
+.sywork-rich-editor-content {
+  padding: 8px 11px;
+  min-height: 72px;
+  outline: none;
+}

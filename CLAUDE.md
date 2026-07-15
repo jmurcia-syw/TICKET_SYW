@@ -2,14 +2,26 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: SLAs por Proyecto y Prioridad (Fase 4 SDD V3)
+**Active feature**: Contenido enriquecido (formato, imágenes pegadas y adjuntos) en comentarios y descripción de Ticket/Tarea
+**Spec**: specs/017-contenido-enriquecido-ticket/spec.md
+**Plan**: specs/017-contenido-enriquecido-ticket/plan.md
+**Research**: specs/017-contenido-enriquecido-ticket/research.md
+**Data model**: specs/017-contenido-enriquecido-ticket/data-model.md
+**Contracts**: specs/017-contenido-enriquecido-ticket/contracts/
+**Quickstart**: specs/017-contenido-enriquecido-ticket/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada)**: Corregir el Cliente de un Usuario/cliente y desambiguar Proyectos homónimos
+**Spec**: specs/016-corregir-cliente-encargado/spec.md
+**Plan**: specs/016-corregir-cliente-encargado/plan.md
+
+**Previous feature (completada)**: Encargado (Usuario/cliente) en múltiples Proyectos
+**Spec**: specs/015-encargado-multiples-proyectos/spec.md
+**Plan**: specs/015-encargado-multiples-proyectos/plan.md
+
+**Previous feature (completada)**: SLAs por Proyecto y Prioridad (Fase 4 SDD V3)
 **Spec**: specs/014-sla-tickets-tareas/spec.md
 **Plan**: specs/014-sla-tickets-tareas/plan.md
-**Research**: specs/014-sla-tickets-tareas/research.md
-**Data model**: specs/014-sla-tickets-tareas/data-model.md
-**Contracts**: specs/014-sla-tickets-tareas/contracts/
-**Quickstart**: specs/014-sla-tickets-tareas/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada)**: Manejo Global de Errores y Notificaciones (API a Frontend)
 **Spec**: specs/013-manejo-errores-notificaciones/spec.md

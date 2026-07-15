@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Input, Modal, Select, Space, Upload, message } from 'antd'
+import { Button, Modal, Select, Space, Upload, message } from 'antd'
 import { SendOutlined, UploadOutlined, ExperimentOutlined, CheckOutlined,
          CloseOutlined, StopOutlined, LockOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
@@ -7,6 +7,7 @@ import type { CommentType, TicketDetail } from '../../types/ticket'
 import type { CatalogItem } from '../../types/catalog'
 import { ticketService } from '../../services/ticketService'
 import { useAuthStore } from '../../store/authStore'
+import RichTextEditor, { isRichTextEmpty } from './RichTextEditor'
 
 // Tipos de comentario manuales disponibles por acción FSM válida
 const COMMENT_OPTIONS: Array<{ type: CommentType; label: string; action: string | null }> = [
@@ -32,13 +33,17 @@ export default function CommentComposer({ ticket, resolutionTypes, onUpdated, re
   const { hasPermission } = useAuthStore()
   const [commentType, setCommentType] = useState<CommentType>('comentario_interno')
   const [body, setBody] = useState('')
+  const [bodyKey, setBodyKey] = useState(0)
+  const [pendingImages, setPendingImages] = useState<File[]>([])
   const [files, setFiles] = useState<UploadFile[]>([])
   const [sending, setSending] = useState(false)
   const [closeOpen, setCloseOpen] = useState(false)
   const [closeType, setCloseType] = useState<string>()
   const [closeBody, setCloseBody] = useState('')
+  const [closeBodyKey, setCloseBodyKey] = useState(0)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelBody, setCancelBody] = useState('')
+  const [cancelBodyKey, setCancelBodyKey] = useState(0)
 
   const isFinal = ticket.status === 'cerrado' || ticket.status === 'cancelado'
   const validActions = new Set(ticket.valid_actions)
@@ -48,15 +53,15 @@ export default function CommentComposer({ ticket, resolutionTypes, onUpdated, re
     (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? fallback
 
   const send = async () => {
-    if (!body.trim()) {
+    if (isRichTextEmpty(body)) {
       message.warning('El comentario no puede estar vacío')
       return
     }
     setSending(true)
     try {
       const rawFiles = files.map(f => f.originFileObj).filter((f): f is NonNullable<typeof f> => !!f)
-      await ticketService.addComment(ticket.id, restrictToInternal ? 'comentario_interno' : commentType, body, rawFiles)
-      setBody(''); setFiles([]); setCommentType('comentario_interno')
+      await ticketService.addComment(ticket.id, restrictToInternal ? 'comentario_interno' : commentType, body, rawFiles, pendingImages)
+      setBody(''); setBodyKey(k => k + 1); setPendingImages([]); setFiles([]); setCommentType('comentario_interno')
       message.success('Comentario registrado')
       onUpdated()
     } catch (err: unknown) {
@@ -79,8 +84,9 @@ export default function CommentComposer({ ticket, resolutionTypes, onUpdated, re
   if (restrictToInternal) {
     return (
       <Space direction="vertical" style={{ width: '100%' }}>
-        <Input.TextArea rows={3} value={body} onChange={e => setBody(e.target.value)}
-          placeholder="Escribe un comentario..." />
+        <RichTextEditor key={bodyKey} value={body} onChange={setBody}
+          placeholder="Escribe un comentario..." allowImages
+          onPendingImage={file => setPendingImages(prev => [...prev, file])} />
         <Space>
           <Upload multiple beforeUpload={() => false} fileList={files}
             onChange={({ fileList }) => setFiles(fileList)}>
@@ -137,8 +143,9 @@ export default function CommentComposer({ ticket, resolutionTypes, onUpdated, re
 
       <Select value={commentType} onChange={setCommentType} style={{ width: '100%' }}
         options={options.map(o => ({ value: o.type, label: o.label }))} />
-      <Input.TextArea rows={3} value={body} onChange={e => setBody(e.target.value)}
-        placeholder="Escribe el comentario..." />
+      <RichTextEditor key={bodyKey} value={body} onChange={setBody}
+        placeholder="Escribe el comentario..." allowImages
+        onPendingImage={file => setPendingImages(prev => [...prev, file])} />
       <Space>
         <Upload multiple beforeUpload={() => false} fileList={files}
           onChange={({ fileList }) => setFiles(fileList)}>
@@ -151,33 +158,33 @@ export default function CommentComposer({ ticket, resolutionTypes, onUpdated, re
 
       <Modal title="Cerrar ticket" open={closeOpen} onCancel={() => setCloseOpen(false)}
         okText="Cerrar ticket" onOk={async () => {
-          if (!closeType || !closeBody.trim()) {
+          if (!closeType || isRichTextEmpty(closeBody)) {
             message.warning('Tipo de resolución y descripción de la solución son requeridos')
             return
           }
           await runAction(() => ticketService.close(ticket.id, closeType, closeBody), 'Ticket cerrado')
-          setCloseOpen(false)
+          setCloseOpen(false); setCloseBody(''); setCloseBodyKey(k => k + 1)
         }}>
         <Space direction="vertical" style={{ width: '100%' }}>
           <Select placeholder="Tipo de resolución" style={{ width: '100%' }} value={closeType}
             onChange={setCloseType}
             options={resolutionTypes.map(t => ({ value: t.id, label: t.name }))} />
-          <Input.TextArea rows={3} placeholder="Descripción de la solución (obligatoria)"
-            value={closeBody} onChange={e => setCloseBody(e.target.value)} />
+          <RichTextEditor key={closeBodyKey} value={closeBody} onChange={setCloseBody}
+            placeholder="Descripción de la solución (obligatoria)" />
         </Space>
       </Modal>
 
       <Modal title="Cancelar ticket" open={cancelOpen} onCancel={() => setCancelOpen(false)}
         okText="Cancelar ticket" okButtonProps={{ danger: true }} onOk={async () => {
-          if (!cancelBody.trim()) {
+          if (isRichTextEmpty(cancelBody)) {
             message.warning('El motivo de cancelación es requerido')
             return
           }
           await runAction(() => ticketService.cancel(ticket.id, cancelBody), 'Ticket cancelado')
-          setCancelOpen(false)
+          setCancelOpen(false); setCancelBody(''); setCancelBodyKey(k => k + 1)
         }}>
-        <Input.TextArea rows={3} placeholder="Motivo de la cancelación (obligatorio)"
-          value={cancelBody} onChange={e => setCancelBody(e.target.value)} />
+        <RichTextEditor key={cancelBodyKey} value={cancelBody} onChange={setCancelBody}
+          placeholder="Motivo de la cancelación (obligatorio)" />
       </Modal>
     </Space>
   )

@@ -22,6 +22,7 @@ from backend.domain.services import sla_service
 from backend.domain.services.assignment_service import AssignmentService
 from backend.domain.services.comment_service import CommentService
 from backend.domain.services.notification_service import NotificationService
+from backend.domain.services.rich_content_service import resolve_pending_images, sanitize_html, strip_html
 from backend.domain.services.ticket_service import TicketService, TicketValidationError
 from backend.infra.database import get_db
 from backend.infra.repositories.catalog_repo import CatalogRepository
@@ -248,6 +249,10 @@ _sla_out = ns.model("TicketSla", {
 
 _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "description": fields.String(),
+    "description_attachments": fields.List(
+        fields.Nested(_attachment_out),
+        description="Adjuntos de la descripción (spec 017) — independientes de los adjuntos "
+                    "de cada comentario"),
     "tool_id": fields.String(allow_null=True),
     "process_id": fields.String(allow_null=True),
     "resolution_type_id": fields.String(allow_null=True),
@@ -419,6 +424,11 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
                 if is_task and not is_subtask else [])
     d.update({
         "description": ticket.description,
+        "description_attachments": [
+            {"id": str(a.id), "filename": a.filename, "content_type": a.content_type,
+             "size_bytes": a.size_bytes}
+            for a in CommentRepository(db).list_ticket_attachments(ticket.id)
+        ],
         "tool_id": str(ticket.tool_id) if ticket.tool_id else None,
         "process_id": str(ticket.process_id) if ticket.process_id else None,
         "estimated_resolution_minutes": ticket.estimated_resolution_minutes,
@@ -572,7 +582,8 @@ class TicketList(Resource):
     @ns.doc("create_ticket")
     @ns.expect(_ticket_input, validate=False)
     @ns.response(201, "Ticket creado (nace en estado NUEVO)", _ticket_detail_out)
-    @ns.response(400, "Datos inválidos o enum desconocido", _error)
+    @ns.response(400, "Datos inválidos, enum desconocido, o adjunto/imagen no permitida "
+                      "(attachment_error, spec 017)", _error)
     @ns.response(401, "No autenticado", _error)
     @ns.response(403, "Sin permiso tickets:create", _error)
     @ns.response(404, "Cliente, proyecto, catálogo o client_contact_id no encontrado", _error)
@@ -593,15 +604,32 @@ class TicketList(Resource):
         `ticket_type`/`priority`/`severity` (se defaultean en silencio si se omiten, spec 008
         Decisión 1 — pero, a diferencia de la spec 008, si se envían se respetan) y nace en
         estado "nuevo" como cualquier registro (spec 009 revierte el estado inicial "pendiente"
-        de la spec 008 — mismo catálogo compartido con Ticket)."""
-        data = request.get_json(silent=True)
-        if not data:
-            return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
+        de la spec 008 — mismo catálogo compartido con Ticket). Acepta `application/json` (sin
+        adjuntos) o `multipart/form-data` con los mismos campos como partes de formulario, más
+        `inline_images` (imágenes pegadas en `description` vía `data-pending-id`) y/o
+        `attachments` (adjuntos manuales, mismas reglas que en comentarios) — spec 017."""
+        if request.content_type and "multipart/form-data" in request.content_type:
+            # spec 017: descripción con imágenes pegadas y/o adjuntos manuales al crear
+            data = request.form.to_dict()
+            inline_image_files = request.files.getlist("inline_images")
+            attachment_files = request.files.getlist("attachments")
+        else:
+            data = request.get_json(silent=True)
+            if not data:
+                return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
+            inline_image_files = []
+            attachment_files = []
+
+        def _missing(field_name: str) -> bool:
+            if field_name == "description":
+                return not strip_html(data.get(field_name) or "").strip()
+            return not data.get(field_name)
+
         db = get_db()
         is_encargado = g.current_user.role.name == USUARIO_CLIENTE_ROLE_NAME
         if is_encargado:
             for field_name in ("title", "description"):
-                if not data.get(field_name):
+                if _missing(field_name):
                     return {"error": "validation_error", "message": f"El campo '{field_name}' es requerido"}, 400
             contact = ClientContactRepository(db).get_by_user_id(g.current_user.id)
             if not contact:
@@ -616,7 +644,7 @@ class TicketList(Resource):
             list_id = parent_task_id = None
         else:
             for field_name in ("title", "description", "client_id"):
-                if not data.get(field_name):
+                if _missing(field_name):
                     return {"error": "validation_error", "message": f"El campo '{field_name}' es requerido"}, 400
             client_id = parse_uuid(data["client_id"])
             if not client_id:
@@ -699,9 +727,33 @@ class TicketList(Resource):
                         project_id, priority, SlaRuleRepository(db), datetime.now(timezone.utc))
                 except Exception:
                     logger.exception("SLA init failed for new ticket")
+
+            # spec 017: valida adjuntos/imágenes ANTES de escribir nada; el id del Ticket se
+            # genera ya para poder resolver las URLs de las imágenes pegadas en su descripción
+            ticket_id = uuid.uuid4()
+            staged_inline = []
+            id_by_index: dict[int, str] = {}
+            for index, f in enumerate(inline_image_files):
+                content = f.read()
+                attachment_storage.validate(f.filename, len(content))
+                attachment_id = uuid.uuid4()
+                id_by_index[index] = str(attachment_id)
+                staged_inline.append((attachment_id, f.filename, f.content_type or "application/octet-stream", content))
+            staged_attachments = []
+            for f in attachment_files:
+                content = f.read()
+                attachment_storage.validate(f.filename, len(content))
+                staged_attachments.append((f.filename, f.content_type or "application/octet-stream", content))
+            # Reescribe los `data-pending-id` ANTES de sanear: `sanitize_html` no conoce ese
+            # atributo temporal (no está en la lista blanca) y lo despojaría antes de poder
+            # resolverlo a la URL real del adjunto.
+            description = resolve_pending_images(
+                str(data["description"]).strip(), id_by_index, f"/api/tickets/{ticket_id}/attachments")
+            description = sanitize_html(description)
+
             ticket = Ticket(
-                id=uuid.uuid4(), ticket_number=0,  # lo asigna la secuencia
-                title=str(data["title"]).strip(), description=str(data["description"]).strip(),
+                id=ticket_id, ticket_number=0,  # lo asigna la secuencia
+                title=str(data["title"]).strip(), description=description,
                 ticket_type=ticket_type, priority=priority,
                 severity=severity, client_id=client_id,
                 status="nuevo",
@@ -714,7 +766,22 @@ class TicketList(Resource):
                 **sla_fields,
             )
             created = TicketRepository(db).create(ticket)
+            comment_repo = CommentRepository(db)
+            for attachment_id, filename, content_type, content in staged_inline:
+                path = attachment_storage.save(created.id, filename, content)
+                comment_repo.add_attachment(Attachment(
+                    id=attachment_id, ticket_id=created.id, filename=filename,
+                    content_type=content_type, size_bytes=len(content), storage_path=path,
+                ))
+            for filename, content_type, content in staged_attachments:
+                path = attachment_storage.save(created.id, filename, content)
+                comment_repo.add_attachment(Attachment(
+                    id=uuid.uuid4(), ticket_id=created.id, filename=filename,
+                    content_type=content_type, size_bytes=len(content), storage_path=path,
+                ))
             return _ticket_detail(created, db), 201, {"Location": f"/api/tickets/{created.id}"}
+        except attachment_storage.AttachmentError as e:
+            return {"error": "attachment_error", "message": e.message}, 400
         except DomainError as e:
             return {"error": e.code, "message": e.message, **e.extra}, e.status_code
         except Exception:
@@ -778,6 +845,8 @@ class TicketDetail(Resource):
                 tickets_repo=TicketRepository(db), task_lists_repo=TaskListRepository(db),
                 project_members_repo=ProjectMemberRepository(db),
             )
+            if "description" in clean:
+                clean["description"] = sanitize_html(str(clean["description"] or ""))
             for uuid_field in ("tool_id", "process_id", "related_ticket_id"):
                 if uuid_field in clean and clean[uuid_field] is not None:
                     parsed = parse_uuid(str(clean[uuid_field]))
@@ -907,9 +976,11 @@ class TicketAssign(Resource):
 class TicketComments(Resource):
     @ns.doc("add_ticket_comment", description=(
         "Acepta `application/json` (sin adjuntos) o `multipart/form-data` con uno o más "
-        "campos `files` (máx 10 MB c/u, tipos permitidos). Los tipos con efecto de "
-        "transición (confirmacion_atencion, solicitud_informacion, termina_analisis, "
-        "solicitud_cierre, respuesta_usuario) mueven el ticket en la misma operación."
+        "campos `files` (adjuntos manuales, máx 10 MB c/u, tipos permitidos) y/o "
+        "`inline_images` (imágenes pegadas incrustadas en `body` vía `data-pending-id`, "
+        "spec 017). Los tipos con efecto de transición (confirmacion_atencion, "
+        "solicitud_informacion, termina_analisis, solicitud_cierre, respuesta_usuario) "
+        "mueven el ticket en la misma operación."
     ))
     @ns.expect(_comment_input, validate=False)
     @ns.response(201, "Comentario registrado (y transición aplicada si el tipo lo dispara)", _comment_result_out)
@@ -926,11 +997,13 @@ class TicketComments(Resource):
             comment_type = request.form.get("comment_type", "")
             body = request.form.get("body", "")
             files = request.files.getlist("files")
+            inline_images = request.files.getlist("inline_images")
         else:
             data = request.get_json(silent=True) or {}
             comment_type = data.get("comment_type", "")
             body = data.get("body", "")
             files = []
+            inline_images = []
         try:
             db = get_db()
             ticket, err = _get_ticket_or_404(db, ticket_id)
@@ -946,6 +1019,20 @@ class TicketComments(Resource):
                 content = f.read()
                 attachment_storage.validate(f.filename, len(content))
                 staged.append((f.filename, f.content_type or "application/octet-stream", content))
+            staged_inline = []
+            id_by_index: dict[int, str] = {}
+            for index, f in enumerate(inline_images):
+                content = f.read()
+                attachment_storage.validate(f.filename, len(content))
+                attachment_id = uuid.uuid4()
+                id_by_index[index] = str(attachment_id)
+                staged_inline.append((attachment_id, f.filename, f.content_type or "application/octet-stream", content))
+            # Reescribe los `data-pending-id` ANTES de sanear: `sanitize_html` no conoce ese
+            # atributo temporal (no está en la lista blanca) y lo despojaría antes de poder
+            # resolverlo a la URL real del adjunto.
+            body = resolve_pending_images(
+                body, id_by_index, f"/api/tickets/{ticket.id}/attachments")
+            body = sanitize_html(body)
 
             comment = Comment.create(ticket_id=ticket.id, comment_type=comment_type,
                                      body=body.strip(), author_id=actor_id)
@@ -955,6 +1042,12 @@ class TicketComments(Resource):
                 path = attachment_storage.save(ticket.id, filename, content)
                 comment_repo.add_attachment(Attachment(
                     id=uuid.uuid4(), comment_id=comment.id, filename=filename,
+                    content_type=content_type, size_bytes=len(content), storage_path=path,
+                ), commit=False)
+            for attachment_id, filename, content_type, content in staged_inline:
+                path = attachment_storage.save(ticket.id, filename, content)
+                comment_repo.add_attachment(Attachment(
+                    id=attachment_id, comment_id=comment.id, filename=filename,
                     content_type=content_type, size_bytes=len(content), storage_path=path,
                 ), commit=False)
 
@@ -1049,7 +1142,8 @@ class TicketResolution(Resource):
         if "accepted" not in data:
             return {"error": "validation_error", "message": "El campo 'accepted' es requerido"}, 400
         accepted = bool(data["accepted"])
-        body = str(data.get("body", "")).strip() or (
+        raw_body = str(data.get("body", "")).strip()
+        body = sanitize_html(raw_body) if raw_body else (
             "El usuario aceptó la resolución" if accepted else "El usuario rechazó la resolución")
         try:
             db = get_db()
@@ -1110,10 +1204,10 @@ class TicketClose(Resource):
         """Cierre (FR-012): exige tipo de resolución + descripción; notifica Coordinador y QM."""
         data = request.get_json(silent=True) or {}
         resolution_type_id = parse_uuid(str(data.get("resolution_type_id", "")))
-        body = str(data.get("body", "")).strip()
+        body = sanitize_html(str(data.get("body", "")))
         if not resolution_type_id:
             return {"error": "validation_error", "message": "El campo 'resolution_type_id' es requerido"}, 400
-        if not body:
+        if not strip_html(body).strip():
             return {"error": "validation_error",
                     "message": "La descripción de la solución es requerida para cerrar"}, 400
         try:
@@ -1173,8 +1267,8 @@ class TicketCancel(Resource):
     def post(self, ticket_id: str):
         """Cancelar desde cualquier estado no final, con motivo obligatorio."""
         data = request.get_json(silent=True) or {}
-        body = str(data.get("body", "")).strip()
-        if not body:
+        body = sanitize_html(str(data.get("body", "")))
+        if not strip_html(body).strip():
             return {"error": "validation_error", "message": "El motivo de cancelación es requerido"}, 400
         try:
             db = get_db()
@@ -1218,7 +1312,7 @@ class TicketStatusChange(Resource):
         comentario obligatorio. Reemplaza `POST /{id}/task-transition` (spec 008, retirado)."""
         data = request.get_json(silent=True) or {}
         new_status = str(data.get("status", "")).strip()
-        comment = str(data.get("comment", "")).strip()
+        comment = sanitize_html(str(data.get("comment", "")))
         if not new_status:
             return {"error": "validation_error", "message": "El campo 'status' es requerido"}, 400
         try:

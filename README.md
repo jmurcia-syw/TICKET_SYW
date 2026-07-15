@@ -3,15 +3,17 @@
 Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM
 de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre **GitHub Spec Kit**.
 
-> **Fase activa**: `SLAs por Proyecto y Prioridad` (spec `014`, Fase 4 SDD V3) ✅ implementada —
-> reglas de SLA configurables por Proyecto × Prioridad (sin fallback), contador de 2 fases
-> (Contacto / Diagnóstico-Análisis-Ejecución) en el detalle del ticket con pausa/reanudación
-> automática según el estado del ticket, indicadores agregados en el listado y dashboard, y
-> detección proactiva de vencimientos vía tarea periódica Celery+Redis (primera materialización
-> de ese stack en el repo) que notifica al Resolutor asignado y a los Coordinadores del proyecto.
-> El SLA nunca bloquea transiciones del FSM (solo calcula/mide) y no aplica a Tareas/Subtareas en
-> esta fase. Validada con 63 tests dirigidos (suite completa 437/437) y recorrido E2E contra
-> Docker real, incluyendo el worker Celery en ejecución. Rama: `develp_Jp`
+> **Fase activa**: `Contenido enriquecido en tickets/comentarios` (spec `017`) ✅ implementada —
+> formato de texto (negrilla/cursiva/subrayado/listas/hipervínculos) en comentarios y en la
+> descripción de Ticket/Tarea, pegado de contenido con imágenes incrustadas (respaldadas por
+> adjuntos reales, no solo texto plano) y adjuntos manuales también en la descripción (paridad
+> con los comentarios, spec 002). Saneamiento HTML server-side (`bleach`/`lxml`) antes de
+> persistir y de nuevo en el cliente (`DOMPurify`) antes de renderizar — defensa en profundidad
+> contra XSS. Precedida por dos correcciones sobre el Usuario/cliente: pertenencia a **múltiples
+> Proyectos** (spec `015`) y la posibilidad de **corregir el Cliente** de un Usuario/cliente mal
+> dado de alta agregando un Proyecto de otro Cliente, con el selector de Proyecto mostrando
+> "Cliente — Proyecto" para desambiguar homónimos (spec `016`). Validadas con 23 tests dirigidos
+> y recorrido E2E contra Docker real. Rama: `develp_Jp`
 
 ---
 
@@ -38,13 +40,32 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 > (spec `010`), el cronómetro manual de tiempo (spec `012`, provisional), las Skills requeridas
 > del ticket (spec `011`) y el manejo global de errores (spec `013`) son cambios transversales
 > sobre las Fases 1-3 ya completas, previos a la Fase 4 (SLAs, spec `014`) ya completada arriba.
+> El Usuario/cliente en múltiples Proyectos y la corrección de su Cliente (specs `015`/`016`) y
+> el contenido enriquecido en tickets/comentarios (spec `017`) son cambios transversales
+> posteriores a la Fase 4, también ya completados.
 
 ---
 
-## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`) + Manejo global de errores (spec `013`) + SLAs (spec `014`, Fase 4)
+## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`) + Manejo global de errores (spec `013`) + SLAs (spec `014`, Fase 4) + Usuario/cliente multi-Proyecto (spec `015`/`016`) + Contenido enriquecido (spec `017`)
 
 ### Funcionalidad operativa
 
+- **Contenido enriquecido en tickets y comentarios** (spec `017`): la descripción de
+  Ticket/Tarea y los comentarios admiten formato de texto (negrilla, cursiva, subrayado, listas,
+  hipervínculos) vía un editor TipTap con toolbar; pegar contenido con formato (de un correo,
+  Word o una web) conserva el formato compatible y las imágenes incrustadas se suben como
+  adjuntos reales (no se pierden ni quedan como texto plano), igual que pegar directamente una
+  captura de pantalla. La descripción también admite adjuntar archivos manualmente (paridad con
+  los comentarios, spec 002). Todo el HTML se sanea en el servidor (`bleach`/`lxml`, lista
+  blanca fija de tags/atributos) antes de persistir y de nuevo en el cliente (`DOMPurify`) antes
+  de renderizar; las imágenes se muestran vía descarga autenticada (blob URL), nunca con un
+  `<img src>` nativo que no podría mandar el header JWT.
+- **Usuario/cliente en múltiples Proyectos** (spec `015`): un Usuario/cliente puede quedar
+  vinculado a varios Proyectos del mismo Cliente (ya no solo uno) desde su alta o edición.
+- **Corrección de Cliente de un Usuario/cliente** (spec `016`): si un Usuario/cliente queda con
+  0 Proyectos (por ejemplo tras un error de alta), puede agregársele un Proyecto de **otro**
+  Cliente para corregirlo; el selector de Proyecto muestra "Cliente — Proyecto" para desambiguar
+  Proyectos homónimos entre distintos Clientes (ej. "SOPORTE" en dos clientes diferentes).
 - **SLAs por Proyecto y Prioridad** (spec `014`, Fase 4 SDD V3): Admin/Coordinador configura
   reglas de SLA por combinación exacta Proyecto × Prioridad (sin reglas de respaldo/fallback),
   cada una con tiempo límite de Contacto y de Diagnóstico-Análisis-Ejecución. El ticket calcula
@@ -139,6 +160,18 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 
 ### Verificación
 
+- **Validación de las specs `015`/`016`** (Usuario/cliente multi-Proyecto + corrección de
+  Cliente): 13/13 tests dirigidos en verde (`test_client_contacts_projects.py`), `tsc -b` sin
+  errores, quickstart de ambas specs (Escenarios 1-4) validado contra Docker real.
+- **Validación de la spec `017`** (Contenido enriquecido): 10/10 tests dirigidos en verde
+  (`test_tickets_rich_content.py`, cubre US1 formato + US2 imágenes pegadas + US3 adjuntos
+  manuales), `tsc -b` sin errores, y recorrido E2E de los 7 escenarios del quickstart contra
+  Docker real. La validación en navegador encontró y corrigió dos bugs reales antes de cerrar la
+  feature: (1) el backend saneaba el HTML (`bleach`) *antes* de resolver los `data-pending-id`
+  de imágenes pegadas, despojando el atributo temporal antes de poder reescribirlo a la URL real
+  del adjunto; (2) `RichTextViewer` pasaba un objeto nuevo a `dangerouslySetInnerHTML` en cada
+  render, y cualquier re-render de la página (ej. el timer de la Sesión de Foco, que cambia de
+  estado cada segundo) revertía el swap a blob URL de las imágenes ya cargadas.
 - Tests de dominio + API contra Postgres real en Docker ✅ (suite dirigida por feature)
 - **Validación E2E** de la Fase 1 (6 escenarios del quickstart): 26/26 checks ✅
 - **Validación E2E** de la Fase 2.2 (Usuario/cliente asignable por Cliente, spec `007`): 6/6
@@ -193,13 +226,14 @@ backend/
 │   │                  # ClientContact, WorkSession, ProjectMember, ProjectTeam
 │   ├── fsm/           # ticket_fsm.py — matriz de 16 transiciones (python-transitions)
 │   └── services/      # ticket, comment, assignment, notification, compensation,
-│                      # client_contact, work_session, project_member, skill, ...
+│                      # client_contact, work_session, project_member, skill,
+│                      # rich_content (saneamiento HTML + resolución de imágenes pegadas), ...
 ├── infra/             # Capa 2
 │   ├── models/        # SQLAlchemy (tickets, comments, catalogs, notifications, maestros,
 │   │                  # client_contacts, work_sessions, task_lists, project_member_model)
 │   ├── repositories/  # paginación, filtros, historiales append-only
 │   ├── storage/       # adjuntos en filesystem (uploads/tickets/{id}/)
-│   └── migrations/    # Alembic 001..025
+│   └── migrations/    # Alembic 001..029
 └── api/               # Capa 3
     ├── middleware/    # auth.py (JWT + usuario activo), rbac.py (@require_permission)
     └── routes/        # tickets, catalogs, notifications, assignment_panel, client_contacts,
@@ -207,7 +241,8 @@ backend/
 
 frontend/src/
 ├── components/tickets/     # TicketStatusTag, AssignModal, CommentThread, CommentComposer,
-│                           # TicketBreadcrumb, TaskStatusChanger, SubtaskList
+│                           # TicketBreadcrumb, TaskStatusChanger, SubtaskList,
+│                           # RichTextEditor, RichTextViewer (TipTap + DOMPurify, spec 017)
 ├── components/worksessions/ # WorkSessionForm, TimeLogModal, TicketWorkSessions
 ├── components/common/      # NotificationBell, ProtectedRoute, ConfirmationModal, ...
 ├── pages/                  # TicketsPage, TicketDetailPage, AssignmentPanelPage, CatalogsPage,
@@ -409,6 +444,9 @@ docker exec sywork_backend python -m backend.scripts.seed_tickets 500   # datos 
 | `012` | [cronometro-manual-ticket](specs/012-cronometro-manual-ticket/spec.md) | Cronómetro manual de tiempo (provisional) en el detalle del ticket: iniciar/pausar/reanudar/terminar por recurso, genera Registro de tiempo formal | ✅ Completa — tasks 21/21, 24/24 tests, validado E2E en navegador |
 | `013` | [manejo-errores-notificaciones](specs/013-manejo-errores-notificaciones/spec.md) | Normalizador global de errores de la API (`{success,message,code}`) + notificaciones toast en el frontend | ✅ Completa |
 | `014` | [sla-tickets-tareas](specs/014-sla-tickets-tareas/spec.md) | SLAs configurables por Proyecto × Prioridad, contador de 2 fases, indicadores agregados y notificación proactiva de vencimientos vía Celery+Redis (Fase 4 SDD V3) | ✅ Completa — tasks 30/30, 63 tests dirigidos, suite 437/437, quickstart 3/3 validado contra Docker real |
+| `015` | [encargado-multiples-proyectos](specs/015-encargado-multiples-proyectos/spec.md) | Un Usuario/cliente puede pertenecer a múltiples Proyectos del mismo Cliente, no solo uno | ✅ Completa — tasks 15/15, quickstart 4/4 |
+| `016` | [corregir-cliente-encargado](specs/016-corregir-cliente-encargado/spec.md) | Corregir el Cliente de un Usuario/cliente agregando un Proyecto de otro Cliente cuando queda en 0 Proyectos; desambiguar Proyectos homónimos ("Cliente — Proyecto" en el selector) | ✅ Completa — tasks 10/10, quickstart 4/4 |
+| `017` | [contenido-enriquecido-ticket](specs/017-contenido-enriquecido-ticket/spec.md) | Formato de texto enriquecido, pegado de contenido con imágenes incrustadas y adjuntos manuales en comentarios y en la descripción de Ticket/Tarea | ✅ Completa — tasks 37/37, 10 tests dirigidos, quickstart 7/7 validado contra Docker real |
 
 Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.md`,
 `data-model.md`, `contracts/`, `tasks.md`, `quickstart.md`.

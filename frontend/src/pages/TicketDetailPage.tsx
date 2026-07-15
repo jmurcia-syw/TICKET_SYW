@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Col, Descriptions, Divider, InputNumber, Row, Select, Space, Spin, Tooltip, message } from 'antd'
+import { Button, Card, Col, Descriptions, Divider, InputNumber, Row, Select, Space, Spin, Tooltip, Typography, message } from 'antd'
 import {
   UserSwitchOutlined, SaveOutlined, ClockCircleOutlined,
-  FieldTimeOutlined, PlayCircleOutlined, HistoryOutlined, UnorderedListOutlined,
+  FieldTimeOutlined, PlayCircleOutlined, HistoryOutlined, UnorderedListOutlined, PaperClipOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
@@ -27,6 +27,7 @@ import TicketSkillsSelector from '../components/tickets/TicketSkillsSelector'
 import TicketWorkSessions from '../components/worksessions/TicketWorkSessions'
 import TicketTimerWidget from '../components/worksessions/TicketTimerWidget'
 import TicketBreadcrumb from '../components/tickets/TicketBreadcrumb'
+import RichTextViewer from '../components/tickets/RichTextViewer'
 import { useAuthStore } from '../store/authStore'
 import { palette, vivid } from '../theme'
 
@@ -204,7 +205,17 @@ export default function TicketDetailPage() {
              en un único flujo consolidado (Fase 2.2, US1 FR-004) ── */}
         <Col xs={24} lg={14}>
           <Card title="Descripción" size="small">
-            <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{ticket.description}</p>
+            <RichTextViewer html={ticket.description} />
+            {ticket.description_attachments.length > 0 && (
+              <Space direction="vertical" size={2} style={{ marginTop: 8 }}>
+                {ticket.description_attachments.map(a => (
+                  <Typography.Link key={a.id}
+                    onClick={() => ticketService.downloadAttachment(ticket.id, a.id, a.filename)}>
+                    <PaperClipOutlined /> {a.filename} ({(a.size_bytes / 1024).toFixed(0)} KB)
+                  </Typography.Link>
+                ))}
+              </Space>
+            )}
           </Card>
 
           <Card

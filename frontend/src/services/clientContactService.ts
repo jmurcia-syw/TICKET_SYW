@@ -13,4 +13,12 @@ export const clientContactService = {
   // Spec 010 (US2): proyectos vinculados del Usuario/cliente autenticado (autoservicio)
   myProjects: () =>
     apiClient.get<{ items: ProjectListItem[]; total: number }>('/api/client-contacts/me/projects').then(r => r.data),
+
+  // Spec 015 (US2): agregar/quitar Proyectos de un Usuario/cliente ya existente
+  addProject: (contactId: string, projectId: string) =>
+    apiClient.post<{ id: string; project_id: string; name: string }>(
+      `/api/client-contacts/${contactId}/projects`, { project_id: projectId }).then(r => r.data),
+
+  removeProject: (contactId: string, projectId: string) =>
+    apiClient.delete<void>(`/api/client-contacts/${contactId}/projects/${projectId}`).then(r => r.data),
 }

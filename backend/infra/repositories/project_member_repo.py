@@ -56,6 +56,16 @@ class ProjectMemberRepository:
             .first()
         ) is not None
 
+    def get_by_project_and_user(self, project_id: uuid.UUID,
+                                user_id: uuid.UUID) -> Optional[ProjectMember]:
+        model = (
+            self._db.query(ProjectMemberModel)
+            .filter(ProjectMemberModel.project_id == project_id,
+                    ProjectMemberModel.user_id == user_id)
+            .first()
+        )
+        return model.to_entity() if model else None
+
     def list_project_ids_by_user(self, user_id: uuid.UUID) -> list[uuid.UUID]:
         rows = (
             self._db.query(ProjectMemberModel.project_id)

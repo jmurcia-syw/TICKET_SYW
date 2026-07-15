@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Button, Input, Modal, Select, Space, message } from 'antd'
+import { Button, Modal, Select, Space, message } from 'antd'
 import { SwapOutlined } from '@ant-design/icons'
 import type { TicketDetail, TicketStatus } from '../../types/ticket'
 import { STATUS_LABELS } from '../../types/ticket'
 import { ticketService } from '../../services/ticketService'
+import RichTextEditor, { isRichTextEmpty } from './RichTextEditor'
 
 interface TaskStatusChangerProps {
   ticket: TicketDetail
@@ -17,22 +18,23 @@ export default function TaskStatusChanger({ ticket, onUpdated }: TaskStatusChang
   const [open, setOpen] = useState(false)
   const [target, setTarget] = useState<TicketStatus | undefined>()
   const [comment, setComment] = useState('')
+  const [commentKey, setCommentKey] = useState(0)
   const [loading, setLoading] = useState(false)
 
   const options = (ticket.valid_actions as TicketStatus[]).map(s => ({ value: s, label: STATUS_LABELS[s] }))
 
   const submit = async () => {
     if (!target) return
-    if (!comment.trim()) {
+    if (isRichTextEmpty(comment)) {
       message.warning('El comentario es obligatorio para cambiar el estado')
       return
     }
     setLoading(true)
     try {
-      await ticketService.changeStatus(ticket.id, target, comment.trim())
+      await ticketService.changeStatus(ticket.id, target, comment)
       message.success(`Estado cambiado a "${STATUS_LABELS[target]}"`)
       setOpen(false)
-      setComment('')
+      setComment(''); setCommentKey(k => k + 1)
       setTarget(undefined)
       onUpdated()
     } catch (err: unknown) {
@@ -65,8 +67,8 @@ export default function TaskStatusChanger({ ticket, onUpdated }: TaskStatusChang
         onOk={submit}
         okText="Confirmar"
       >
-        <Input.TextArea
-          rows={4} value={comment} onChange={e => setComment(e.target.value)} autoFocus
+        <RichTextEditor
+          key={commentKey} value={comment} onChange={setComment}
           placeholder="Comentario obligatorio que documenta el cambio de estado..."
         />
       </Modal>

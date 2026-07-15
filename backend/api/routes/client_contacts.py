@@ -34,12 +34,15 @@ _error = error_model(ns, "ClientContactError")
 _client_contact_input = ns.model("ClientContactInput", {
     "email": fields.String(required=True, description="Email real del contacto (dominio libre, no @sywork.net)"),
     "username": fields.String(required=True),
-    "project_id": fields.String(description="UUID del Proyecto al que queda vinculado (spec 010: "
-                                            "la relación operativa es con el Proyecto; el Cliente "
-                                            "se deriva del proyecto y la membresía se crea "
-                                            "automáticamente). Requerido si no viene client_id."),
+    "project_ids": fields.List(fields.String, description="UUIDs de uno o varios Proyectos a los "
+                                            "que queda vinculado (spec 010/015: la relación "
+                                            "operativa es con el Proyecto; el Cliente se deriva de "
+                                            "ellos —deben pertenecer todos al mismo Cliente— y la "
+                                            "membresía se crea automáticamente en cada uno). "
+                                            "Requerido (con al menos 1 elemento) si no viene "
+                                            "client_id."),
     "client_id": fields.String(description="UUID del Cliente (forma legada, spec 007 — solo si "
-                                           "no se envía project_id)"),
+                                           "no se envían project_ids)"),
 })
 
 _contact_project_ref = ns.model("ContactProjectRef", {
@@ -147,10 +150,11 @@ class ClientContactList(Resource):
 
     @ns.doc("create_client_contact")
     @ns.expect(_client_contact_input, validate=False)
-    @ns.response(201, "Usuario/cliente creado (usuario + vínculo al Proyecto con Cliente derivado, "
-                      "o vínculo directo con Cliente en la forma legada), contraseña provisional "
-                      "en texto plano", _client_contact_create_out)
-    @ns.response(400, "Datos inválidos (se requiere project_id o client_id)", _error)
+    @ns.response(201, "Usuario/cliente creado (usuario + vínculo a uno o varios Proyectos con "
+                      "Cliente derivado, o vínculo directo con Cliente en la forma legada), "
+                      "contraseña provisional en texto plano", _client_contact_create_out)
+    @ns.response(400, "Datos inválidos (se requiere project_ids o client_id, o los proyectos son "
+                      "de Clientes distintos)", _error)
     @ns.response(401, "No autenticado", _error)
     @ns.response(403, "Sin permiso client_contacts:manage", _error)
     @ns.response(404, "Proyecto o Cliente no encontrado o inactivo", _error)
@@ -158,39 +162,39 @@ class ClientContactList(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("client_contacts", "manage")
     def post(self):
-        """Crea la cuenta de acceso (rol Usuario/cliente) vinculada a un **Proyecto** (spec 010:
-        la relación operativa es con el Proyecto — el Cliente se deriva del proyecto y la
-        membresía en el personal del proyecto se crea automáticamente). `client_id` directo se
-        mantiene como forma legada (spec 007) para contactos aún sin proyecto."""
+        """Crea la cuenta de acceso (rol Usuario/cliente) vinculada a uno o varios **Proyectos**
+        del mismo Cliente (spec 010/015: la relación operativa es con el Proyecto — el Cliente
+        se deriva de ellos y la membresía en el personal de cada proyecto se crea
+        automáticamente). `client_id` directo se mantiene como forma legada (spec 007) para
+        contactos aún sin proyecto."""
         from flask import request
         data = request.get_json(silent=True)
         if not data:
             return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
         email = (data.get("email") or "").strip().lower()
         username = (data.get("username") or "").strip()
-        project_id = parse_uuid(data.get("project_id", "")) if data.get("project_id") else None
+        raw_project_ids = data.get("project_ids") or []
+        if not isinstance(raw_project_ids, list):
+            return {"error": "validation_error", "message": "'project_ids' debe ser una lista"}, 400
+        project_ids = list(dict.fromkeys(
+            pid for pid in (parse_uuid(raw) for raw in raw_project_ids) if pid))
         client_id = parse_uuid(data.get("client_id", "")) if data.get("client_id") else None
         if not email or not _EMAIL_RE.match(email):
             return {"error": "validation_error", "message": "El campo 'email' es requerido y debe ser un email válido"}, 400
         if not username:
             return {"error": "validation_error", "message": "El campo 'username' es requerido"}, 400
-        if not project_id and not client_id:
+        if not project_ids and not client_id:
             return {"error": "validation_error",
-                    "message": "Se requiere 'project_id' (el Cliente se deriva del proyecto) "
+                    "message": "Se requiere 'project_ids' (el Cliente se deriva de los proyectos) "
                                "o 'client_id' (forma legada)"}, 400
         try:
             db = get_db()
             users_repo = UserRepository(db)
             clients_repo = ClientRepository(db)
             role_repo = RoleRepository(db)
-            if project_id:
+            if project_ids:
                 from backend.infra.repositories.project_repo import ProjectRepository
-                project = ProjectRepository(db).get_by_id(project_id)
-                if not project:
-                    return {"error": "not_found", "message": "Proyecto no encontrado"}, 404
-                if not project.active:
-                    return {"error": "project_inactive", "message": "El proyecto está inactivo"}, 409
-                client_id = project.client_id
+                client_id = _svc.resolve_common_client(project_ids, ProjectRepository(db))
             _svc.validate_create(client_id=client_id, email=email, clients_repo=clients_repo, users_repo=users_repo)
             if users_repo.get_by_username_or_email(username):
                 return {"error": "email_in_use", "message": "Ya existe un usuario con ese nombre de usuario"}, 409
@@ -206,12 +210,14 @@ class ClientContactList(Resource):
             created_user = users_repo.create(new_user)
             contact = ClientContact(id=uuid.uuid4(), user_id=created_user.id, client_id=client_id)
             created_contact = ClientContactRepository(db).create(contact)
-            if project_id:
-                # Spec 010: la relación operativa es con el Proyecto — membresía automática
+            if project_ids:
+                # Spec 010/015: la relación operativa es con el Proyecto — membresía automática
                 from backend.domain.entities.project_member import ProjectMember
                 from backend.infra.repositories.project_member_repo import ProjectMemberRepository
-                ProjectMemberRepository(db).create(
-                    ProjectMember.create(project_id=project_id, user_id=created_user.id))
+                member_repo = ProjectMemberRepository(db)
+                for project_id in project_ids:
+                    member_repo.create(
+                        ProjectMember.create(project_id=project_id, user_id=created_user.id))
             client = clients_repo.get_by_id(client_id)
             return (
                 {
@@ -271,5 +277,113 @@ class MyProjects(Resource):
                                   "client_id": str(project.client_id), "active": project.active})
             items.sort(key=lambda p: p["name"])
             return {"items": items, "total": len(items)}, 200
+        except Exception:
+            return server_error()
+
+
+_add_project_input = ns.model("ClientContactAddProjectInput", {
+    "project_id": fields.String(required=True, description="UUID del Proyecto a agregar. Debe "
+                                "ser del mismo Cliente que el Usuario/cliente si ya tiene algún "
+                                "Proyecto asignado; si el Usuario/cliente no tiene ninguno, puede "
+                                "ser de cualquier Cliente y ese Cliente corrige al del contacto "
+                                "(spec 016)."),
+})
+
+_add_project_out = ns.model("ClientContactAddProjectResult", {
+    "id": fields.String(description="UUID de la membresía (project_members.id)"),
+    "project_id": fields.String(),
+    "name": fields.String(description="Nombre del proyecto"),
+})
+
+
+@ns.route("/<string:contact_id>/projects")
+class ClientContactProjects(Resource):
+    @ns.doc("add_client_contact_project")
+    @ns.expect(_add_project_input, validate=False)
+    @ns.response(201, "Proyecto agregado al Usuario/cliente", _add_project_out)
+    @ns.response(400, "Datos inválidos, o el proyecto es de un Cliente distinto (solo aplica si "
+                      "el Usuario/cliente ya tiene algún Proyecto asignado)", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso client_contacts:manage", _error)
+    @ns.response(404, "Usuario/cliente o Proyecto no encontrado", _error)
+    @ns.response(409, "Proyecto inactivo, o ya asignado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("client_contacts", "manage")
+    def post(self, contact_id: str):
+        """Agrega un Proyecto a un Usuario/cliente ya existente, sin recrear la cuenta (spec
+        015, US2). Si el Usuario/cliente no tiene ningún Proyecto asignado todavía, el Proyecto
+        puede ser de cualquier Cliente y ese Cliente corrige al del contacto (spec 016, US1);
+        si ya tiene al menos uno, debe ser del mismo Cliente (spec 015, sin cambios)."""
+        from flask import request
+        from backend.infra.repositories.project_member_repo import ProjectMemberRepository
+        from backend.infra.repositories.project_repo import ProjectRepository
+        from backend.domain.entities.project_member import ProjectMember
+
+        contact_uuid = parse_uuid(contact_id)
+        if not contact_uuid:
+            return {"error": "not_found", "message": "Usuario/cliente no encontrado"}, 404
+        data = request.get_json(silent=True) or {}
+        project_id = parse_uuid(data.get("project_id", "")) if data.get("project_id") else None
+        if not project_id:
+            return {"error": "validation_error", "message": "El campo 'project_id' es requerido"}, 400
+        try:
+            db = get_db()
+            contact = ClientContactRepository(db).get_by_id(contact_uuid)
+            if not contact:
+                return {"error": "not_found", "message": "Usuario/cliente no encontrado"}, 404
+            projects_repo = ProjectRepository(db)
+            member_repo = ProjectMemberRepository(db)
+            resolved_client_id = _svc.resolve_common_client([project_id], projects_repo)
+            existing_project_ids = member_repo.list_project_ids_by_user(contact.user_id)
+            if existing_project_ids:
+                if resolved_client_id != contact.client_id:
+                    return {"error": "validation_error",
+                            "message": "El proyecto debe pertenecer al mismo Cliente del Usuario/cliente"}, 400
+            elif resolved_client_id != contact.client_id:
+                # spec 016: sin Proyectos asignados, se puede corregir el Cliente del contacto
+                ClientContactRepository(db).update_client_id(contact.id, resolved_client_id)
+                contact.client_id = resolved_client_id
+            if member_repo.is_member(project_id, contact.user_id):
+                return {"error": "already_member", "message": "El Usuario/cliente ya está en ese proyecto"}, 409
+            member = member_repo.create(ProjectMember.create(project_id=project_id, user_id=contact.user_id))
+            project = projects_repo.get_by_id(project_id)
+            return {"id": str(member.id), "project_id": str(project_id),
+                    "name": project.name if project else None}, 201
+        except DomainError as e:
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
+
+
+@ns.route("/<string:contact_id>/projects/<string:project_id>")
+class ClientContactProjectDetail(Resource):
+    @ns.doc("remove_client_contact_project")
+    @ns.response(204, "Proyecto quitado del Usuario/cliente")
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso client_contacts:manage", _error)
+    @ns.response(404, "Usuario/cliente no encontrado, o no es miembro de ese Proyecto", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("client_contacts", "manage")
+    def delete(self, contact_id: str, project_id: str):
+        """Quita al Usuario/cliente de ese Proyecto (elimina la membresía). No afecta la cuenta
+        ni tickets históricos ya vinculados (spec 015, US2)."""
+        from backend.infra.repositories.project_member_repo import ProjectMemberRepository
+
+        contact_uuid = parse_uuid(contact_id)
+        project_uuid = parse_uuid(project_id)
+        if not contact_uuid or not project_uuid:
+            return {"error": "not_found", "message": "Usuario/cliente o Proyecto no encontrado"}, 404
+        try:
+            db = get_db()
+            contact = ClientContactRepository(db).get_by_id(contact_uuid)
+            if not contact:
+                return {"error": "not_found", "message": "Usuario/cliente no encontrado"}, 404
+            member_repo = ProjectMemberRepository(db)
+            member = member_repo.get_by_project_and_user(project_uuid, contact.user_id)
+            if not member:
+                return {"error": "not_found",
+                        "message": "El Usuario/cliente no es miembro de ese Proyecto"}, 404
+            member_repo.delete(member.id, project_uuid)
+            return "", 204
         except Exception:
             return server_error()

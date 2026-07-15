@@ -34,6 +34,7 @@ class CommentRepository:
         self._db.add(AttachmentModel(
             id=attachment.id,
             comment_id=attachment.comment_id,
+            ticket_id=attachment.ticket_id,
             filename=attachment.filename,
             content_type=attachment.content_type,
             size_bytes=attachment.size_bytes,
@@ -45,6 +46,14 @@ class CommentRepository:
     def get_attachment(self, attachment_id: uuid.UUID) -> Optional[Attachment]:
         model = self._db.get(AttachmentModel, attachment_id)
         return model.to_entity() if model else None
+
+    def list_ticket_attachments(self, ticket_id: uuid.UUID) -> list[Attachment]:
+        """Adjuntos de la descripción de un Ticket/Tarea (spec 017) — independientes de los
+        adjuntos de sus comentarios."""
+        models = (self._db.query(AttachmentModel)
+                  .filter(AttachmentModel.ticket_id == ticket_id)
+                  .order_by(AttachmentModel.created_at).all())
+        return [m.to_entity() for m in models]
 
     def commit(self) -> None:
         self._db.commit()

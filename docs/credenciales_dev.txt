@@ -16,7 +16,8 @@ qm / qm@sywork.net                      | QM           | U3lXb3JrX0RldjIwMjYh
 resolutor / resolutor@sywork.net        | Resolutor    | U3lXb3JrX0RldjIwMjYh
 jmurcia2@sywork.net
 mzvV6I3Oiwrz
+SyWork_Dev2026!
 
-
+SyWork_Dev2026!
 docker exec sywork_backend alembic upgrade head
 docker exec sywork_backend python -m pytest tests/ -q
