@@ -1,9 +1,14 @@
-from flask import g
+import re
+import uuid
+from flask import g, request, send_file
 from flask_restx import Namespace, Resource, fields
 from backend.infra.repositories.client_repo import ClientRepository
 from backend.infra.repositories.project_repo import ProjectRepository
 from backend.infra.database import get_db
-from backend.domain.entities.client import Client, ClientSystem
+from backend.infra.storage import attachments as attachment_storage
+from backend.domain.entities.client import (
+    Client, ClientSystem, ClientAccess, ClientAccessAttachment, ACCESS_TYPES, ACCESS_ENVIRONMENTS,
+)
 from backend.domain.services.client_service import ClientService, ClientBusinessError
 from backend.api.routes._shared import parse_uuid, error_model, server_error
 
@@ -84,6 +89,45 @@ _system_input = ns.model("ClientSystemInput", {
     "notes": fields.String(description="Notas"),
 })
 
+_access_out = ns.model("ClientAccess", {
+    "id": fields.String(description="UUID del acceso"),
+    "client_id": fields.String(description="UUID del cliente"),
+    "access_type": fields.String(description="vpn | system_url | remote_desktop"),
+    "environment": fields.String(description="dev | test | prod (solo si access_type=system_url)"),
+    "username": fields.String(description="Usuario (solo si include_sensitive)"),
+    "password": fields.String(description="Contraseña (solo si include_sensitive)"),
+    "host": fields.String(description="IP, URL o nombre de escritorio remoto"),
+    "notes": fields.String(description="Notas"),
+    "created_at": fields.String(description="Fecha de creación ISO-8601"),
+    "updated_at": fields.String(description="Fecha de última actualización ISO-8601"),
+})
+
+_access_list_out = ns.model("ClientAccessList", {
+    "items": fields.List(fields.Nested(_access_out)),
+})
+
+_access_input = ns.model("ClientAccessInput", {
+    "access_type": fields.String(required=True, description="vpn | system_url | remote_desktop", example="vpn"),
+    "environment": fields.String(description="dev | test | prod (solo si access_type=system_url)"),
+    "username": fields.String(description="Usuario"),
+    "password": fields.String(description="Contraseña"),
+    "host": fields.String(description="IP, URL o nombre de escritorio remoto"),
+    "notes": fields.String(description="Notas"),
+})
+
+_access_attachment_out = ns.model("ClientAccessAttachment", {
+    "id": fields.String(description="UUID del adjunto"),
+    "client_id": fields.String(description="UUID del cliente"),
+    "filename": fields.String(description="Nombre original del archivo"),
+    "content_type": fields.String(description="Content-Type"),
+    "size_bytes": fields.Integer(description="Tamaño en bytes"),
+    "created_at": fields.String(description="Fecha de creación ISO-8601"),
+})
+
+_access_attachment_list_out = ns.model("ClientAccessAttachmentList", {
+    "items": fields.List(fields.Nested(_access_attachment_out)),
+})
+
 _status_result = ns.model("StatusResult", {
     "id": fields.String(description="UUID del cliente"),
     "active": fields.Boolean(description="Nuevo estado activo"),
@@ -112,6 +156,26 @@ def _client_to_dict(client, include_sensitive: bool = False) -> dict:
     return d
 
 
+_NAME_HAS_ALPHANUMERIC = re.compile(r"[^\W_]", re.UNICODE)
+_E164_PATTERN = re.compile(r"^\+[1-9]\d{1,14}$")
+
+
+def _validate_name(name: str) -> str | None:
+    """OBS-0014: exige al menos un caracter alfanumérico y longitud máxima 120."""
+    if len(name) > 120:
+        return "El campo 'name' no puede superar 120 caracteres"
+    if not _NAME_HAS_ALPHANUMERIC.search(name):
+        return "El campo 'name' debe contener al menos una letra o número"
+    return None
+
+
+def _validate_phone(phone: str) -> str | None:
+    """OBS-0007/OBS-0016: se guarda en formato E.164 (`+<código país><número>`)."""
+    if not _E164_PATTERN.match(phone):
+        return "El campo 'contact_phone' debe tener formato E.164 (ej. +573001234567)"
+    return None
+
+
 def _parse_billing(data: dict) -> tuple[dict, str | None]:
     if "annual_billing_usd" not in data:
         return {}, None
@@ -135,6 +199,53 @@ def _system_to_dict(system) -> dict:
         "version": system.version,
         "notes": system.notes,
         "created_at": system.created_at.isoformat() if system.created_at else None,
+    }
+
+
+def _can_see_sensitive() -> bool:
+    """Mismo criterio ya usado en frontend (`canSeeSensitive`, ClientsPage.tsx) — no introduce
+    un permiso nuevo (FR-006, spec 018), solo lo aplica también del lado del servidor."""
+    return g.current_user.role.name in ("Admin", "Coordinador")
+
+
+def _access_to_dict(access, include_sensitive: bool = False) -> dict:
+    d = {
+        "id": str(access.id),
+        "client_id": str(access.client_id),
+        "access_type": access.access_type,
+        "environment": access.environment,
+        "host": access.host,
+        "notes": access.notes,
+        "created_at": access.created_at.isoformat() if access.created_at else None,
+        "updated_at": access.updated_at.isoformat() if access.updated_at else None,
+    }
+    if include_sensitive:
+        d["username"] = access.username
+        d["password"] = access.password
+    return d
+
+
+def _validate_access_input(data: dict) -> str | None:
+    access_type = data.get("access_type")
+    if access_type not in ACCESS_TYPES:
+        return f"El campo 'access_type' debe ser uno de: {', '.join(ACCESS_TYPES)}"
+    environment = data.get("environment")
+    if environment is not None:
+        if access_type != "system_url":
+            return "El campo 'environment' solo aplica cuando access_type='system_url'"
+        if environment not in ACCESS_ENVIRONMENTS:
+            return f"El campo 'environment' debe ser uno de: {', '.join(ACCESS_ENVIRONMENTS)}"
+    return None
+
+
+def _access_attachment_to_dict(attachment) -> dict:
+    return {
+        "id": str(attachment.id),
+        "client_id": str(attachment.client_id),
+        "filename": attachment.filename,
+        "content_type": attachment.content_type,
+        "size_bytes": attachment.size_bytes,
+        "created_at": attachment.created_at.isoformat() if attachment.created_at else None,
     }
 
 
@@ -191,6 +302,14 @@ class ClientList(Resource):
         name = data.get("name", "").strip()
         if not name:
             return {"error": "validation_error", "message": "El campo 'name' es requerido"}, 400
+        name_error = _validate_name(name)
+        if name_error:
+            return {"error": "validation_error", "message": name_error}, 400
+        phone = (data.get("contact_phone") or "").strip()
+        if phone:
+            phone_error = _validate_phone(phone)
+            if phone_error:
+                return {"error": "validation_error", "message": phone_error}, 400
         billing, billing_error = _parse_billing(data)
         if billing_error:
             return {"error": "validation_error", "message": billing_error}, 400
@@ -268,8 +387,17 @@ class ClientDetail(Resource):
                 new_name = str(data["name"]).strip()
                 if not new_name:
                     return {"error": "validation_error", "message": "El nombre no puede estar vacio"}, 400
+                name_error = _validate_name(new_name)
+                if name_error:
+                    return {"error": "validation_error", "message": name_error}, 400
                 if new_name != client.name:
                     _svc.validate_unique_name(new_name, existing_id=client.id, repo=repo)
+            if "contact_phone" in data:
+                new_phone = (data["contact_phone"] or "").strip()
+                if new_phone:
+                    phone_error = _validate_phone(new_phone)
+                    if phone_error:
+                        return {"error": "validation_error", "message": phone_error}, 400
             billing, billing_error = _parse_billing(data)
             if billing_error:
                 return {"error": "validation_error", "message": billing_error}, 400
@@ -439,9 +567,251 @@ class ClientSystemDetail(Resource):
             return server_error()
 
 
+@ns.route("/<string:client_id>/access")
+@ns.param("client_id", "UUID del cliente")
+class ClientAccessList(Resource):
+    @ns.doc("list_client_access")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.response(200, "Accesos y conexiones del cliente", _access_list_out)
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(404, "Cliente no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def get(self, client_id: str):
+        """Listar los accesos y conexiones del cliente (spec 018, UAT OBS-0001)"""
+        uid = parse_uuid(client_id)
+        if not uid:
+            return {"error": "validation_error", "message": "ID de cliente invalido"}, 400
+        try:
+            db = get_db()
+            repo = ClientRepository(db)
+            if not repo.get_by_id(uid):
+                return {"error": "not_found", "message": "Cliente no encontrado"}, 404
+            include_sensitive = _can_see_sensitive()
+            items = [_access_to_dict(a, include_sensitive) for a in repo.list_access(uid, include_sensitive)]
+            return {"items": items}, 200
+        except Exception:
+            return server_error()
+
+    @ns.doc("add_client_access")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.expect(_access_input, validate=False)
+    @ns.response(201, "Acceso creado", _access_out)
+    @ns.response(400, "Datos inválidos", _error)
+    @ns.response(404, "Cliente no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def post(self, client_id: str):
+        """Agregar un acceso/conexión al cliente (spec 018, UAT OBS-0001)"""
+        uid = parse_uuid(client_id)
+        if not uid:
+            return {"error": "validation_error", "message": "ID de cliente invalido"}, 400
+        data = request.get_json(silent=True)
+        if not data:
+            return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
+        validation_error = _validate_access_input(data)
+        if validation_error:
+            return {"error": "validation_error", "message": validation_error}, 400
+        try:
+            db = get_db()
+            repo = ClientRepository(db)
+            if not repo.get_by_id(uid):
+                return {"error": "not_found", "message": "Cliente no encontrado"}, 404
+            access = ClientAccess.create(
+                client_id=uid, access_type=data["access_type"], environment=data.get("environment"),
+                username=data.get("username"), password=data.get("password"),
+                host=data.get("host"), notes=data.get("notes"),
+            )
+            created = repo.add_access(access)
+            return _access_to_dict(created, include_sensitive=True), 201
+        except Exception:
+            return server_error()
+
+
+@ns.route("/<string:client_id>/access/<string:access_id>")
+@ns.param("client_id", "UUID del cliente")
+@ns.param("access_id", "UUID del acceso")
+class ClientAccessDetail(Resource):
+    @ns.doc("update_client_access")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.expect(_access_input, validate=False)
+    @ns.response(200, "Acceso actualizado", _access_out)
+    @ns.response(400, "Datos inválidos", _error)
+    @ns.response(404, "Cliente o acceso no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def patch(self, client_id: str, access_id: str):
+        """Editar un acceso/conexión del cliente (PATCH parcial)"""
+        uid = parse_uuid(client_id)
+        aid = parse_uuid(access_id)
+        if not uid or not aid:
+            return {"error": "validation_error", "message": "ID invalido"}, 400
+        data = request.get_json(silent=True)
+        if not data:
+            return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
+        try:
+            db = get_db()
+            repo = ClientRepository(db)
+            existing = next((a for a in repo.list_access(uid, include_sensitive=True) if a.id == aid), None)
+            if not existing:
+                return {"error": "not_found", "message": "Acceso no encontrado para ese cliente"}, 404
+            merged = {
+                "access_type": data.get("access_type", existing.access_type),
+                "environment": data.get("environment", existing.environment),
+            }
+            validation_error = _validate_access_input(merged)
+            if validation_error:
+                return {"error": "validation_error", "message": validation_error}, 400
+            for field in ("access_type", "environment", "username", "password", "host", "notes"):
+                if field in data:
+                    setattr(existing, field, data[field])
+            updated = repo.update_access(existing)
+            if not updated:
+                return {"error": "not_found", "message": "Acceso no encontrado para ese cliente"}, 404
+            return _access_to_dict(updated, include_sensitive=True), 200
+        except Exception:
+            return server_error()
+
+    @ns.doc("delete_client_access")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.response(204, "Acceso eliminado")
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(404, "Cliente o acceso no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def delete(self, client_id: str, access_id: str):
+        """Eliminar un acceso/conexión del cliente"""
+        uid = parse_uuid(client_id)
+        aid = parse_uuid(access_id)
+        if not uid or not aid:
+            return {"error": "validation_error", "message": "ID invalido"}, 400
+        try:
+            db = get_db()
+            if not ClientRepository(db).delete_access(uid, aid):
+                return {"error": "not_found", "message": "Acceso no encontrado para ese cliente"}, 404
+            return "", 204
+        except Exception:
+            return server_error()
+
+
+@ns.route("/<string:client_id>/access-attachments")
+@ns.param("client_id", "UUID del cliente")
+class ClientAccessAttachments(Resource):
+    @ns.doc("list_client_access_attachments")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.response(200, "Adjuntos de la sección de accesos y conexiones", _access_attachment_list_out)
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(404, "Cliente no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def get(self, client_id: str):
+        """Listar los adjuntos de la sección de accesos y conexiones del cliente"""
+        uid = parse_uuid(client_id)
+        if not uid:
+            return {"error": "validation_error", "message": "ID de cliente invalido"}, 400
+        try:
+            db = get_db()
+            repo = ClientRepository(db)
+            if not repo.get_by_id(uid):
+                return {"error": "not_found", "message": "Cliente no encontrado"}, 404
+            items = [_access_attachment_to_dict(a) for a in repo.list_access_attachments(uid)]
+            return {"items": items}, 200
+        except Exception:
+            return server_error()
+
+    @ns.doc("upload_client_access_attachment")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.response(201, "Adjunto subido", _access_attachment_out)
+    @ns.response(400, "Archivo inválido o ausente", _error)
+    @ns.response(404, "Cliente no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def post(self, client_id: str):
+        """Subir un adjunto a la sección de accesos y conexiones (ej. instructivo de instalación)"""
+        uid = parse_uuid(client_id)
+        if not uid:
+            return {"error": "validation_error", "message": "ID de cliente invalido"}, 400
+        file = request.files.get("file")
+        if not file or not file.filename:
+            return {"error": "validation_error", "message": "El campo 'file' es requerido"}, 400
+        try:
+            db = get_db()
+            repo = ClientRepository(db)
+            if not repo.get_by_id(uid):
+                return {"error": "not_found", "message": "Cliente no encontrado"}, 404
+            content = file.read()
+            path = attachment_storage.save(uid, file.filename, content, entity_kind="clients")
+            attachment = ClientAccessAttachment(
+                id=uuid.uuid4(), client_id=uid, filename=file.filename,
+                content_type=file.content_type or "application/octet-stream",
+                size_bytes=len(content), storage_path=path,
+            )
+            created = repo.add_access_attachment(attachment)
+            return _access_attachment_to_dict(created), 201
+        except attachment_storage.AttachmentError as e:
+            return {"error": "attachment_error", "message": e.message}, 400
+        except Exception:
+            return server_error()
+
+
+@ns.route("/<string:client_id>/access-attachments/<string:attachment_id>")
+@ns.param("client_id", "UUID del cliente")
+@ns.param("attachment_id", "UUID del adjunto")
+class ClientAccessAttachmentDetail(Resource):
+    @ns.doc("download_client_access_attachment")
+    @ns.produces(["application/octet-stream"])
+    @ns.response(200, "Archivo (stream binario con el content-type original)")
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.response(404, "Adjunto no encontrado o ruta inválida", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def get(self, client_id: str, attachment_id: str):
+        """Descarga autenticada de un adjunto de accesos y conexiones"""
+        uid = parse_uuid(client_id)
+        aid = parse_uuid(attachment_id)
+        if not uid or not aid:
+            return {"error": "validation_error", "message": "ID invalido"}, 400
+        try:
+            db = get_db()
+            attachment = ClientRepository(db).get_access_attachment(uid, aid)
+            if not attachment:
+                return {"error": "not_found", "message": "Adjunto no encontrado"}, 404
+            path = attachment_storage.open_path(attachment.storage_path)
+            return send_file(path, mimetype=attachment.content_type,
+                             as_attachment=True, download_name=attachment.filename)
+        except attachment_storage.AttachmentError as e:
+            return {"error": "attachment_error", "message": e.message}, 404
+        except Exception:
+            return server_error()
+
+    @ns.doc("delete_client_access_attachment")
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin el permiso requerido", _error)
+    @ns.response(204, "Adjunto eliminado")
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(404, "Cliente o adjunto no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def delete(self, client_id: str, attachment_id: str):
+        """Eliminar un adjunto de la sección de accesos y conexiones"""
+        uid = parse_uuid(client_id)
+        aid = parse_uuid(attachment_id)
+        if not uid or not aid:
+            return {"error": "validation_error", "message": "ID invalido"}, 400
+        try:
+            db = get_db()
+            if not ClientRepository(db).delete_access_attachment(uid, aid):
+                return {"error": "not_found", "message": "Adjunto no encontrado para ese cliente"}, 404
+            return "", 204
+        except Exception:
+            return server_error()
+
+
 # ── Enforcement FR-022 (spec 002): JWT + permiso por módulo/acción ─────────────
 from backend.api.middleware.rbac import enforce_module as _enforce
 
 for _cls in (ClientList, ClientDetail, ClientDeactivate, ClientActivate,
-             ClientSystems, ClientSystemDetail):
+             ClientSystems, ClientSystemDetail,
+             ClientAccessList, ClientAccessDetail,
+             ClientAccessAttachments, ClientAccessAttachmentDetail):
     _cls.method_decorators = [_enforce("clients")]

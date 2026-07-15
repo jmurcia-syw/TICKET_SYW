@@ -28,6 +28,42 @@ class ClientSystem:
         return cls(id=uuid.uuid4(), client_id=client_id, system_type=system_type, brand=brand, **kwargs)
 
 
+ACCESS_TYPES = ("vpn", "system_url", "remote_desktop")
+ACCESS_ENVIRONMENTS = ("dev", "test", "prod")
+
+
+@dataclass
+class ClientAccess:
+    """Acceso/conexión de un cliente: VPN, URL de sistema por ambiente o escritorio remoto
+    (spec 018 — reemplaza a los campos simples vpn_ips/vpn_credentials, UAT OBS-0001)."""
+    id: uuid.UUID
+    client_id: uuid.UUID
+    access_type: str
+    environment: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    host: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
+
+    @classmethod
+    def create(cls, client_id: uuid.UUID, access_type: str, **kwargs) -> "ClientAccess":
+        return cls(id=uuid.uuid4(), client_id=client_id, access_type=access_type, **kwargs)
+
+
+@dataclass
+class ClientAccessAttachment:
+    """Archivo adjunto a la sección de accesos y conexiones de un cliente (spec 018)."""
+    id: uuid.UUID
+    client_id: uuid.UUID
+    filename: str
+    content_type: str
+    size_bytes: int
+    storage_path: str
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+
 @dataclass
 class Client:
     id: uuid.UUID

@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 5173
 
-CMD ["pnpm", "run", "dev", "--host"]
+CMD ["sh", "-c", "pnpm install && pnpm run dev --host"]

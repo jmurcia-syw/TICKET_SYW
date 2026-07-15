@@ -56,3 +56,17 @@ def test_qm_cannot_cancel_tickets_permission_missing(anon_client, qm_token):
 def test_garbage_token_is_401_not_500(anon_client):
     response = anon_client.get("/api/clients", headers=_auth("no-es-un-jwt"))
     assert response.status_code == 401
+
+
+def test_valid_jwt_for_nonexistent_user_is_401_not_500(app, anon_client):
+    """OBS-0013: JWT bien formado pero de un usuario que ya no existe en BD (ej. tras
+    `docker compose down -v` con BD nueva) debía devolver 500 por `jsonify()` no serializable
+    en `enforce_module`; ahora `auth.py:43` devuelve dict+tupla y debe dar 401 limpio."""
+    import uuid
+    from flask_jwt_extended import create_access_token
+
+    with app.app_context():
+        token = create_access_token(identity=str(uuid.uuid4()))
+    response = anon_client.get("/api/clients", headers=_auth(token))
+    assert response.status_code == 401
+    assert response.get_json()["error"] == "unauthorized"

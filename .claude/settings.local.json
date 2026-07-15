@@ -316,7 +316,14 @@
       "Bash(pwsh -NoProfile -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks)",
       "Bash(powershell -NoProfile -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks)",
       "Bash(xargs -I{} echo {})",
-      "Bash(MSYS_NO_PATHCONV=1 docker exec sywork_frontend grep -n \"DEBUG\" /app/src/components/tickets/RichTextViewer.tsx)"
+      "Bash(MSYS_NO_PATHCONV=1 docker exec sywork_frontend grep -n \"DEBUG\" /app/src/components/tickets/RichTextViewer.tsx)",
+      "PowerShell(& \"C:\\\\Users\\\\Usuario\\\\Documents\\\\GitHub\\\\TICKET_SYW\\\\.specify\\\\scripts\\\\powershell\\\\setup-plan.ps1\" -Json)",
+      "PowerShell(& \"C:\\\\Users\\\\Usuario\\\\Documents\\\\GitHub\\\\TICKET_SYW\\\\.specify\\\\scripts\\\\powershell\\\\setup-tasks.ps1\" -Json)",
+      "PowerShell(& \"C:\\\\Users\\\\Usuario\\\\Documents\\\\GitHub\\\\TICKET_SYW\\\\.specify\\\\scripts\\\\powershell\\\\check-prerequisites.ps1\" -Json -RequireTasks -IncludeTasks)",
+      "Bash(xargs grep -l \"ENABLE ROW LEVEL SECURITY\")",
+      "Bash(awk 'NR==493' \"UAT/01_Iterations/ITER-003/ITER-003.md\")",
+      "Bash(sed -i 's/\"start_date\": \"2026-01-01\",/\"start_date\": _PROJECT_START,/' backend/tests/api/test_tickets_sla.py backend/tests/api/test_sla_rules.py backend/tests/api/test_tickets_subtasks.py backend/tests/api/test_tickets_sla_filters.py)",
+      "Bash(sed -i 's/\"start_date\": \"2026-01-15\",/\"start_date\": _PROJECT_START,/' backend/tests/api/test_client_contacts_projects.py backend/tests/api/test_project_members.py backend/tests/api/test_tickets_client_contact.py)"
     ]
   }
 }

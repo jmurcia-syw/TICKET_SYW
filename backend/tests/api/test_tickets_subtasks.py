@@ -1,6 +1,11 @@
 """spec 009, US4/US5 — Subtareas (Nivel 5) con Encargado y estado propios, y comentarios
 simples aislados por registro."""
+from datetime import date
+
 import pytest
+
+# OBS-0011: la fecha de inicio de un proyecto no puede quedar en un mes anterior al actual.
+_PROJECT_START = date.today().strftime("%Y-%m-01")
 
 
 @pytest.fixture()
@@ -14,7 +19,7 @@ def tarea_record_type_id(client):
 def ticket_project(client, ticket_client, unique_name):
     resp = client.post("/api/projects", json={
         "client_id": ticket_client["id"], "name": f"Proyecto {unique_name}",
-        "start_date": "2026-01-01",
+        "start_date": _PROJECT_START,
     })
     assert resp.status_code == 201, resp.get_json()
     return resp.get_json()
@@ -127,13 +132,20 @@ def test_subtask_inherits_parent_list(
 
 
 def test_changing_subtask_status_does_not_affect_parent(
-        client, ticket_client, ticket_project, tarea_record_type_id):
+        client, ticket_client, ticket_project, tarea_record_type_id, unique_name):
     tarea = _make_task(client, ticket_client, ticket_project, tarea_record_type_id)
+    assignee = _make_resource(client, unique_name, "parent-check")
     subtask = client.post("/api/tickets", json={
         "title": "Subtarea", "description": "d", "client_id": ticket_client["id"],
         "project_id": ticket_project["id"], "record_type_id": tarea_record_type_id,
-        "parent_task_id": tarea["id"],
+        "parent_task_id": tarea["id"], "assignee_id": assignee["id"],
     }).get_json()
+    # OBS-0026: cerrar (transición a 'cerrado') ahora exige tiempo registrado.
+    ws = client.post("/api/work-sessions", json={
+        "ticket_id": subtask["id"], "resource_id": assignee["id"],
+        "work_date": date.today().isoformat(), "duration_minutes": 30,
+    })
+    assert ws.status_code == 201, ws.get_json()
 
     client.patch(f"/api/tickets/{subtask['id']}/status",
                 json={"status": "cerrado", "comment": "Listo"})

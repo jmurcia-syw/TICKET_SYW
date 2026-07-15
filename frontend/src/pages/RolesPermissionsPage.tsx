@@ -11,6 +11,12 @@ import PageToolbar from '../components/common/PageToolbar'
 import PermissionMatrix from '../components/roles/PermissionMatrix'
 import { clientColumnFilter, clientTextColumnFilter } from '../components/common/columnFilters'
 import { palette } from '../theme'
+import { mapApiErrorToFormFields, type FieldErrorRule } from '../services/formErrorMapper'
+
+// OBS-0018: asocia códigos de error de la API a los campos del formulario de Rol.
+const ROLE_ERROR_RULES: FieldErrorRule[] = [
+  { code: 'name_duplicate', field: 'name' },
+]
 
 export default function RolesPermissionsPage() {
   const [roles, setRoles] = useState<RoleDetail[]>([])
@@ -65,6 +71,7 @@ export default function RolesPermissionsPage() {
       setFormOpen(false)
       load()
     } catch (err: unknown) {
+      if (mapApiErrorToFormFields(err, form, ROLE_ERROR_RULES)) return
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al guardar'
       message.error(msg)
     }

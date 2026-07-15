@@ -15,6 +15,35 @@ def test_create_resource_returns_201_with_location(client, unique_name):
     assert body["active"] is True
 
 
+def test_create_resource_invalid_identification_rejected(client, unique_name):
+    """OBS-0020: 'identification' debe ser solo dígitos (6 a 15)."""
+    resp = client.post("/api/resources", json={
+        "full_name": f"Resource {unique_name}", "email": f"res.{unique_name}@sywork.net",
+        "identification": "AB#12!@$99",
+    })
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "validation_error"
+
+
+def test_create_resource_underage_birth_date_rejected(client, unique_name):
+    """OBS-0022: fecha de nacimiento que implica menos de 18 años se rechaza."""
+    resp = client.post("/api/resources", json={
+        "full_name": f"Resource {unique_name}", "email": f"res.{unique_name}@sywork.net",
+        "birth_date": "2020-01-01",
+    })
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "validation_error"
+
+
+def test_create_resource_future_birth_date_rejected(client, unique_name):
+    resp = client.post("/api/resources", json={
+        "full_name": f"Resource {unique_name}", "email": f"res.{unique_name}@sywork.net",
+        "birth_date": "2099-01-01",
+    })
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "validation_error"
+
+
 def test_generic_patch_ignores_active_field(client, unique_name):
     """Regression: PATCH /resources/{id} used to allow toggling `active` directly,
     bypassing the /activate and /deactivate business rules that the other maestros enforce."""

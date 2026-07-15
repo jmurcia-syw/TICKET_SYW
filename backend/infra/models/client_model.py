@@ -1,10 +1,10 @@
 import os
 import uuid
-from sqlalchemy import Boolean, Column, ForeignKey, LargeBinary, Numeric, Text, TIMESTAMP
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, LargeBinary, Numeric, Text, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func, text
 from backend.infra.models import Base
-from backend.domain.entities.client import Client, ClientSystem
+from backend.domain.entities.client import Client, ClientSystem, ClientAccess, ClientAccessAttachment
 
 _PGCRYPTO_KEY_ENV = "PGCRYPTO_KEY"
 
@@ -108,4 +108,82 @@ class ClientSystemModel(Base):
             brand=system.brand,
             version=system.version,
             notes=system.notes,
+        )
+
+
+class ClientAccessModel(Base):
+    """Acceso/conexión de un cliente (spec 018, reemplaza clients.vpn_ips/vpn_credentials)."""
+    __tablename__ = "client_access"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    access_type = Column(Text, nullable=False)
+    environment = Column(Text, nullable=True)
+    username = Column(Text, nullable=True)
+    password = Column(LargeBinary, nullable=True)
+    host = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    def to_entity(self, include_sensitive: bool = False) -> ClientAccess:
+        return ClientAccess(
+            id=self.id,
+            client_id=self.client_id,
+            access_type=self.access_type,
+            environment=self.environment,
+            username=self.username if include_sensitive else None,
+            password=_decrypt(self.password) if include_sensitive else None,
+            host=self.host,
+            notes=self.notes,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+        )
+
+    @classmethod
+    def from_entity(cls, access: ClientAccess) -> "ClientAccessModel":
+        return cls(
+            id=access.id,
+            client_id=access.client_id,
+            access_type=access.access_type,
+            environment=access.environment,
+            username=access.username,
+            password=_encrypt(access.password),
+            host=access.host,
+            notes=access.notes,
+        )
+
+
+class ClientAccessAttachmentModel(Base):
+    """Adjunto de la sección de accesos y conexiones de un cliente (spec 018)."""
+    __tablename__ = "client_access_attachments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    filename = Column(Text, nullable=False)
+    content_type = Column(Text, nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    storage_path = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    def to_entity(self) -> ClientAccessAttachment:
+        return ClientAccessAttachment(
+            id=self.id,
+            client_id=self.client_id,
+            filename=self.filename,
+            content_type=self.content_type,
+            size_bytes=self.size_bytes,
+            storage_path=self.storage_path,
+            created_at=self.created_at,
+        )
+
+    @classmethod
+    def from_entity(cls, attachment: ClientAccessAttachment) -> "ClientAccessAttachmentModel":
+        return cls(
+            id=attachment.id,
+            client_id=attachment.client_id,
+            filename=attachment.filename,
+            content_type=attachment.content_type,
+            size_bytes=attachment.size_bytes,
+            storage_path=attachment.storage_path,
         )

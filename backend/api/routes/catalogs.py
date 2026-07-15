@@ -32,7 +32,7 @@ def _validate_catalog(catalog: str):
 
 
 @ns.route("/<string:catalog>")
-@ns.param("catalog", "tools | processes | resolution-types | record-types")
+@ns.param("catalog", "tools | processes | resolution-types | record-types | teams")
 class CatalogList(Resource):
     @ns.doc("list_catalog", params={"active": {"description": "true/false/all (default true)", "type": "string"}})
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
@@ -79,7 +79,7 @@ class CatalogList(Resource):
 
 
 @ns.route("/<string:catalog>/<string:item_id>/deactivate")
-@ns.param("catalog", "tools | processes | resolution-types | record-types")
+@ns.param("catalog", "tools | processes | resolution-types | record-types | teams")
 class CatalogDeactivate(Resource):
     @ns.doc("deactivate_catalog_value")
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
@@ -97,7 +97,8 @@ class CatalogDeactivate(Resource):
             return {"error": "validation_error", "message": "ID inválido"}, 400
         try:
             db = get_db()
-            in_use = TicketRepository(db).count_using_catalog(CATALOG_TICKET_COLUMN[catalog], uid)
+            ticket_column = CATALOG_TICKET_COLUMN.get(catalog)
+            in_use = TicketRepository(db).count_using_catalog(ticket_column, uid) if ticket_column else 0
             if in_use > 0:
                 return {"error": "in_use",
                         "message": f"No se puede desactivar: {in_use} ticket(s) abierto(s) usan este valor",
@@ -111,7 +112,7 @@ class CatalogDeactivate(Resource):
 
 
 @ns.route("/<string:catalog>/<string:item_id>/activate")
-@ns.param("catalog", "tools | processes | resolution-types | record-types")
+@ns.param("catalog", "tools | processes | resolution-types | record-types | teams")
 class CatalogActivate(Resource):
     @ns.doc("activate_catalog_value")
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)

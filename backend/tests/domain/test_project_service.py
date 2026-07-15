@@ -1,9 +1,14 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
 from backend.domain.services.project_service import ProjectService, ProjectBusinessError
+
+# OBS-0011: la fecha de inicio de un proyecto no puede quedar en un mes anterior al actual.
+_START = date.today().replace(day=1)
+_BEFORE_START = _START - timedelta(days=1)
+_END = date.today().replace(day=28)
 
 
 class FakeClient:
@@ -32,7 +37,7 @@ def test_validate_create_raises_404_when_client_missing():
     svc = ProjectService()
     with pytest.raises(ProjectBusinessError) as exc_info:
         svc.validate_create(
-            client_id=uuid.uuid4(), name="Proj", start_date=date(2026, 1, 1), end_date=None,
+            client_id=uuid.uuid4(), name="Proj", start_date=_START, end_date=None,
             clients_repo=FakeClientsRepo(client=None),
         )
     err = exc_info.value
@@ -44,7 +49,7 @@ def test_validate_create_raises_409_when_client_inactive():
     svc = ProjectService()
     with pytest.raises(ProjectBusinessError) as exc_info:
         svc.validate_create(
-            client_id=uuid.uuid4(), name="Proj", start_date=date(2026, 1, 1), end_date=None,
+            client_id=uuid.uuid4(), name="Proj", start_date=_START, end_date=None,
             clients_repo=FakeClientsRepo(client=FakeClient(active=False)),
         )
     err = exc_info.value
@@ -58,7 +63,7 @@ def test_validate_create_raises_400_when_end_before_start():
     with pytest.raises(ProjectBusinessError) as exc_info:
         svc.validate_create(
             client_id=uuid.uuid4(), name="Proj",
-            start_date=date(2026, 6, 1), end_date=date(2026, 1, 1),
+            start_date=_START, end_date=_BEFORE_START,
             clients_repo=FakeClientsRepo(client=FakeClient(active=True)),
         )
     err = exc_info.value
@@ -70,7 +75,7 @@ def test_validate_create_raises_409_on_duplicate_name_for_client():
     svc = ProjectService()
     with pytest.raises(ProjectBusinessError) as exc_info:
         svc.validate_create(
-            client_id=uuid.uuid4(), name="Proj", start_date=date(2026, 1, 1), end_date=None,
+            client_id=uuid.uuid4(), name="Proj", start_date=_START, end_date=None,
             clients_repo=FakeClientsRepo(client=FakeClient(active=True)),
             projects_repo=FakeProjectsRepo(existing=object()),
         )
@@ -82,7 +87,7 @@ def test_validate_create_raises_409_on_duplicate_name_for_client():
 def test_validate_create_passes_for_valid_input():
     svc = ProjectService()
     svc.validate_create(
-        client_id=uuid.uuid4(), name="Proj", start_date=date(2026, 1, 1), end_date=date(2026, 6, 1),
+        client_id=uuid.uuid4(), name="Proj", start_date=_START, end_date=_END,
         clients_repo=FakeClientsRepo(client=FakeClient(active=True)),
         projects_repo=FakeProjectsRepo(existing=None),
     )

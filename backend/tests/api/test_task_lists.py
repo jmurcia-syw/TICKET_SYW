@@ -1,12 +1,17 @@
 """spec 009, US3 — Listas de tareas administrables dentro de un Proyecto."""
+from datetime import date
+
 import pytest
+
+# OBS-0011: la fecha de inicio de un proyecto no puede quedar en un mes anterior al actual.
+_PROJECT_START = date.today().strftime("%Y-%m-01")
 
 
 @pytest.fixture()
 def ticket_project(client, ticket_client, unique_name):
     resp = client.post("/api/projects", json={
         "client_id": ticket_client["id"], "name": f"Proyecto {unique_name}",
-        "start_date": "2026-01-01",
+        "start_date": _PROJECT_START,
     })
     assert resp.status_code == 201, resp.get_json()
     return resp.get_json()
@@ -67,7 +72,7 @@ def test_create_task_with_list_of_other_project_returns_409(
         client, ticket_client, ticket_project, tarea_record_type_id, unique_name):
     other_project = client.post("/api/projects", json={
         "client_id": ticket_client["id"], "name": f"Otro proyecto {unique_name}",
-        "start_date": "2026-01-01",
+        "start_date": _PROJECT_START,
     }).get_json()
     other_list = client.post(f"/api/projects/{other_project['id']}/task-lists",
                              json={"name": "Lista ajena"}).get_json()
@@ -78,6 +83,21 @@ def test_create_task_with_list_of_other_project_returns_409(
     })
     assert resp.status_code == 409
     assert resp.get_json()["error"] == "list_mismatch"
+
+
+def test_create_duplicate_list_name_in_same_project_rejected(client, ticket_project):
+    """OBS-0010: no se permiten dos Listas con el mismo nombre dentro de un mismo Proyecto."""
+    client.post(f"/api/projects/{ticket_project['id']}/task-lists", json={"name": "Sprint 1"})
+    dup = client.post(f"/api/projects/{ticket_project['id']}/task-lists", json={"name": "Sprint 1"})
+    assert dup.status_code == 409
+    assert dup.get_json()["error"] == "name_duplicate"
+
+
+def test_create_list_name_too_long_rejected(client, ticket_project):
+    """OBS-0010: nombre de Lista de más de 60 caracteres es rechazado."""
+    resp = client.post(f"/api/projects/{ticket_project['id']}/task-lists", json={"name": "A" * 61})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "validation_error"
 
 
 def test_rename_task_list(client, ticket_project):

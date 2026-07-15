@@ -1,7 +1,9 @@
 from typing import Optional
 from sqlalchemy.orm import Session
-from backend.infra.models.client_model import ClientModel, ClientSystemModel
-from backend.domain.entities.client import Client, ClientSystem
+from backend.infra.models.client_model import (
+    ClientModel, ClientSystemModel, ClientAccessModel, ClientAccessAttachmentModel,
+)
+from backend.domain.entities.client import Client, ClientSystem, ClientAccess, ClientAccessAttachment
 import uuid
 
 
@@ -78,6 +80,77 @@ class ClientRepository:
 
     def delete_system(self, client_id: uuid.UUID, system_id: uuid.UUID) -> bool:
         model = self._db.get(ClientSystemModel, system_id)
+        if not model or model.client_id != client_id:
+            return False
+        self._db.delete(model)
+        self._db.commit()
+        return True
+
+    # ── Accesos y conexiones del cliente (spec 018, UAT OBS-0001/OBS-0008/OBS-0017) ────
+
+    def list_access(self, client_id: uuid.UUID, include_sensitive: bool = False) -> list[ClientAccess]:
+        models = (
+            self._db.query(ClientAccessModel)
+            .filter(ClientAccessModel.client_id == client_id)
+            .order_by(ClientAccessModel.created_at)
+            .all()
+        )
+        return [m.to_entity(include_sensitive=include_sensitive) for m in models]
+
+    def add_access(self, access: ClientAccess) -> ClientAccess:
+        model = ClientAccessModel.from_entity(access)
+        self._db.add(model)
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity(include_sensitive=True)
+
+    def update_access(self, access: ClientAccess) -> Optional[ClientAccess]:
+        model = self._db.get(ClientAccessModel, access.id)
+        if not model or model.client_id != access.client_id:
+            return None
+        for field in ("access_type", "environment", "username", "host", "notes"):
+            setattr(model, field, getattr(access, field))
+        if access.password is not None:
+            from backend.infra.models.client_model import _encrypt
+            model.password = _encrypt(access.password)
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity(include_sensitive=True)
+
+    def delete_access(self, client_id: uuid.UUID, access_id: uuid.UUID) -> bool:
+        model = self._db.get(ClientAccessModel, access_id)
+        if not model or model.client_id != client_id:
+            return False
+        self._db.delete(model)
+        self._db.commit()
+        return True
+
+    # ── Adjuntos de la sección de accesos y conexiones (spec 018) ──────────────────
+
+    def list_access_attachments(self, client_id: uuid.UUID) -> list[ClientAccessAttachment]:
+        models = (
+            self._db.query(ClientAccessAttachmentModel)
+            .filter(ClientAccessAttachmentModel.client_id == client_id)
+            .order_by(ClientAccessAttachmentModel.created_at)
+            .all()
+        )
+        return [m.to_entity() for m in models]
+
+    def add_access_attachment(self, attachment: ClientAccessAttachment) -> ClientAccessAttachment:
+        model = ClientAccessAttachmentModel.from_entity(attachment)
+        self._db.add(model)
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def get_access_attachment(self, client_id: uuid.UUID, attachment_id: uuid.UUID) -> Optional[ClientAccessAttachment]:
+        model = self._db.get(ClientAccessAttachmentModel, attachment_id)
+        if not model or model.client_id != client_id:
+            return None
+        return model.to_entity()
+
+    def delete_access_attachment(self, client_id: uuid.UUID, attachment_id: uuid.UUID) -> bool:
+        model = self._db.get(ClientAccessAttachmentModel, attachment_id)
         if not model or model.client_id != client_id:
             return False
         self._db.delete(model)

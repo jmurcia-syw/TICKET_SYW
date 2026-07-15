@@ -1,6 +1,9 @@
 import apiClient from './apiClient'
 import type { PaginatedResponse } from '../types/api'
-import type { ClientListItem, ClientDetail, ClientFormData, ClientSystem, ClientSystemFormData } from '../types/client'
+import type {
+  ClientListItem, ClientDetail, ClientFormData, ClientSystem, ClientSystemFormData,
+  ClientAccess, ClientAccessFormData, ClientAccessAttachment,
+} from '../types/client'
 
 export const clientService = {
   list: (params?: { page?: number; page_size?: number; search?: string; active?: boolean }) =>
@@ -30,4 +33,33 @@ export const clientService = {
 
   deleteSystem: (clientId: string, systemId: string) =>
     apiClient.delete(`/api/clients/${clientId}/systems/${systemId}`).then(r => r.data),
+
+  listAccess: (clientId: string) =>
+    apiClient.get<{ items: ClientAccess[] }>(`/api/clients/${clientId}/access`).then(r => r.data.items),
+
+  addAccess: (clientId: string, data: ClientAccessFormData) =>
+    apiClient.post<ClientAccess>(`/api/clients/${clientId}/access`, data).then(r => r.data),
+
+  updateAccess: (clientId: string, accessId: string, data: Partial<ClientAccessFormData>) =>
+    apiClient.patch<ClientAccess>(`/api/clients/${clientId}/access/${accessId}`, data).then(r => r.data),
+
+  deleteAccess: (clientId: string, accessId: string) =>
+    apiClient.delete(`/api/clients/${clientId}/access/${accessId}`).then(r => r.data),
+
+  listAccessAttachments: (clientId: string) =>
+    apiClient.get<{ items: ClientAccessAttachment[] }>(`/api/clients/${clientId}/access-attachments`).then(r => r.data.items),
+
+  uploadAccessAttachment: (clientId: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiClient.post<ClientAccessAttachment>(`/api/clients/${clientId}/access-attachments`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+
+  deleteAccessAttachment: (clientId: string, attachmentId: string) =>
+    apiClient.delete(`/api/clients/${clientId}/access-attachments/${attachmentId}`).then(r => r.data),
+
+  downloadAccessAttachmentUrl: (clientId: string, attachmentId: string) =>
+    `/api/clients/${clientId}/access-attachments/${attachmentId}`,
 }

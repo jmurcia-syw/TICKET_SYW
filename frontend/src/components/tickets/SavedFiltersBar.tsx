@@ -4,6 +4,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../../store/authStore'
 import { useSavedFiltersStore, type SavedFilter, type TicketFilterCriteria } from '../../store/savedFiltersStore'
 import { resourceService } from '../../services/resourceService'
+import ConfirmationModal from '../common/ConfirmationModal'
 
 interface SavedFiltersBarProps {
   /** Combinación de criterios activa en la pantalla (Tickets o Mis Tareas), para poder
@@ -22,6 +23,7 @@ export default function SavedFiltersBar({ currentCriteria, onApply }: SavedFilte
 
   const [saveOpen, setSaveOpen] = useState(false)
   const [name, setName] = useState('')
+  const [filterToDelete, setFilterToDelete] = useState<SavedFilter | null>(null)
 
   const handleApply = async (filter: SavedFilter) => {
     const criteria = { ...filter.criteria }
@@ -52,7 +54,7 @@ export default function SavedFiltersBar({ currentCriteria, onApply }: SavedFilte
           style={{ cursor: 'pointer' }}
           onClick={() => handleApply(f)}
           closable={!f.builtIn}
-          onClose={e => { e.preventDefault(); if (userId) removeFilter(userId, f.id) }}
+          onClose={e => { e.preventDefault(); setFilterToDelete(f) }}
         >
           {f.name}
         </Tag>
@@ -72,6 +74,18 @@ export default function SavedFiltersBar({ currentCriteria, onApply }: SavedFilte
           onChange={e => setName(e.target.value)} onPressEnter={handleSave}
         />
       </Modal>
+
+      <ConfirmationModal
+        open={filterToDelete !== null}
+        title="Eliminar filtro"
+        description={`¿Desea eliminar el filtro "${filterToDelete?.name}"?`}
+        confirmText="Eliminar"
+        onConfirm={() => {
+          if (userId && filterToDelete) removeFilter(userId, filterToDelete.id)
+          setFilterToDelete(null)
+        }}
+        onCancel={() => setFilterToDelete(null)}
+      />
     </Space>
   )
 }

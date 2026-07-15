@@ -37,6 +37,7 @@ from backend.infra.repositories.sla_rule_repo import SlaRuleRepository
 from backend.infra.repositories.task_list_repo import TaskListRepository
 from backend.infra.repositories.ticket_repo import TicketRepository
 from backend.infra.repositories.user_repo import UserRepository
+from backend.infra.repositories.work_session_repo import WorkSessionRepository
 from backend.infra.storage import attachments as attachment_storage
 
 logger = logging.getLogger(__name__)
@@ -524,7 +525,9 @@ class TicketList(Resource):
         "ticket_type": {"description": "incident | evolutive | preventive", "type": "string"},
         "assignee_id": {"description": "Filtrar por UUID de recurso asignado", "type": "string"},
         "escalation_level": {"description": "n1 | n2 | n3 | n4", "type": "string"},
-        "sort": {"description": "created_at | -created_at | priority | status (default -created_at)", "type": "string"},
+        "sort": {"description": "urgency | created_at | -created_at | priority | -priority | status "
+                                 "(default: urgency — prioridad real, luego severidad, luego más antiguo primero; "
+                                 "OBS-0028)", "type": "string"},
         "sla_status": {"description": "sin_sla | corriendo | pausado | vencido | detenido "
                                        "(Fase 4, spec 014)", "type": "string"},
         "sla_expiring_within_hours": {"description": "Tickets con SLA corriendo cuyo tiempo "
@@ -569,7 +572,7 @@ class TicketList(Resource):
                 ticket_type=None if own_only else (request.args.get("ticket_type") or None),
                 assignee_id=None if own_only else (parse_uuid(request.args.get("assignee_id") or "") or None),
                 escalation_level=None if own_only else (request.args.get("escalation_level") or None),
-                sort=request.args.get("sort", "-created_at"),
+                sort=request.args.get("sort", "urgency"),
                 created_by=g.current_user.id if own_only else None,
                 sla_status=None if own_only else (request.args.get("sla_status") or None),
                 sla_expiring_within_hours=sla_expiring_within_hours,
@@ -1197,11 +1200,15 @@ class TicketClose(Resource):
     @ns.response(401, "No autenticado", _error)
     @ns.response(403, "Sin permiso, o ticket no asignado al Resolutor", _error)
     @ns.response(404, "Ticket o tipo de resolución no encontrado", _error)
-    @ns.response(409, "No elegible para cerrar (falta aceptación o 3+ días)", _error)
+    @ns.response(409, "No elegible para cerrar (falta aceptación, 3+ días, o sin tiempo "
+                      "registrado — OBS-0026, salvo tipo de resolución allow_zero_time)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "transition")
     def post(self, ticket_id: str):
-        """Cierre (FR-012): exige tipo de resolución + descripción; notifica Coordinador y QM."""
+        """Cierre (FR-012): exige tipo de resolución + descripción; notifica Coordinador y QM.
+
+        OBS-0026: exige tiempo registrado en `work_sessions` salvo que el tipo de resolución
+        esté marcado `allow_zero_time` (ej. "No es incidente", "Sin respuesta de usuario")."""
         data = request.get_json(silent=True) or {}
         resolution_type_id = parse_uuid(str(data.get("resolution_type_id", "")))
         body = sanitize_html(str(data.get("body", "")))
@@ -1224,6 +1231,13 @@ class TicketClose(Resource):
             resolution_type = CatalogRepository(db, "resolution-types").get_by_id(resolution_type_id)
             if not resolution_type:
                 return {"error": "not_found", "message": "Tipo de resolución no encontrado"}, 404
+            if not resolution_type.get("allow_zero_time"):
+                minutes = WorkSessionRepository(db).sum_minutes_for_ticket(ticket.id)
+                if minutes <= 0:
+                    return {"error": "no_time_registered",
+                            "message": "No se puede cerrar: el ticket no tiene tiempo registrado. "
+                                       "Registra tiempo o usa un tipo de resolución que no lo requiera "
+                                       "(ej. 'No es incidente')."}, 409
 
             comment = Comment.create(ticket_id=ticket.id, comment_type="descripcion_solucion",
                                      body=body, author_id=actor_id)
@@ -1303,13 +1317,18 @@ class TicketStatusChange(Resource):
     @ns.response(401, "No autenticado", _error)
     @ns.response(403, "Sin permiso tickets:transition", _error)
     @ns.response(404, "Ticket/Tarea no encontrado", _error)
-    @ns.response(409, "El registro no es una Tarea (not_a_task)", _error)
+    @ns.response(409, "El registro no es una Tarea (not_a_task), o se intenta cerrar sin tiempo "
+                      "registrado (no_time_registered — OBS-0026)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_permission("tickets", "transition")
     def patch(self, ticket_id: str):
         """Transición libre de estado de una Tarea/Subtarea (spec 009, FR-003/FR-004): cualquier
         estado del catálogo de 10 compartido con Ticket, sin restricción de secuencia, con
-        comentario obligatorio. Reemplaza `POST /{id}/task-transition` (spec 008, retirado)."""
+        comentario obligatorio. Reemplaza `POST /{id}/task-transition` (spec 008, retirado).
+
+        OBS-0026: transicionar a "cerrado" exige tiempo registrado en `work_sessions` — las
+        Tareas no tienen tipo de resolución, así que a diferencia del cierre de Tickets no hay
+        excepción `allow_zero_time`."""
         data = request.get_json(silent=True) or {}
         new_status = str(data.get("status", "")).strip()
         comment = sanitize_html(str(data.get("comment", "")))
@@ -1323,6 +1342,12 @@ class TicketStatusChange(Resource):
             if not _is_task(ticket, db):
                 raise DomainError(
                     "not_a_task", "Este registro es un Ticket, no una Tarea", status_code=409)
+            if not strip_html(comment).strip():
+                return {"error": "validation_error",
+                        "message": "Debe indicar un comentario que documente el cambio de estado"}, 400
+            if new_status == "cerrado" and WorkSessionRepository(db).sum_minutes_for_ticket(ticket.id) <= 0:
+                return {"error": "no_time_registered",
+                        "message": "No se puede cerrar: la Tarea no tiene tiempo registrado."}, 409
             _svc.free_transition_task(
                 ticket, new_status, comment, g.current_user.id,
                 tickets_repo=TicketRepository(db), comments_repo=CommentRepository(db),

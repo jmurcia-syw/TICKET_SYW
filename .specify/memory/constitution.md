@@ -1,14 +1,15 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.1.0 → 1.2.0 (2026-07-10, directrices de alcance de sesion y testing para agentes IA)
-Modified principles: N/A — principios I-VI sin cambios de fondo
-Added sections:
-  - Principio VII (NON-NEGOTIABLE): Alcance de Sesion, Testing Ultra-Limitado y Eficiencia de Tokens
+Version change: 1.2.0 → 1.3.0 (2026-07-15, aprobacion de nueva dependencia frontend)
+Modified principles: V (Gobernanza de Librerias) — se agrega `react-phone-number-input` al stack
+  aprobado, sin cambio de fondo en la regla de gobernanza (sigue exigiendo aprobacion documentada)
+Added sections: N/A (fila nueva en tabla existente del Principio V + listado "Stack completo
+  aprobado > Frontend")
 Removed sections: N/A
 Templates reviewed:
-  - .specify/templates/*: compatibles, sin actualizaciones necesarias (el nuevo principio rige el
-    comportamiento del agente durante la ejecucion, no la estructura de spec/plan/tasks)
+  - .specify/templates/*: compatibles, sin actualizaciones necesarias (adicion de dependencia
+    puntual, no afecta estructura de spec/plan/tasks)
 Deferred TODOs:
   - TODO(HOSTING): Definir entorno de hosting on-premise (servidor, SO, proxy inverso)
   - TODO(SSO_DETAIL): Detallar configuracion SSO si se extiende mas alla de @sywork.net
@@ -82,6 +83,7 @@ Stack aprobado y obligatorio:
 | FSM | `python-transitions` | Implementacion custom de maquinas de estado |
 | ORM | `SQLAlchemy` + `Alembic` | ORM alternativo, migraciones manuales |
 | Tareas async | `Celery` + `Redis` | — |
+| Selector telefono internacional | `react-phone-number-input` (aprobada 2026-07-15, OBS-0016) | Implementacion custom del selector pais+E.164 |
 
 ### VI. AI-Native - Preparacion para Agentes IA
 
@@ -128,6 +130,7 @@ codigo y pruebas.
 - `pnpm` (gestor de paquetes)
 - Vite 6 (build tool / dev server)
 - Axios (cliente HTTP)
+- `react-phone-number-input` (selector de codigo de pais + formato E.164, campo Telefono)
 
 **Backend**
 - Python 3.12 + Flask
@@ -283,4 +286,4 @@ ad-hoc previas. Todo agente IA y todo desarrollador DEBEN leerla antes de tocar 
 4. Propagar cambios a templates en `.specify/templates/`.
 5. Actualizar `Last Amended`.
 
-**Version**: 1.2.0 | **Ratified**: 2026-06-29 | **Last Amended**: 2026-07-10
+**Version**: 1.3.0 | **Ratified**: 2026-06-29 | **Last Amended**: 2026-07-15

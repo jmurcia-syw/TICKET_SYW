@@ -6,8 +6,12 @@ adicionales ni disparo del correo de reseteo/reenvío de contraseña (la contras
 valida en la respuesta JSON del alta, como ya hacía spec 010/007).
 """
 import uuid
+from datetime import date
 
 import pytest
+
+# OBS-0011: la fecha de inicio de un proyecto no puede quedar en un mes anterior al actual.
+_PROJECT_START = date.today().strftime("%Y-%m-01")
 
 
 @pytest.fixture()
@@ -23,7 +27,7 @@ def project_a(client, ticket_client, unique_name):
     resp = client.post("/api/projects", json={
         "client_id": ticket_client["id"],
         "name": f"Proyecto A {unique_name}",
-        "start_date": "2026-01-15",
+        "start_date": _PROJECT_START,
     })
     assert resp.status_code == 201, resp.get_json()
     return resp.get_json()
@@ -34,7 +38,7 @@ def project_b(client, ticket_client, unique_name):
     resp = client.post("/api/projects", json={
         "client_id": ticket_client["id"],
         "name": f"Proyecto B {unique_name}",
-        "start_date": "2026-01-15",
+        "start_date": _PROJECT_START,
     })
     assert resp.status_code == 201, resp.get_json()
     return resp.get_json()
@@ -45,7 +49,7 @@ def project_other_client(client, other_client, unique_name):
     resp = client.post("/api/projects", json={
         "client_id": other_client["id"],
         "name": f"Proyecto Otro Cliente {unique_name}",
-        "start_date": "2026-01-15",
+        "start_date": _PROJECT_START,
     })
     assert resp.status_code == 201, resp.get_json()
     return resp.get_json()

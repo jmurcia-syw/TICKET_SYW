@@ -2,14 +2,18 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Contenido enriquecido (formato, imágenes pegadas y adjuntos) en comentarios y descripción de Ticket/Tarea
+**Active feature**: Accesos y conexiones múltiples del Cliente (VPN/URL por ambiente/Escritorio remoto) en Maestros > Clientes — resuelve OBS-0001/OBS-0008/OBS-0017 del framework UAT
+**Spec**: specs/018-cliente-accesos-conexiones/spec.md
+**Plan**: specs/018-cliente-accesos-conexiones/plan.md
+**Research**: specs/018-cliente-accesos-conexiones/research.md
+**Data model**: specs/018-cliente-accesos-conexiones/data-model.md
+**Contracts**: specs/018-cliente-accesos-conexiones/contracts/
+**Quickstart**: specs/018-cliente-accesos-conexiones/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (implementada, pendiente de validación manual)**: Contenido enriquecido (formato, imágenes pegadas y adjuntos) en comentarios y descripción de Ticket/Tarea
 **Spec**: specs/017-contenido-enriquecido-ticket/spec.md
 **Plan**: specs/017-contenido-enriquecido-ticket/plan.md
-**Research**: specs/017-contenido-enriquecido-ticket/research.md
-**Data model**: specs/017-contenido-enriquecido-ticket/data-model.md
-**Contracts**: specs/017-contenido-enriquecido-ticket/contracts/
-**Quickstart**: specs/017-contenido-enriquecido-ticket/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada)**: Corregir el Cliente de un Usuario/cliente y desambiguar Proyectos homónimos
 **Spec**: specs/016-corregir-cliente-encargado/spec.md

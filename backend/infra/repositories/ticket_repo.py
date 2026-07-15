@@ -1,18 +1,32 @@
 from typing import Optional
 import uuid
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from backend.domain.entities.ticket import Ticket
 from backend.infra.models.ticket_model import TicketModel, StatusTransitionModel, AssignmentModel, ticket_skills_table
 from backend.infra.models.resource_model import SkillModel
 
+# OBS-0028: `priority` es texto (critical/high/medium/low) que NO debe ordenarse
+# alfabéticamente — un `CASE` mapea cada valor a su urgencia real (0 = más urgente).
+_PRIORITY_URGENCY = case(
+    (TicketModel.priority == "critical", 0),
+    (TicketModel.priority == "high", 1),
+    (TicketModel.priority == "medium", 2),
+    (TicketModel.priority == "low", 3),
+    else_=4,
+)
+
 _SORTS = {
-    "created_at": TicketModel.created_at.asc(),
-    "-created_at": TicketModel.created_at.desc(),
-    "priority": TicketModel.priority.asc(),
-    "status": TicketModel.status.asc(),
+    "created_at": (TicketModel.created_at.asc(),),
+    "-created_at": (TicketModel.created_at.desc(),),
+    "priority": (_PRIORITY_URGENCY.asc(),),
+    "-priority": (_PRIORITY_URGENCY.desc(),),
+    "status": (TicketModel.status.asc(),),
+    # OBS-0028: default sugerido — urgencia real de prioridad, luego severidad
+    # (s1..s4 ya ordena correctamente en alfabético), luego más antiguo primero.
+    "urgency": (_PRIORITY_URGENCY.asc(), TicketModel.severity.asc(), TicketModel.created_at.asc()),
 }
 
 
@@ -29,7 +43,7 @@ class TicketRepository:
                        statuses: list[str] | None = None, priority: str | None = None,
                        severity: str | None = None, ticket_type: str | None = None,
                        assignee_id: uuid.UUID | None = None, escalation_level: str | None = None,
-                       sort: str = "-created_at",
+                       sort: str = "urgency",
                        created_by: uuid.UUID | None = None,
                        sla_status: str | None = None,
                        sla_expiring_within_hours: int | None = None) -> tuple[list[Ticket], int]:
@@ -78,8 +92,8 @@ class TicketRepository:
                 remaining > 0,
             )
         total = q.count()
-        order = _SORTS.get(sort, _SORTS["-created_at"])
-        models = q.order_by(order).offset((page - 1) * page_size).limit(page_size).all()
+        order = _SORTS.get(sort, _SORTS["urgency"])
+        models = q.order_by(*order).offset((page - 1) * page_size).limit(page_size).all()
         return [m.to_entity() for m in models], total
 
     def list_active_sla_running(self) -> list[Ticket]:

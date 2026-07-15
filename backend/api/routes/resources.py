@@ -1,3 +1,4 @@
+import re
 from datetime import date
 
 from flask_restx import Namespace, Resource, fields
@@ -189,18 +190,31 @@ def _resource_to_dict(resource) -> dict:
     }
 
 
+_IDENTIFICATION_PATTERN = re.compile(r"^[0-9]{6,15}$")
+_MIN_AGE_YEARS = 18
+
+
 def _parse_profile_fields(data: dict, repo, resource_id=None) -> tuple[dict, tuple[str, int] | None]:
     """Extrae los campos de perfil extendido (FR-031). Devuelve (valores, (mensaje, status) | None)."""
     values: dict = {}
     for f in _PROFILE_TEXT_FIELDS:
         if f in data:
             values[f] = data[f] or None
+    if values.get("identification") and not _IDENTIFICATION_PATTERN.match(values["identification"]):
+        return {}, ("identification debe contener solo dígitos (6 a 15)", 400)
     if "birth_date" in data:
         if data["birth_date"]:
             try:
-                values["birth_date"] = date.fromisoformat(data["birth_date"])
+                birth_date = date.fromisoformat(data["birth_date"])
             except ValueError:
                 return {}, ("birth_date debe ser YYYY-MM-DD", 400)
+            today = date.today()
+            if birth_date > today:
+                return {}, ("birth_date no puede ser una fecha futura", 400)
+            age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+            if age < _MIN_AGE_YEARS:
+                return {}, (f"birth_date debe implicar al menos {_MIN_AGE_YEARS} años de edad", 400)
+            values["birth_date"] = birth_date
         else:
             values["birth_date"] = None
     if "manager_id" in data:

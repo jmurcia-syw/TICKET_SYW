@@ -1,5 +1,10 @@
 """Reglas de SLA por Proyecto y Prioridad (spec 014, Historia 1) — quickstart Validación 1."""
+from datetime import date
+
 import pytest
+
+# OBS-0011: la fecha de inicio de un proyecto no puede quedar en un mes anterior al actual.
+_PROJECT_START = date.today().strftime("%Y-%m-01")
 
 
 @pytest.fixture()
@@ -7,7 +12,7 @@ def sla_project(client, ticket_client, unique_name):
     response = client.post("/api/projects", json={
         "client_id": ticket_client["id"],
         "name": f"Proyecto SLA {unique_name}",
-        "start_date": "2026-01-01",
+        "start_date": _PROJECT_START,
     })
     assert response.status_code == 201, response.get_json()
     return response.get_json()

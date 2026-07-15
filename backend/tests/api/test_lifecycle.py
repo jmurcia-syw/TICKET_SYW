@@ -21,8 +21,53 @@ def _comment(client, ticket_id, comment_type, body="avance", headers=None):
 
 
 def _resolution_type_id(client):
+    """OBS-0026: el cierre ahora exige tiempo registrado salvo tipos `allow_zero_time` — estos
+    tests de ciclo de vida no registran `work_sessions` (no es su objeto de prueba), así que
+    usan el único tipo semilla marcado `allow_zero_time=true` ("No es incidente")."""
     items = client.get("/api/catalogs/resolution-types").get_json()["items"]
-    return items[0]["id"]
+    return next(i for i in items if i["allow_zero_time"])["id"]
+
+
+def _advance_to_close_eligible(client, tid):
+    """Recorre el FSM hasta RESUELTO + aceptación de usuario (close_eligible=True)."""
+    _comment(client, tid, "confirmacion_atencion", "Contacté al usuario")
+    _comment(client, tid, "termina_analisis", "Diagnóstico")
+    _comment(client, tid, "solicitud_cierre", "Se aplicó la solución")
+    client.post(f"/api/tickets/{tid}/resolution", json={"accepted": True})
+
+
+def _requires_time_resolution_type_id(client):
+    items = client.get("/api/catalogs/resolution-types").get_json()["items"]
+    return next(i for i in items if not i["allow_zero_time"])["id"]
+
+
+def test_close_blocked_without_registered_time(client, assigned_ticket):
+    """OBS-0026: cerrar con un tipo de resolución que sí requiere tiempo, sin ninguna
+    work_session registrada, se rechaza con 409 no_time_registered."""
+    tid = assigned_ticket["id"]
+    _advance_to_close_eligible(client, tid)
+    r = client.post(f"/api/tickets/{tid}/close", json={
+        "resolution_type_id": _requires_time_resolution_type_id(client), "body": "fix",
+    })
+    assert r.status_code == 409
+    assert r.get_json()["error"] == "no_time_registered"
+
+
+def test_close_allowed_with_registered_time(client, assigned_ticket, resolver_auth):
+    """OBS-0026: con al menos una work_session registrada, el mismo tipo de resolución sí
+    permite cerrar."""
+    tid = assigned_ticket["id"]
+    from datetime import date
+    ws = client.post("/api/work-sessions", json={
+        "ticket_id": tid, "work_date": date.today().isoformat(), "duration_minutes": 30,
+    }, headers=resolver_auth)
+    assert ws.status_code == 201, ws.get_json()
+    _advance_to_close_eligible(client, tid)
+    r = client.post(f"/api/tickets/{tid}/close", json={
+        "resolution_type_id": _requires_time_resolution_type_id(client),
+        "body": "Se aplicó el parche",
+    })
+    assert r.status_code == 200, r.get_json()
 
 
 def test_happy_path_full_lifecycle(client, assigned_ticket):

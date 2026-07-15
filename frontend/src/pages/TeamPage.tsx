@@ -11,6 +11,8 @@ import type { ColumnsType } from 'antd/es/table'
 import { resourceService, skillService } from '../services/resourceService'
 import { userService } from '../services/userService'
 import { roleService } from '../services/roleService'
+import { catalogService } from '../services/catalogService'
+import type { CatalogItem } from '../types/catalog'
 import type { Resource, ResourceFormData, Skill, ResourceCompensation, CompensationFormData } from '../types/resource'
 import type { UserAdmin } from '../types/user'
 import type { RoleDetail } from '../types/role'
@@ -20,6 +22,28 @@ import StatusTag from '../components/common/StatusTag'
 import PageToolbar from '../components/common/PageToolbar'
 import { clientColumnFilter, clientTextColumnFilter } from '../components/common/columnFilters'
 import { palette, avatarColor, initials, roleColor } from '../theme'
+import { COUNTRIES } from '../data/countries'
+import { format, subYears } from 'date-fns'
+import { mapApiErrorToFormFields, type FieldErrorRule } from '../services/formErrorMapper'
+
+const EDUCATION_LEVEL_OPTIONS = [
+  'Bachiller', 'Técnico', 'Tecnólogo', 'Pregrado', 'Especialización', 'Maestría', 'Doctorado', 'Otro',
+].map(v => ({ value: v, label: v }))
+
+// OBS-0018: asocia códigos de error de la API a los campos del perfil de Recurso.
+const RESOURCE_ERROR_RULES: FieldErrorRule[] = [
+  { code: 'validation_error', field: 'identification', messageIncludes: ['identification'] },
+  { code: 'validation_error', field: 'birth_date', messageIncludes: ['birth_date'] },
+  { code: 'email_duplicate', field: 'email' },
+]
+// OBS-0018: asocia códigos de error de la API a los campos de la cuenta de acceso (Usuario).
+const USER_ERROR_RULES: FieldErrorRule[] = [
+  { code: 'email_duplicate', field: 'email' },
+  { code: 'invalid_email_domain', field: 'email' },
+  { code: 'username_duplicate', field: 'username' },
+  { code: 'validation_error', field: 'role_id', messageIncludes: ['role_id'] },
+]
+const MAX_BIRTH_DATE = format(subYears(new Date(), 18), 'yyyy-MM-dd')
 
 const NO_ACCESS = '__sin_acceso__'
 const ACTIVE_OPTIONS = [{ text: 'Activo', value: 'true' }, { text: 'Inactivo', value: 'false' }]
@@ -61,6 +85,7 @@ export default function TeamPage() {
   const [users, setUsers] = useState<UserAdmin[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
   const [roles, setRoles] = useState<RoleDetail[]>([])
+  const [teamOptions, setTeamOptions] = useState<CatalogItem[]>([])
   const [loading, setLoading] = useState(false)
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -113,6 +138,10 @@ export default function TeamPage() {
       .catch(() => message.error('No se pudo cargar el catálogo de skills'))
   }, [])
   useEffect(() => {
+    catalogService.list('teams').then(r => setTeamOptions(r.items))
+      .catch(() => message.error('No se pudo cargar el catálogo de equipos'))
+  }, [])
+  useEffect(() => {
     roleService.list({ page_size: 100, active: true }).then(r => setRoles(r.items))
       .catch(() => message.error('No se pudo cargar la lista de roles'))
   }, [])
@@ -135,6 +164,7 @@ export default function TeamPage() {
         setProvisionalPassword(provisional_password)
       }
     } catch (err: unknown) {
+      if (mapApiErrorToFormFields(err, createForm, USER_ERROR_RULES)) return
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al crear la cuenta de acceso'
       message.error(msg)
       return
@@ -145,6 +175,7 @@ export default function TeamPage() {
       message.success(createdUserId ? 'Integrante creado con cuenta de acceso' : 'Recurso creado (sin cuenta de acceso)')
       load()
     } catch (err: unknown) {
+      if (!createdUserId && mapApiErrorToFormFields(err, createForm, RESOURCE_ERROR_RULES)) return
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al crear el perfil de recurso'
       if (createdUserId) {
         message.error(`La cuenta de acceso se creó, pero el perfil de recurso falló: ${msg}. Contacta a soporte.`)
@@ -172,6 +203,7 @@ export default function TeamPage() {
       setEditingResource(null)
       load()
     } catch (err: unknown) {
+      if (mapApiErrorToFormFields(err, editForm, RESOURCE_ERROR_RULES)) return
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al guardar'
       message.error(msg)
     }
@@ -345,9 +377,27 @@ export default function TeamPage() {
         label: 'Perfil extendido (SDD V3)',
         children: (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', columnGap: 16 }}>
-            <Form.Item name="identification" label="Identificación"><Input style={{ width: '100%' }} /></Form.Item>
-            <Form.Item name="nationality" label="Nacionalidad"><Input style={{ width: '100%' }} /></Form.Item>
-            <Form.Item name="birth_date" label="Fecha de nacimiento"><Input type="date" style={{ width: '100%' }} /></Form.Item>
+            <Form.Item name="identification" label="Identificación" rules={[
+              { pattern: /^[0-9]{6,15}$/, message: 'Solo dígitos (6 a 15)' },
+            ]}>
+              <Input style={{ width: '100%' }} maxLength={15} />
+            </Form.Item>
+            <Form.Item name="nationality" label="Nacionalidad">
+              <Select
+                allowClear showSearch optionFilterProp="label" style={{ width: '100%' }}
+                options={COUNTRIES.map(c => ({ value: c.code, label: c.name }))}
+              />
+            </Form.Item>
+            <Form.Item name="birth_date" label="Fecha de nacimiento" rules={[
+              {
+                validator: (_, value) =>
+                  !value || value <= MAX_BIRTH_DATE
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('Debe implicar al menos 18 años de edad')),
+              },
+            ]}>
+              <Input type="date" max={MAX_BIRTH_DATE} style={{ width: '100%' }} />
+            </Form.Item>
 
             <Form.Item name="marital_status" label="Estado civil">
               <Select allowClear style={{ width: '100%' }} options={['Soltero/a', 'Casado/a', 'Unión libre', 'Divorciado/a', 'Viudo/a'].map(v => ({ value: v, label: v }))} />
@@ -357,7 +407,9 @@ export default function TeamPage() {
               <Select allowClear style={{ width: '100%' }} options={['Colombia', 'Argentina', 'Ecuador', 'Otro'].map(v => ({ value: v, label: v }))} />
             </Form.Item>
 
-            <Form.Item name="education_level" label="Nivel de estudios"><Input style={{ width: '100%' }} /></Form.Item>
+            <Form.Item name="education_level" label="Nivel de estudios">
+              <Select allowClear style={{ width: '100%' }} options={EDUCATION_LEVEL_OPTIONS} />
+            </Form.Item>
             <Form.Item name="specialty" label="Especialidad">
               <Select allowClear style={{ width: '100%' }} options={['Desarrollador', 'Funcional', 'Infraestructura', 'Otro'].map(v => ({ value: v, label: v }))} />
             </Form.Item>
@@ -365,7 +417,12 @@ export default function TeamPage() {
               <Select allowClear style={{ width: '100%' }} options={['Junior', 'Staff', 'Senior'].map(v => ({ value: v, label: v }))} />
             </Form.Item>
 
-            <Form.Item name="team" label="Equipo"><Input style={{ width: '100%' }} /></Form.Item>
+            <Form.Item name="team" label="Equipo">
+              <Select
+                allowClear showSearch optionFilterProp="label" style={{ width: '100%' }}
+                options={teamOptions.filter(t => t.active).map(t => ({ value: t.name, label: t.name }))}
+              />
+            </Form.Item>
             <Form.Item name="manager_id" label="Jefe directo">
               <Select
                 allowClear showSearch optionFilterProp="label" placeholder="Seleccionar jefe" style={{ width: '100%' }}

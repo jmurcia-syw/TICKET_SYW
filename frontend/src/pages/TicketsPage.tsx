@@ -7,6 +7,7 @@ import {
 import type { ColumnsType, TableProps } from 'antd/es/table'
 import type { UploadFile } from 'antd'
 import { useNavigate } from 'react-router-dom'
+import SortIndicator from '../components/tickets/SortIndicator'
 import { ticketService } from '../services/ticketService'
 import { clientService } from '../services/clientService'
 import { projectService } from '../services/projectService'
@@ -36,6 +37,22 @@ import { textColumnFilter, serverColumnFilter } from '../components/common/colum
 import { useAuthStore } from '../store/authStore'
 import type { TicketFilterCriteria } from '../store/savedFiltersStore'
 import RichTextEditor, { isRichTextEmpty } from '../components/tickets/RichTextEditor'
+import { mapApiErrorToFormFields, type FieldErrorRule } from '../services/formErrorMapper'
+
+// OBS-0018: asocia códigos de error de la API a los campos del formulario de creación de Ticket/Tarea.
+const TICKET_ERROR_RULES: FieldErrorRule[] = [
+  { code: 'validation_error', field: 'client_id', messageIncludes: ['client_id'] },
+  { code: 'validation_error', field: 'project_id', messageIncludes: ['proyecto no pertenece'] },
+  { code: 'client_inactive', field: 'client_id' },
+  { code: 'project_inactive', field: 'project_id' },
+  { code: 'project_not_assigned', field: 'project_id' },
+  { code: 'catalog_inactive', field: 'tool_id', messageIncludes: ['herramienta'] },
+  { code: 'catalog_inactive', field: 'process_id', messageIncludes: ['proceso'] },
+  { code: 'catalog_inactive', field: 'record_type_id', messageIncludes: ['tipo de registro'] },
+  { code: 'client_contact_mismatch', field: 'client_contact_id' },
+  { code: 'contact_not_in_project', field: 'client_contact_id' },
+  { code: 'list_mismatch', field: 'list_id' },
+]
 
 const IN_PROGRESS_STATUSES: TicketStatus[] = ['contacto', 'en_analisis', 'en_ejecucion', 'en_pruebas']
 
@@ -211,6 +228,7 @@ export default function TicketsPage() {
       load()
       loadStats()
     } catch (err: unknown) {
+      if (mapApiErrorToFormFields(err, form, TICKET_ERROR_RULES)) return
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al crear el ticket'
       message.error(msg)
     }
@@ -371,6 +389,7 @@ export default function TicketsPage() {
         )}
       />
 
+      <div style={{ marginBottom: 8 }}><SortIndicator /></div>
       <Table rowKey="id" columns={columns} dataSource={tickets} loading={loading}
         pagination={{ current: page, total, pageSize: 20 }} onChange={handleTableChange} />
 
