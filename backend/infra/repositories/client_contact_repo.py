@@ -48,3 +48,10 @@ class ClientContactRepository:
         self._db.commit()
         self._db.refresh(model)
         return model.to_entity()
+
+    def update_client_id(self, contact_id: uuid.UUID, client_id: uuid.UUID) -> None:
+        model = self._db.get(ClientContactModel, contact_id)
+        if not model:
+            return
+        model.client_id = client_id
+        self._db.commit()

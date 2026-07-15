@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Form, Input, Modal, Row, Col, Segmented, Select, Space, Table, Tooltip, message } from 'antd'
+import { Button, Form, Input, Modal, Row, Col, Segmented, Select, Space, Table, Tooltip, Upload, message } from 'antd'
 import {
   PlusOutlined, EyeOutlined, UserSwitchOutlined, InboxOutlined, ThunderboltOutlined,
-  ClockCircleOutlined, CheckCircleOutlined, FieldTimeOutlined,
+  ClockCircleOutlined, CheckCircleOutlined, FieldTimeOutlined, UploadOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType, TableProps } from 'antd/es/table'
+import type { UploadFile } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
 import { clientService } from '../services/clientService'
@@ -34,6 +35,7 @@ import SavedFiltersBar from '../components/tickets/SavedFiltersBar'
 import { textColumnFilter, serverColumnFilter } from '../components/common/columnFilters'
 import { useAuthStore } from '../store/authStore'
 import type { TicketFilterCriteria } from '../store/savedFiltersStore'
+import RichTextEditor, { isRichTextEmpty } from '../components/tickets/RichTextEditor'
 
 const IN_PROGRESS_STATUSES: TicketStatus[] = ['contacto', 'en_analisis', 'en_ejecucion', 'en_pruebas']
 
@@ -83,6 +85,9 @@ export default function TicketsPage() {
   const [recordTypes, setRecordTypes] = useState<CatalogItem[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [taskLists, setTaskLists] = useState<TaskList[]>([])
+  const [pendingDescriptionImages, setPendingDescriptionImages] = useState<File[]>([])
+  const [descriptionAttachments, setDescriptionAttachments] = useState<UploadFile[]>([])
+  const [descriptionKey, setDescriptionKey] = useState(0)
   const [form] = Form.useForm<TicketFormData>()
   const selectedClientId = Form.useWatch('client_id', form)
   const selectedProjectId = Form.useWatch('project_id', form)
@@ -194,13 +199,15 @@ export default function TicketsPage() {
   const handleCreate = async (values: TicketFormData) => {
     try {
       const { skill_ids, ...ticketFields } = values
-      const created = await ticketService.create(ticketFields)
+      const rawAttachments = descriptionAttachments.map(f => f.originFileObj).filter((f): f is NonNullable<typeof f> => !!f)
+      const created = await ticketService.create(ticketFields, pendingDescriptionImages, rawAttachments)
       if (skill_ids?.length) {
         await ticketService.updateTicketSkills(created.id, skill_ids)
       }
       message.success(`Ticket ${created.ticket_number} creado`)
       setFormOpen(false)
       form.resetFields()
+      setPendingDescriptionImages([]); setDescriptionAttachments([]); setDescriptionKey(k => k + 1)
       load()
       loadStats()
     } catch (err: unknown) {
@@ -354,6 +361,7 @@ export default function TicketsPage() {
         action={canCreate && (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => {
             form.resetFields()
+            setPendingDescriptionImages([]); setDescriptionAttachments([]); setDescriptionKey(k => k + 1)
             const ticketType = recordTypes.find(rt => rt.name === 'Ticket') ?? recordTypes[0]
             if (!isEncargado && ticketType) form.setFieldValue('record_type_id', ticketType.id)
             setFormOpen(true)
@@ -373,8 +381,17 @@ export default function TicketsPage() {
           <Form.Item name="title" label="Título" rules={[{ required: true, message: 'El título es requerido' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="description" label="Descripción" rules={[{ required: true, message: 'La descripción es requerida' }]}>
-            <Input.TextArea rows={3} />
+          <Form.Item name="description" label="Descripción"
+            rules={[{ required: true, message: 'La descripción es requerida' },
+              { validator: (_r, v) => (isRichTextEmpty(v || '') ? Promise.reject(new Error('La descripción es requerida')) : Promise.resolve()) }]}>
+            <RichTextEditor key={descriptionKey} placeholder="Descripción" allowImages
+              onPendingImage={file => setPendingDescriptionImages(prev => [...prev, file])} />
+          </Form.Item>
+          <Form.Item label="Adjuntos de la descripción">
+            <Upload multiple beforeUpload={() => false} fileList={descriptionAttachments}
+              onChange={({ fileList }) => setDescriptionAttachments(fileList)}>
+              <Button icon={<UploadOutlined />}>Adjuntar (máx 10 MB c/u)</Button>
+            </Upload>
           </Form.Item>
           {isEncargado && (
             <Form.Item name="project_id" label="Proyecto (opcional)">

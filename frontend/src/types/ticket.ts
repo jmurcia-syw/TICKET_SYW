@@ -146,6 +146,9 @@ export interface TicketSkillRef {
 
 export interface TicketDetail extends TicketListItem {
   description: string
+  /** Adjuntos de la descripción (spec 017) — independientes de los adjuntos de cada
+   * comentario. Incluye tanto imágenes pegadas como archivos adjuntados manualmente. */
+  description_attachments: TicketAttachment[]
   tool_id: string | null
   process_id: string | null
   estimated_resolution_minutes: number | null

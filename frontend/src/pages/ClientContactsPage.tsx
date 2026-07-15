@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Alert, Button, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
-import { PlusOutlined, CopyOutlined } from '@ant-design/icons'
+import { PlusOutlined, CopyOutlined, ProjectOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { clientContactService } from '../services/clientContactService'
 import { clientService } from '../services/clientService'
@@ -22,6 +22,10 @@ export default function ClientContactsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [form] = Form.useForm<ClientContactCreateRequest>()
   const [provisionalPassword, setProvisionalPassword] = useState<string | null>(null)
+
+  const [managingContact, setManagingContact] = useState<ClientContact | null>(null)
+  const [projectToAdd, setProjectToAdd] = useState<string | undefined>()
+  const [managingBusy, setManagingBusy] = useState(false)
 
   const [emailFilter, setEmailFilter] = useState('')
   const [usernameFilter, setUsernameFilter] = useState('')
@@ -69,6 +73,38 @@ export default function ClientContactsPage() {
     message.success('Contraseña copiada')
   }
 
+  const handleAddProject = async () => {
+    if (!managingContact || !projectToAdd) return
+    setManagingBusy(true)
+    try {
+      await clientContactService.addProject(managingContact.id, projectToAdd)
+      setProjectToAdd(undefined)
+      const res = await clientContactService.list({ page_size: 200, email: managingContact.email })
+      const updated = res.items.find(c => c.id === managingContact.id)
+      if (updated) setManagingContact(updated)
+      load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'No se pudo agregar el proyecto'
+      message.error(msg)
+    } finally {
+      setManagingBusy(false)
+    }
+  }
+
+  const handleRemoveProject = async (projectId: string) => {
+    if (!managingContact) return
+    setManagingBusy(true)
+    try {
+      await clientContactService.removeProject(managingContact.id, projectId)
+      setManagingContact({ ...managingContact, projects: managingContact.projects.filter(p => p.id !== projectId) })
+      load()
+    } catch {
+      message.error('No se pudo quitar el proyecto')
+    } finally {
+      setManagingBusy(false)
+    }
+  }
+
   const columns: ColumnsType<ClientContact> = [
     { title: 'Email', dataIndex: 'email' },
     { title: 'Usuario', dataIndex: 'username' },
@@ -80,6 +116,14 @@ export default function ClientContactsPage() {
         : <Space size={4} wrap>{projects.map(p => <Tag key={p.id}>{p.name}</Tag>)}</Space>,
     },
     { title: 'Alta', dataIndex: 'created_at', render: (v: string) => new Date(v).toLocaleDateString('es-CO') },
+    {
+      title: 'Acciones',
+      render: (_: unknown, contact: ClientContact) => (
+        <Button size="small" icon={<ProjectOutlined />} onClick={() => setManagingContact(contact)}>
+          Gestionar proyectos
+        </Button>
+      ),
+    },
   ]
 
   return (
@@ -119,10 +163,10 @@ export default function ClientContactsPage() {
           <Form.Item name="username" label="Nombre de usuario" rules={[{ required: true, message: 'El username es requerido' }]}>
             <Input placeholder="nombre.apellido" />
           </Form.Item>
-          <Form.Item name="project_id" label="Proyecto"
-            extra="El Cliente se deriva del Proyecto y la persona queda en su personal automáticamente (spec 010)."
-            rules={[{ required: true, message: 'Selecciona el proyecto al que queda vinculado' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Proyecto"
+          <Form.Item name="project_ids" label="Proyectos"
+            extra="El Cliente se deriva de los proyectos (deben ser todos del mismo Cliente) y la persona queda en su personal automáticamente."
+            rules={[{ required: true, type: 'array', min: 1, message: 'Selecciona al menos un proyecto' }]}>
+            <Select mode="multiple" showSearch optionFilterProp="label" placeholder="Proyectos"
               options={projects.map(p => ({
                 value: p.id,
                 label: p.client_name ? `${p.client_name} — ${p.name}` : p.name,
@@ -144,6 +188,44 @@ export default function ClientContactsPage() {
           <Typography.Text code style={{ fontSize: 16 }}>{provisionalPassword}</Typography.Text>
           <Button size="small" icon={<CopyOutlined />} onClick={handleCopyPassword}>Copiar</Button>
         </Space>
+      </Modal>
+
+      <Modal
+        title={managingContact ? `Proyectos de ${managingContact.username}` : 'Proyectos'}
+        open={!!managingContact}
+        onCancel={() => { setManagingContact(null); setProjectToAdd(undefined) }}
+        footer={<Button onClick={() => { setManagingContact(null); setProjectToAdd(undefined) }}>Cerrar</Button>}
+      >
+        {managingContact && <>
+          <div style={{ marginBottom: 16 }}>
+            {managingContact.projects.length === 0
+              ? <Typography.Text type="secondary">Sin proyectos asignados.</Typography.Text>
+              : <Space size={4} wrap>
+                  {managingContact.projects.map(p => (
+                    <Tag key={p.id} closable onClose={(e) => { e.preventDefault(); handleRemoveProject(p.id) }}>
+                      {p.name}
+                    </Tag>
+                  ))}
+                </Space>}
+          </div>
+          <Space.Compact style={{ width: '100%' }}>
+            <Select
+              style={{ width: '100%' }}
+              showSearch optionFilterProp="label" placeholder="Agregar proyecto"
+              value={projectToAdd} onChange={setProjectToAdd}
+              options={projects
+                .filter(p => (managingContact.projects.length === 0 || p.client_id === managingContact.client_id)
+                  && !managingContact.projects.some(mp => mp.id === p.id))
+                .map(p => ({
+                  value: p.id,
+                  label: p.client_name ? `${p.client_name} — ${p.name}` : p.name,
+                }))}
+            />
+            <Button type="primary" disabled={!projectToAdd} loading={managingBusy} onClick={handleAddProject}>
+              Agregar
+            </Button>
+          </Space.Compact>
+        </>}
       </Modal>
     </div>
   )

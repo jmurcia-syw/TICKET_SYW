@@ -305,7 +305,18 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/src/App.tsx)",
       "Bash(curl -s http://localhost:5173/src/components/tickets/SlaCounter.tsx)",
       "Bash(curl -s http://localhost:5173/src/pages/TicketsPage.tsx)",
-      "Bash(grep -n \"spec \\\\`011\\\\`\\\\|spec \\\\`013\\\\`\\\\|013\\\\`\\)\\\\|011\\\\`\\)\" C:/Users/Usuario/Documents/GitHub/TICKET_SYW/README.md)"
+      "Bash(grep -n \"spec \\\\`011\\\\`\\\\|spec \\\\`013\\\\`\\\\|013\\\\`\\)\\\\|011\\\\`\\)\" C:/Users/Usuario/Documents/GitHub/TICKET_SYW/README.md)",
+      "Bash(echo \"exit: $?\")",
+      "PowerShell(powershell -File .specify/scripts/powershell/setup-plan.ps1 -Json)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\([p for p in d.get\\('paths',{}\\) if 'client-contacts' in p]\\)\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec sywork_frontend pnpm add --store-dir /root/.local/share/pnpm/store/v10 @tiptap/react @tiptap/pm @tiptap/starter-kit @tiptap/extension-underline @tiptap/extension-link @tiptap/extension-image dompurify)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec sywork_frontend pnpm add --store-dir /root/.local/share/pnpm/store/v10 -D @types/dompurify)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec sywork_frontend pnpm remove --store-dir /root/.local/share/pnpm/store/v10 @types/dompurify)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec sywork_frontend pnpm remove --store-dir /root/.local/share/pnpm/store/v10 @tiptap/extension-underline @tiptap/extension-link)",
+      "Bash(pwsh -NoProfile -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks)",
+      "Bash(powershell -NoProfile -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks)",
+      "Bash(xargs -I{} echo {})",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec sywork_frontend grep -n \"DEBUG\" /app/src/components/tickets/RichTextViewer.tsx)"
     ]
   }
 }

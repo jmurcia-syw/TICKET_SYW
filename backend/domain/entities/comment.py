@@ -40,12 +40,18 @@ COMMENT_TYPE_LABELS = {
 
 @dataclass
 class Attachment:
+    """Adjunto de un Comentario o de la descripción de un Ticket/Tarea (spec 002/017).
+
+    Pertenece exactamente a uno de los dos (comment_id o ticket_id, nunca ambos ni ninguno) —
+    la restricción vive en la base de datos (ck_attachment_exactly_one_parent).
+    """
     id: uuid.UUID
-    comment_id: uuid.UUID
     filename: str
     content_type: str
     size_bytes: int
     storage_path: str
+    comment_id: Optional[uuid.UUID] = None
+    ticket_id: Optional[uuid.UUID] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
 
 

@@ -3,6 +3,7 @@ import { PaperClipOutlined, RobotOutlined } from '@ant-design/icons'
 import type { CommentType, TicketComment } from '../../types/ticket'
 import { ticketService } from '../../services/ticketService'
 import { vivid } from '../../theme'
+import RichTextViewer from './RichTextViewer'
 
 const { Text, Link } = Typography
 
@@ -58,7 +59,7 @@ export default function CommentThread({ ticketId, comments }: CommentThreadProps
                   {' · '}{c.visibility === 'external' ? 'visible al cliente' : 'interno'}
                 </Text>
               </Space>
-              <Text>{c.body}</Text>
+              <RichTextViewer html={c.body} />
               {c.attachments.map(a => (
                 <Link key={a.id} onClick={() => ticketService.downloadAttachment(ticketId, a.id, a.filename)}>
                   <PaperClipOutlined /> {a.filename} ({(a.size_bytes / 1024).toFixed(0)} KB)

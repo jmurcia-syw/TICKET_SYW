@@ -8,6 +8,7 @@ from backend.domain.entities.ticket import (
 from backend.domain.entities.comment import Comment
 from backend.domain.entities.user import USUARIO_CLIENTE_ROLE_NAME
 from backend.domain.errors import DomainError
+from backend.domain.services.rich_content_service import strip_html
 
 
 class TicketBusinessError(DomainError):
@@ -242,7 +243,7 @@ class TicketService:
             raise TicketValidationError(
                 "validation_error",
                 f"Estado inválido. Permitidos: {', '.join(STATUSES)}")
-        if not comment_body or not comment_body.strip():
+        if not comment_body or not strip_html(comment_body).strip():
             raise TicketValidationError(
                 "validation_error",
                 "Debe indicar un comentario que documente el cambio de estado")
