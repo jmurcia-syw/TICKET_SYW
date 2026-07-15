@@ -9,6 +9,7 @@ import type { TicketListItem, TicketStatus, Priority, Severity } from '../types/
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import SavedFiltersBar from '../components/tickets/SavedFiltersBar'
+import SortIndicator from '../components/tickets/SortIndicator'
 import type { TicketFilterCriteria } from '../store/savedFiltersStore'
 import { palette, vivid } from '../theme'
 
@@ -117,6 +118,8 @@ export default function MyTasksPage() {
       <div style={{ marginBottom: 12 }}>
         <SavedFiltersBar currentCriteria={criteria ?? {}} onApply={applySavedFilter} />
       </div>
+
+      <div style={{ marginBottom: 8 }}><SortIndicator /></div>
 
       {groupNames.map(name => (
         <div key={name} style={{ marginBottom: 20 }}>

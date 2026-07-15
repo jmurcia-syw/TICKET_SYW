@@ -25,10 +25,20 @@ class ProcessCatalogModel(_CatalogMixin, Base):
 
 class ResolutionTypeCatalogModel(_CatalogMixin, Base):
     __tablename__ = "catalog_resolution_types"
+    # OBS-0026: tipos que no implican trabajo de resolución (ej. "No es incidente") pueden
+    # cerrar el ticket sin tiempo registrado en work_sessions.
+    allow_zero_time = Column(Boolean, nullable=False, default=False)
+
+    def to_dict(self) -> dict:
+        return {**super().to_dict(), "allow_zero_time": self.allow_zero_time}
 
 
 class RecordTypeCatalogModel(_CatalogMixin, Base):
     __tablename__ = "catalog_record_types"
+
+
+class TeamCatalogModel(_CatalogMixin, Base):
+    __tablename__ = "catalog_teams"
 
 
 CATALOG_MODELS = {
@@ -36,9 +46,12 @@ CATALOG_MODELS = {
     "processes": ProcessCatalogModel,
     "resolution-types": ResolutionTypeCatalogModel,
     "record-types": RecordTypeCatalogModel,
+    "teams": TeamCatalogModel,
 }
 
-# columna de tickets que referencia cada catálogo (para el bloqueo por uso)
+# columna de tickets que referencia cada catálogo (para el bloqueo por uso). "teams" no aplica —
+# el campo "Equipo" vive en `resources.team` (texto libre validado contra el catálogo, sin FK),
+# no en tickets — se omite intencionalmente de este mapeo (OBS-0024).
 CATALOG_TICKET_COLUMN = {
     "tools": "tool_id",
     "processes": "process_id",

@@ -25,6 +25,7 @@ export default function ProjectListsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [newListName, setNewListName] = useState('')
   const [saving, setSaving] = useState(false)
+  const [nameError, setNameError] = useState<string | undefined>()
 
   const loadLists = useCallback(async () => {
     if (!projectId) return
@@ -60,6 +61,7 @@ export default function ProjectListsPage() {
       return
     }
     setSaving(true)
+    setNameError(undefined)
     try {
       const created = await taskListService.create(projectId, newListName.trim())
       message.success('Lista creada')
@@ -68,8 +70,16 @@ export default function ProjectListsPage() {
       setSelectedListId(created.id)
       loadLists()
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'No se pudo crear la Lista'
-      message.error(msg)
+      const data = (err as { response?: { data?: { message?: string; code?: string; error?: string } } }).response?.data
+      const msg = data?.message ?? 'No se pudo crear la Lista'
+      // OBS-0018: name_duplicate/validation_error se asocian al único campo del modal (inline),
+      // en vez de dejarlos solo en el toast.
+      if (data?.code === 'name_duplicate' || data?.error === 'name_duplicate'
+          || data?.code === 'validation_error' || data?.error === 'validation_error') {
+        setNameError(msg)
+      } else {
+        message.error(msg)
+      }
     } finally {
       setSaving(false)
     }
@@ -153,10 +163,13 @@ export default function ProjectListsPage() {
         </div>
       </div>
 
-      <Modal title="Nueva Lista" open={createOpen} onCancel={() => setCreateOpen(false)}
+      <Modal title="Nueva Lista" open={createOpen}
+        onCancel={() => { setCreateOpen(false); setNameError(undefined) }}
         confirmLoading={saving} onOk={createList} okText="Crear">
         <Input placeholder="p. ej. F1: Definiciones y Alistamiento" value={newListName}
-          onChange={e => setNewListName(e.target.value)} autoFocus />
+          onChange={e => { setNewListName(e.target.value); setNameError(undefined) }}
+          status={nameError ? 'error' : undefined} autoFocus />
+        {nameError && <div style={{ color: palette.red600, fontSize: 12, marginTop: 4 }}>{nameError}</div>}
       </Modal>
     </div>
   )

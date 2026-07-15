@@ -1,5 +1,6 @@
 """spec 010, US3 — Personal del Proyecto y subgrupos "Equipo" (estilo Teamwork)."""
 import uuid
+from datetime import date
 
 import pytest
 
@@ -8,6 +9,9 @@ from backend.infra.database import get_db
 from backend.infra.repositories.role_repo import RoleRepository
 from backend.infra.repositories.user_repo import UserRepository
 
+# OBS-0011: la fecha de inicio de un proyecto no puede quedar en un mes anterior al actual.
+_PROJECT_START = date.today().strftime("%Y-%m-01")
+
 
 @pytest.fixture()
 def project(client, ticket_client, unique_name):
@@ -15,7 +19,7 @@ def project(client, ticket_client, unique_name):
     resp = client.post("/api/projects", json={
         "client_id": ticket_client["id"],
         "name": f"Proyecto Personal {unique_name}",
-        "start_date": "2026-01-15",
+        "start_date": _PROJECT_START,
     })
     assert resp.status_code == 201, resp.get_json()
     return resp.get_json()
@@ -26,7 +30,7 @@ def other_project(client, ticket_client, unique_name):
     resp = client.post("/api/projects", json={
         "client_id": ticket_client["id"],
         "name": f"Proyecto Ajeno {unique_name}",
-        "start_date": "2026-01-15",
+        "start_date": _PROJECT_START,
     })
     assert resp.status_code == 201, resp.get_json()
     return resp.get_json()

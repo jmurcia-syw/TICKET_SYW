@@ -17,6 +17,13 @@ class TaskListRepository:
         model = self._db.get(TaskListModel, task_list_id)
         return model.to_entity() if model else None
 
+    def get_by_project_and_name(self, project_id: uuid.UUID, name: str) -> Optional[TaskList]:
+        """OBS-0010: para rechazar nombres de Lista duplicados dentro del mismo Proyecto."""
+        model = (self._db.query(TaskListModel)
+                  .filter(TaskListModel.project_id == project_id, TaskListModel.name == name)
+                  .first())
+        return model.to_entity() if model else None
+
     def list_by_project(self, project_id: uuid.UUID) -> list[dict]:
         """Listas de un Proyecto ordenadas por posición, con `task_count` (Tareas de Nivel 4
         asociadas — una Subtarea no cuenta aparte, ya cuenta dentro de su Tarea padre)."""

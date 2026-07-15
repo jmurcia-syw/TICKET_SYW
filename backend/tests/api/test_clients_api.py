@@ -19,6 +19,33 @@ def test_get_and_patch_client(client, unique_name):
     assert patched.get_json()["notes"] == "updated via test"
 
 
+def test_create_client_name_only_symbols_rejected(client):
+    """OBS-0014: nombre sin ningún alfanumérico (solo símbolos/emojis) es rechazado."""
+    resp = client.post("/api/clients", json={"name": "!@#$%^&*"})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "validation_error"
+
+
+def test_create_client_name_too_long_rejected(client):
+    """OBS-0014: nombre de más de 120 caracteres es rechazado."""
+    resp = client.post("/api/clients", json={"name": "A" * 121})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "validation_error"
+
+
+def test_create_client_invalid_phone_rejected(client, unique_name):
+    """OBS-0007/OBS-0016: contact_phone debe ser E.164; letras o formato libre se rechazan."""
+    resp = client.post("/api/clients", json={"name": f"Client-{unique_name}", "contact_phone": "abc123"})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "validation_error"
+
+
+def test_create_client_valid_e164_phone_accepted(client, unique_name):
+    resp = client.post("/api/clients", json={"name": f"Client-{unique_name}", "contact_phone": "+573001234567"})
+    assert resp.status_code == 201
+    assert resp.get_json()["contact_phone"] == "+573001234567"
+
+
 def test_duplicate_client_name_returns_409(client, unique_name):
     name = f"Client-{unique_name}"
     client.post("/api/clients", json={"name": name})

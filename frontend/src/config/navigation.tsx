@@ -24,6 +24,7 @@ export const maestrosNavItems: NavLeaf[] = [
   { key: '/roles', icon: <SafetyCertificateOutlined />, label: 'Roles y Permisos', module: 'roles' },
   { key: '/client-contacts', icon: <UserOutlined />, label: 'Usuarios/cliente', module: 'client_contacts', action: 'manage' },
   { key: '/sla-rules', icon: <FieldTimeOutlined />, label: 'SLA', module: 'sla_rules', action: 'manage' },
+  { key: '/catalogs', icon: <TagsOutlined />, label: 'Catálogos', module: 'catalogs' },
 ]
 
 /** Ítems de la Fase 1 — Tickets (van al nivel raíz del menú, antes de Maestros). */
@@ -32,7 +33,6 @@ export const ticketsNavItems: NavLeaf[] = [
   { key: '/my-tasks', icon: <UnorderedListOutlined />, label: 'Mis Tareas', module: 'tickets', action: ['view', 'view_own'] },
   { key: '/kanban', icon: <AppstoreOutlined />, label: 'Kanban', module: 'tickets' },
   { key: '/assignment-panel', icon: <DashboardOutlined />, label: 'Panel de Asignación', module: 'assignment_panel' },
-  { key: '/catalogs', icon: <TagsOutlined />, label: 'Catálogos', module: 'catalogs' },
 ]
 
 /** Ítems de la Fase 2 — Registro de tiempos (van junto a los de Tickets). */

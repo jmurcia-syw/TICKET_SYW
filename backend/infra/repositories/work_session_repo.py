@@ -120,6 +120,12 @@ class WorkSessionRepository:
             q = q.filter(WorkSessionModel.id != exclude_id)
         return int(q.scalar() or 0)
 
+    def sum_minutes_for_ticket(self, ticket_id: uuid.UUID) -> int:
+        """OBS-0026: tiempo total registrado en un ticket, para validar el cierre."""
+        q = (self._db.query(func.coalesce(func.sum(WorkSessionModel.duration_minutes), 0))
+             .filter(WorkSessionModel.ticket_id == ticket_id, WorkSessionModel.deleted_at.is_(None)))
+        return int(q.scalar() or 0)
+
     def aggregate_by_resource_and_day(self, resource_id: uuid.UUID | None, date_from: date,
                                       date_to: date) -> list[dict]:
         q = (self._db.query(WorkSessionModel.resource_id, WorkSessionModel.work_date,

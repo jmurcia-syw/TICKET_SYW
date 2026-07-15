@@ -1,5 +1,7 @@
 """spec 009, US2 — PATCH /api/tickets/{id}/status (transición libre + comentario obligatorio),
 reemplaza POST /{id}/task-transition (spec 008, retirado)."""
+from datetime import date
+
 import pytest
 
 
@@ -21,9 +23,24 @@ def _make_task(client, ticket_client, tarea_record_type_id, **overrides):
     return resp.get_json()
 
 
-def test_status_change_skips_intermediate_states(client, ticket_client, tarea_record_type_id):
-    created = _make_task(client, ticket_client, tarea_record_type_id)
+def _register_time(client, ticket_id, headers=None, minutes=30):
+    """OBS-0026: cerrar una Tarea (transición a 'cerrado') ahora exige tiempo registrado."""
+    resp = client.post("/api/work-sessions", json={
+        "ticket_id": ticket_id, "work_date": date.today().isoformat(), "duration_minutes": minutes,
+    }, headers=headers)
+    assert resp.status_code == 201, resp.get_json()
+
+
+def test_status_change_skips_intermediate_states(
+        client, ticket_client, tarea_record_type_id, resolver_auth, ticket_resource):
+    # OBS-0026: creada por el resolutor para autoasignarse (spec 009 decisión 7) y así poder
+    # registrar el tiempo que el nuevo guardado de cierre exige.
+    created = client.post("/api/tickets", json={
+        "title": "Documentos de diseño", "description": "Descripción",
+        "client_id": ticket_client["id"], "record_type_id": tarea_record_type_id,
+    }, headers=resolver_auth).get_json()
     assert created["status"] == "nuevo"
+    _register_time(client, created["id"], headers=resolver_auth)
 
     resp = client.patch(f"/api/tickets/{created['id']}/status",
                         json={"status": "cerrado", "comment": "Se completó directamente"})
@@ -35,8 +52,22 @@ def test_status_change_skips_intermediate_states(client, ticket_client, tarea_re
     assert transitions[-1]["to_status"] == "cerrado"
 
 
-def test_status_change_allows_backwards_transition(client, ticket_client, tarea_record_type_id):
+def test_status_change_blocked_without_registered_time(client, ticket_client, tarea_record_type_id):
+    """OBS-0026: cerrar una Tarea (transición a 'cerrado') sin tiempo registrado se rechaza."""
     created = _make_task(client, ticket_client, tarea_record_type_id)
+    resp = client.patch(f"/api/tickets/{created['id']}/status",
+                        json={"status": "cerrado", "comment": "Intento sin tiempo"})
+    assert resp.status_code == 409
+    assert resp.get_json()["error"] == "no_time_registered"
+
+
+def test_status_change_allows_backwards_transition(
+        client, ticket_client, tarea_record_type_id, resolver_auth, ticket_resource):
+    created = client.post("/api/tickets", json={
+        "title": "Documentos de diseño", "description": "Descripción",
+        "client_id": ticket_client["id"], "record_type_id": tarea_record_type_id,
+    }, headers=resolver_auth).get_json()
+    _register_time(client, created["id"], headers=resolver_auth)
     client.patch(f"/api/tickets/{created['id']}/status",
                 json={"status": "cerrado", "comment": "Cierre inicial"})
     resp = client.patch(f"/api/tickets/{created['id']}/status",
@@ -60,7 +91,7 @@ def test_status_change_rejects_unknown_status(client, ticket_client, tarea_recor
 
 
 def test_status_change_allowed_for_resolutor_without_edit_permission(
-        client, resolver_auth, ticket_client, tarea_record_type_id):
+        client, resolver_auth, ticket_client, tarea_record_type_id, ticket_resource):
     """Resolutor tiene `tickets:transition` pero no `tickets:edit` — el endpoint debe usar el
     primero (mismo criterio que /comments, /testing, /cancel), no el segundo (reservado para
     PATCH de campos). Encontrado en validación manual E2E contra Docker real."""
@@ -68,6 +99,7 @@ def test_status_change_allowed_for_resolutor_without_edit_permission(
         "title": "Tarea del resolutor", "description": "Descripción",
         "client_id": ticket_client["id"], "record_type_id": tarea_record_type_id,
     }, headers=resolver_auth).get_json()
+    _register_time(client, created["id"], headers=resolver_auth)
 
     resp = client.patch(f"/api/tickets/{created['id']}/status",
                         json={"status": "cerrado", "comment": "Listo"}, headers=resolver_auth)

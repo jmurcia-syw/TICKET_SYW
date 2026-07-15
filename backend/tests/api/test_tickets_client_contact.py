@@ -1,4 +1,8 @@
 import uuid
+from datetime import date
+
+# OBS-0011: la fecha de inicio de un proyecto no puede quedar en un mes anterior al actual.
+_PROJECT_START = date.today().strftime("%Y-%m-01")
 
 
 def _make_contact(client, client_id, unique_name, suffix=""):
@@ -136,7 +140,7 @@ def _make_project(client, client_id, unique_name, suffix=""):
     resp = client.post("/api/projects", json={
         "client_id": client_id,
         "name": f"Proyecto CC {suffix}{unique_name}",
-        "start_date": "2026-01-15",
+        "start_date": _PROJECT_START,
     })
     assert resp.status_code == 201, resp.get_json()
     return resp.get_json()

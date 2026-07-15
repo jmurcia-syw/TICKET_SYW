@@ -1,12 +1,17 @@
 """Bloque `sla` en el detalle del ticket y su evolución por transición (spec 014, Historia 2)."""
+from datetime import date
+
 import pytest
+
+# OBS-0011: la fecha de inicio de un proyecto no puede quedar en un mes anterior al actual.
+_PROJECT_START = date.today().strftime("%Y-%m-01")
 
 
 @pytest.fixture()
 def sla_ticket_setup(client, ticket_client, ticket_resource, unique_name):
     project = client.post("/api/projects", json={
         "client_id": ticket_client["id"], "name": f"Proyecto Tkt SLA {unique_name}",
-        "start_date": "2026-01-01",
+        "start_date": _PROJECT_START,
     }).get_json()
     client.post("/api/sla-rules", json={
         "project_id": project["id"], "priority": "high",
@@ -31,7 +36,7 @@ def test_new_ticket_starts_sla_phase_contacto_running(sla_ticket_setup):
 def test_ticket_without_matching_rule_is_sin_sla(client, ticket_client, unique_name):
     project = client.post("/api/projects", json={
         "client_id": ticket_client["id"], "name": f"Proyecto Sin SLA {unique_name}",
-        "start_date": "2026-01-01",
+        "start_date": _PROJECT_START,
     }).get_json()
     ticket = client.post("/api/tickets", json={
         "title": "Sin regla", "description": "desc", "ticket_type": "incident",

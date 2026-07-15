@@ -89,8 +89,8 @@ class ProjectTaskLists(Resource):
         data = request.get_json(silent=True) or {}
         try:
             db = get_db()
-            name = _svc.validate_create(pid, data.get("name", ""), ProjectRepository(db))
             repo = TaskListRepository(db)
+            name = _svc.validate_create(pid, data.get("name", ""), ProjectRepository(db), task_lists_repo=repo)
             task_list = TaskList(
                 id=uuid.uuid4(), project_id=pid, name=name,
                 position=repo.next_position(pid),
@@ -126,9 +126,16 @@ class TaskListDetail(Resource):
         try:
             db = get_db()
             repo = TaskListRepository(db)
-            fields_to_set = {}
             if "name" in data:
-                fields_to_set["name"] = _svc.validate_update(data.get("name"))
+                existing_list = repo.get_by_id(tlid)
+                if not existing_list:
+                    return {"error": "not_found", "message": "Lista no encontrada"}, 404
+                fields_to_set = {"name": _svc.validate_update(
+                    data.get("name"), project_id=existing_list.project_id,
+                    task_lists_repo=repo, task_list_id=tlid,
+                )}
+            else:
+                fields_to_set = {}
             if "position" in data:
                 fields_to_set["position"] = int(data["position"])
             updated = repo.update(tlid, **fields_to_set)

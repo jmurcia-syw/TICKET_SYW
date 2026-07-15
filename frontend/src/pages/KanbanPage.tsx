@@ -12,6 +12,7 @@ import { getKanbanTransition, reachableFrom } from '../config/kanbanTransitions'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
 import SavedFiltersBar from '../components/tickets/SavedFiltersBar'
+import SortIndicator from '../components/tickets/SortIndicator'
 import { avatarColor, initials, palette, vivid, TICKET_STATUS_CHIP } from '../theme'
 import { useAuthStore } from '../store/authStore'
 import type { TicketFilterCriteria } from '../store/savedFiltersStore'
@@ -70,7 +71,7 @@ export default function KanbanPage() {
     try {
       const results = await Promise.all(
         BOARD_STATUSES.map(status => ticketService.list({
-          status: [status], page_size: 50, sort: '-created_at',
+          status: [status], page_size: 50, sort: 'urgency',
           assignee_id: assigneeFilter, priority: priorityFilter, escalation_level: levelFilter,
         }))
       )
@@ -236,8 +237,9 @@ export default function KanbanPage() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <SavedFiltersBar currentCriteria={currentCriteria} onApply={applySavedFilter} />
+        <SortIndicator />
       </div>
 
       {loading && !columns ? (

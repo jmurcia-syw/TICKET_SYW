@@ -161,7 +161,7 @@ class ProjectList(Resource):
     @ns.response(403, "Sin el permiso requerido", _error)
     @ns.expect(_project_input, validate=False)
     @ns.response(201, "Proyecto creado", _project_out)
-    @ns.response(400, "Datos inválidos, fechas mal formateadas o fecha de fin anterior a inicio", _error)
+    @ns.response(400, "Datos inválidos, fechas mal formateadas, fecha de fin anterior a inicio o fecha de inicio en un mes anterior al actual", _error)
     @ns.response(404, "Cliente no encontrado", _error)
     @ns.response(409, "Conflicto de negocio (cliente inactivo, nombre duplicado)", _error)
     @ns.response(500, "Error interno del servidor", _error)
@@ -242,6 +242,7 @@ class ProjectDetail(Resource):
     @ns.response(200, "Proyecto actualizado", _project_out)
     @ns.response(400, "Datos inválidos", _error)
     @ns.response(404, "Proyecto no encontrado", _error)
+    @ns.response(409, "Conflicto de negocio (nombre duplicado)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     def patch(self, project_id: str):
         """Actualizar campos de un proyecto (PATCH parcial)"""
@@ -261,6 +262,17 @@ class ProjectDetail(Resource):
             amounts, amount_error = _parse_sale_amounts(data)
             if amount_error:
                 return {"error": "validation_error", "message": amount_error}, 400
+            if "name" in data:
+                new_name = str(data["name"]).strip()
+                if not new_name:
+                    return {"error": "validation_error", "message": "El nombre no puede estar vacio"}, 400
+                _svc.validate_name(new_name)
+                if new_name != project.name:
+                    existing = ProjectRepository(db).get_by_client_and_name(project.client_id, new_name)
+                    if existing and existing.id != project.id:
+                        raise ProjectBusinessError(
+                            "name_duplicate", "Ya existe un proyecto con ese nombre para este cliente")
+                data["name"] = new_name
             for field in ("name", "description", "overview", "components_sold"):
                 if field in data:
                     setattr(project, field, data[field])
@@ -270,8 +282,12 @@ class ProjectDetail(Resource):
                 project.start_date = date.fromisoformat(data["start_date"])
             if "end_date_estimated" in data:
                 project.end_date_estimated = date.fromisoformat(data["end_date_estimated"]) if data["end_date_estimated"] else None
+            if "start_date" in data or "end_date_estimated" in data:
+                _svc.validate_dates(project.start_date, project.end_date_estimated)
             updated = repo.update(project)
             return _project_to_dict(updated), 200
+        except ProjectBusinessError as e:
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
         except ValueError as exc:
             return {"error": "validation_error", "message": str(exc)}, 400
         except Exception:

@@ -37,11 +37,14 @@ def validate(filename: str, size_bytes: int) -> None:
         raise AttachmentError(f"El archivo supera el tamaño máximo permitido ({mb} MB)")
 
 
-def save(ticket_id: uuid.UUID, filename: str, data: bytes) -> str:
-    """Guarda el archivo y devuelve la ruta relativa de almacenamiento."""
+def save(entity_id: uuid.UUID, filename: str, data: bytes, entity_kind: str = "tickets") -> str:
+    """Guarda el archivo y devuelve la ruta relativa de almacenamiento.
+
+    `entity_kind` selecciona el directorio raíz bajo `uploads/` (spec 018 generaliza esto,
+    antes hardcodeado a "tickets", para reutilizarlo con adjuntos de Cliente)."""
     validate(filename, len(data))
     safe = _safe_filename(filename)
-    rel_path = Path("tickets") / str(ticket_id) / f"{uuid.uuid4().hex}-{safe}"
+    rel_path = Path(entity_kind) / str(entity_id) / f"{uuid.uuid4().hex}-{safe}"
     abs_path = _UPLOADS_ROOT / rel_path
     abs_path.parent.mkdir(parents=True, exist_ok=True)
     abs_path.write_bytes(data)

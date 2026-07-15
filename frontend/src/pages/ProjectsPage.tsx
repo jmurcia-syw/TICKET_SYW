@@ -13,8 +13,32 @@ import PageToolbar from '../components/common/PageToolbar'
 import { textColumnFilter, serverColumnFilter } from '../components/common/columnFilters'
 import { palette } from '../theme'
 import { useAuthStore } from '../store/authStore'
+import type { Rule } from 'antd/es/form'
+import { mapApiErrorToFormFields, type FieldErrorRule } from '../services/formErrorMapper'
 
 const ACTIVE_FILTER_OPTIONS = [{ text: 'Activo', value: 'true' }, { text: 'Inactivo', value: 'false' }]
+
+// OBS-0018: asocia códigos de error de la API a los campos del formulario de Proyecto.
+const PROJECT_ERROR_RULES: FieldErrorRule[] = [
+  { code: 'name_duplicate', field: 'name' },
+  { code: 'validation_error', field: 'name', messageIncludes: ['nombre del proyecto'] },
+  { code: 'invalid_dates', field: 'end_date_estimated' },
+  { code: 'invalid_start_date', field: 'start_date' },
+]
+
+// OBS-0011: mes actual en formato YYYY-MM, para comparar sin depender de zona horaria del navegador.
+const _currentYearMonth = () => new Date().toISOString().slice(0, 7)
+
+// OBS-0012: separador de miles (coma) + interpretación numérica sin ambigüedad con el punto decimal.
+const formatThousands = (v?: number | string) =>
+  (v === undefined || v === null || v === '') ? '' : `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+const parseThousands = (v?: string) => (v ? Number(v.replace(/,/g, '')) : 0)
+const moneyRule: Rule = {
+  validator: (_, value) =>
+    (value === undefined || value === null || value >= 0)
+      ? Promise.resolve()
+      : Promise.reject(new Error('No puede ser negativo')),
+}
 
 export default function ProjectsPage() {
   const navigate = useNavigate()
@@ -81,6 +105,7 @@ export default function ProjectsPage() {
       setFormOpen(false)
       load()
     } catch (err: unknown) {
+      if (mapApiErrorToFormFields(err, form, PROJECT_ERROR_RULES)) return
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al guardar'
       message.error(msg)
     }
@@ -160,28 +185,74 @@ export default function ProjectsPage() {
 
       <Modal title={editingId ? 'Editar proyecto' : 'Nuevo proyecto'} open={formOpen} onCancel={() => setFormOpen(false)} onOk={() => form.submit()} okText="Guardar">
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="client_id" label="Cliente" rules={[{ required: true, message: 'El cliente es requerido' }]}>
-            <Select options={clients.map(c => ({ value: c.id, label: c.name }))} placeholder="Seleccionar cliente" />
+          <Form.Item
+            name="client_id" label="Cliente" rules={[{ required: true, message: 'El cliente es requerido' }]}
+            extra={editingId ? 'El cliente no se puede cambiar una vez creado el proyecto. Para moverlo a otro cliente, crea un proyecto nuevo.' : undefined}
+          >
+            <Select
+              options={clients.map(c => ({ value: c.id, label: c.name }))}
+              placeholder="Seleccionar cliente"
+              showSearch
+              optionFilterProp="label"
+              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              disabled={!!editingId}
+            />
           </Form.Item>
-          <Form.Item name="name" label="Nombre" rules={[{ required: true, message: 'El nombre es requerido' }]}><Input /></Form.Item>
+          <Form.Item name="name" label="Nombre" rules={[
+            { required: true, message: 'El nombre es requerido' },
+            { max: 150, message: 'Máximo 150 caracteres' },
+            {
+              validator: (_, value) =>
+                !value || !/[!@#$%^&*+={}[\]|\\<>~`]/.test(value)
+                  ? Promise.resolve()
+                  : Promise.reject(new Error('El nombre contiene caracteres no permitidos')),
+            },
+          ]}>
+            <Input maxLength={150} />
+          </Form.Item>
           <Form.Item name="description" label="Descripción"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="overview" label="Overview del proyecto"><Input.TextArea rows={3} /></Form.Item>
           <Space style={{ display: 'flex' }} align="start">
-            <Form.Item name="sale_services_usd" label="Venta servicios (USD)">
-              <InputNumber min={0} style={{ width: 140 }} />
+            <Form.Item name="sale_services_usd" label="Venta servicios (USD)" rules={[moneyRule]}>
+              <InputNumber style={{ width: 140 }} formatter={formatThousands} parser={parseThousands} />
             </Form.Item>
-            <Form.Item name="sale_licenses_usd" label="Venta licencias (USD)">
-              <InputNumber min={0} style={{ width: 140 }} />
+            <Form.Item name="sale_licenses_usd" label="Venta licencias (USD)" rules={[moneyRule]}>
+              <InputNumber style={{ width: 140 }} formatter={formatThousands} parser={parseThousands} />
             </Form.Item>
-            <Form.Item name="sale_subscriptions_usd" label="Suscripciones (USD)">
-              <InputNumber min={0} style={{ width: 140 }} />
+            <Form.Item name="sale_subscriptions_usd" label="Suscripciones (USD)" rules={[moneyRule]}>
+              <InputNumber style={{ width: 140 }} formatter={formatThousands} parser={parseThousands} />
             </Form.Item>
           </Space>
           <Form.Item name="components_sold" label="Componentes vendidos"><Input.TextArea rows={2} /></Form.Item>
-          <Form.Item name="start_date" label="Fecha de inicio" rules={[{ required: true, message: 'La fecha de inicio es requerida' }]}>
+          <Form.Item name="start_date" label="Fecha de inicio" rules={[
+            { required: true, message: 'La fecha de inicio es requerida' },
+            {
+              validator(_, value) {
+                // OBS-0011: la regla de "no mes anterior" solo aplica al CREAR — al editar se
+                // permite mantener proyectos ya cargados retroactivamente.
+                if (editingId || !value) return Promise.resolve()
+                return value.slice(0, 7) < _currentYearMonth()
+                  ? Promise.reject(new Error('La fecha de inicio no puede estar en un mes anterior al actual'))
+                  : Promise.resolve()
+              },
+            },
+          ]}>
             <Input type="date" />
           </Form.Item>
-          <Form.Item name="end_date_estimated" label="Fecha de fin estimada"><Input type="date" /></Form.Item>
+          <Form.Item name="end_date_estimated" label="Fecha de fin estimada" dependencies={['start_date']} rules={[
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                if (!value) return Promise.resolve()
+                const start = getFieldValue('start_date')
+                if (start && new Date(value) <= new Date(start)) {
+                  return Promise.reject(new Error('La fecha de fin debe ser posterior a la fecha de inicio'))
+                }
+                return Promise.resolve()
+              },
+            }),
+          ]}>
+            <Input type="date" />
+          </Form.Item>
         </Form>
       </Modal>
 

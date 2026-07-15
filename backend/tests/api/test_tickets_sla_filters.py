@@ -1,14 +1,17 @@
 """Filtros `sla_status` y `sla_expiring_within_hours` en `GET /api/tickets` (spec 014, Historia 3)."""
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
+
+# OBS-0011: la fecha de inicio de un proyecto no puede quedar en un mes anterior al actual.
+_PROJECT_START = date.today().strftime("%Y-%m-01")
 
 
 @pytest.fixture()
 def sla_filter_setup(client, ticket_client, unique_name, db_session):
     project = client.post("/api/projects", json={
         "client_id": ticket_client["id"], "name": f"Proyecto Filtros SLA {unique_name}",
-        "start_date": "2026-01-01",
+        "start_date": _PROJECT_START,
     }).get_json()
     client.post("/api/sla-rules", json={
         "project_id": project["id"], "priority": "high",

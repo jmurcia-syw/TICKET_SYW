@@ -9,7 +9,7 @@ import { clientColumnFilter, clientTextColumnFilter } from '../components/common
 import { useAuthStore } from '../store/authStore'
 import { palette } from '../theme'
 
-const CATALOGS: CatalogName[] = ['tools', 'processes', 'resolution-types', 'record-types']
+const CATALOGS: CatalogName[] = ['tools', 'processes', 'resolution-types', 'record-types', 'teams']
 
 function CatalogCard({ catalog }: { catalog: CatalogName }) {
   const { hasPermission } = useAuthStore()

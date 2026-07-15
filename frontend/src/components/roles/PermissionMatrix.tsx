@@ -3,8 +3,12 @@ import { Checkbox, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { PermissionCatalogItem, RoleDetail } from '../../types/role'
 
-const ACTIONS = ['view', 'create', 'edit', 'deactivate'] as const
-const ACTION_LABELS: Record<string, string> = { view: 'Ver', create: 'Crear', edit: 'Editar', deactivate: 'Desactivar' }
+const ACTION_LABELS: Record<string, string> = {
+  view: 'Ver', create: 'Crear', edit: 'Editar', deactivate: 'Desactivar',
+  assign: 'Asignar', cancel: 'Cancelar', transition: 'Transicionar', manage: 'Gestionar',
+  manage_all: 'Gestionar (todas)', view_all: 'Ver (todas)', view_own: 'Ver (propias)',
+}
+const actionLabel = (action: string) => ACTION_LABELS[action] ?? action
 
 interface ModuleRow {
   module: string
@@ -29,6 +33,7 @@ export default function PermissionMatrix({ role, allPermissions, onChange }: Pro
   }, [selected])
 
   const modules = Array.from(new Set(allPermissions.map(p => p.module))).sort()
+  const ACTIONS = Array.from(new Set(allPermissions.map(p => p.action))).sort()
   const rows: ModuleRow[] = modules.map(module => ({
     module,
     byAction: Object.fromEntries(ACTIONS.map(action => [action, allPermissions.find(p => p.module === module && p.action === action)])),
@@ -47,12 +52,12 @@ export default function PermissionMatrix({ role, allPermissions, onChange }: Pro
   const columns: ColumnsType<ModuleRow> = [
     { title: 'Módulo', dataIndex: 'module', render: (m: string) => <strong>{m}</strong> },
     ...ACTIONS.map(action => ({
-      title: ACTION_LABELS[action],
+      title: actionLabel(action),
       key: action,
       align: 'center' as const,
       render: (_: unknown, row: ModuleRow) => {
         const perm = row.byAction[action]
-        if (!perm) return null
+        if (!perm) return <span style={{ color: '#bfbfbf' }}>—</span>
         return <Checkbox checked={selected.has(perm.id)} onChange={() => toggle(perm.id)} />
       },
     })),
