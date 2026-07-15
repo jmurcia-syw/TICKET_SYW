@@ -11,5 +11,5 @@ export const CATALOG_LABELS: Record<CatalogName, string> = {
   processes: 'Procesos',
   'resolution-types': 'Tipos de resolución',
   'record-types': 'Tipo de registro',
-  teams: 'Equipos (Recursos)',
+  teams: 'Equipos de trabajo',
 }
