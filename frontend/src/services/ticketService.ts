@@ -21,24 +21,44 @@ export const ticketService = {
   get: (id: string) =>
     apiClient.get<TicketDetail>(`/api/tickets/${id}`).then(r => r.data),
 
-  create: (data: TicketFormData) =>
-    apiClient.post<TicketDetail>('/api/tickets', data).then(r => r.data),
+  /** `inlineImages`: imágenes pegadas en `description` (referenciadas por `data-pending-id`,
+   * spec 017). `attachments`: adjuntos manuales a la descripción (US3). Con cualquiera de los
+   * dos, se envía como `multipart/form-data`; si no, JSON como siempre. */
+  create: (data: TicketFormData, inlineImages: File[] = [], attachments: File[] = []) => {
+    if (inlineImages.length === 0 && attachments.length === 0) {
+      return apiClient.post<TicketDetail>('/api/tickets', data).then(r => r.data)
+    }
+    const form = new FormData()
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) form.set(key, String(value))
+    })
+    inlineImages.forEach(f => form.append('inline_images', f))
+    attachments.forEach(f => form.append('attachments', f))
+    return apiClient.post<TicketDetail>('/api/tickets', form,
+      { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
 
   update: (id: string, data: Partial<TicketFormData> & { estimated_resolution_minutes?: number | null }) =>
     apiClient.patch<TicketDetail>(`/api/tickets/${id}`, data).then(r => r.data),
+
+  /** Reemplaza el set completo de Skills requeridas (spec 011) — funciona en cualquier estado
+   * del ticket, sin transición ni comentario. */
+  updateTicketSkills: (id: string, skillIds: string[]) =>
+    apiClient.patch<TicketDetail>(`/api/tickets/${id}/skills`, { skill_ids: skillIds }).then(r => r.data),
 
   assign: (id: string, assignee_id: string, mode: 'resolver' | 'pre_analysis') =>
     apiClient.post<{ ticket: TicketDetail; assignment: { id: string } }>(
       `/api/tickets/${id}/assign`, { assignee_id, mode }).then(r => r.data),
 
-  addComment: (id: string, comment_type: CommentType, body: string, files: File[] = []) => {
-    if (files.length === 0) {
+  addComment: (id: string, comment_type: CommentType, body: string, files: File[] = [], inlineImages: File[] = []) => {
+    if (files.length === 0 && inlineImages.length === 0) {
       return apiClient.post(`/api/tickets/${id}/comments`, { comment_type, body }).then(r => r.data)
     }
     const form = new FormData()
     form.set('comment_type', comment_type)
     form.set('body', body)
     files.forEach(f => form.append('files', f))
+    inlineImages.forEach(f => form.append('inline_images', f))
     return apiClient.post(`/api/tickets/${id}/comments`, form,
       { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
   },

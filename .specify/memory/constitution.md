@@ -1,17 +1,14 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0 (2026-07-02, alineacion con SDD V3 + "Regla de actividad de estados.xlsx")
+Version change: 1.1.0 → 1.2.0 (2026-07-10, directrices de alcance de sesion y testing para agentes IA)
 Modified principles: N/A — principios I-VI sin cambios de fondo
-Modified sections:
-  - FSM: reemplazado el flujo provisional de 6 estados por el flujo oficial de 9 estados
-    definido en docs/"Regla de actividad de estados.xlsx" (fuente de verdad del ciclo de vida)
-  - Modelo de datos: nota de campos nuevos de maestros segun SDD V3 (facturacion cliente,
-    portafolio de software, financieros de proyecto, perfil extendido y compensacion de recurso)
 Added sections:
-  - Roadmap de Fases (SDD V3) con mapeo a la numeracion interna del repositorio
+  - Principio VII (NON-NEGOTIABLE): Alcance de Sesion, Testing Ultra-Limitado y Eficiencia de Tokens
+Removed sections: N/A
 Templates reviewed:
-  - .specify/templates/*: compatibles, sin actualizaciones necesarias
+  - .specify/templates/*: compatibles, sin actualizaciones necesarias (el nuevo principio rige el
+    comportamiento del agente durante la ejecucion, no la estructura de spec/plan/tasks)
 Deferred TODOs:
   - TODO(HOSTING): Definir entorno de hosting on-premise (servidor, SO, proxy inverso)
   - TODO(SSO_DETAIL): Detallar configuracion SSO si se extiende mas alla de @sywork.net
@@ -99,6 +96,24 @@ criticas en el futuro sin cambios de arquitectura.
   (ej. `JDE_GL`, `API_REST`, `Oracle_Fusion`). La IA no puede asignar por "intuicion".
 - El sistema de comentarios DEBE exponer tipos de comentario como datos estructurados (no texto
   libre) para facilitar el analisis automatico futuro.
+
+### VII. Alcance de Sesion, Testing Ultra-Limitado y Eficiencia de Tokens (NON-NEGOTIABLE)
+
+Aplica a todo agente IA que trabaje en este repositorio, en particular durante ejecucion de
+codigo y pruebas.
+
+- **Aislamiento de sesion**: cada sesion DEBE enfocarse unica y exclusivamente en los archivos y
+  el contexto directo de la tarea solicitada en esa sesion. Prohibido realizar refactorizaciones
+  externas, optimizaciones de codigo no solicitadas o inserciones en otros modulos ajenos al
+  alcance pedido.
+- **Restriccion de pruebas unitarias**: prohibido ejecutar la suite de pruebas unitarias de forma
+  masiva o global. Solo se permite ejecutar el test especifico del modelo, controlador o
+  componente modificado en la sesion actual. Las pruebas unitarias nuevas o modificadas DEBEN ser
+  ultra-limitadas: no deben generar ni insertar mas de 5 a 10 registros de prueba/falsos en la
+  base de datos por test.
+- **Eficiencia de consumo**: las respuestas en consola DEBEN ser directas a la edicion del archivo
+  o spec de SpecKit correspondiente, evitando explicaciones teoricas redundantes que consuman
+  tokens innecesariamente.
 
 ## Stack Tecnologico y Gobernanza de Librerias
 
@@ -254,7 +269,7 @@ Esta Constitucion SUPERSEDE todas las practicas individuales, convenciones de eq
 ad-hoc previas. Todo agente IA y todo desarrollador DEBEN leerla antes de tocar codigo.
 
 **Reglas de cumplimiento:**
-- Todo PR/revision DEBE verificar conformidad con los principios I-VI antes de aprobarse.
+- Todo PR/revision DEBE verificar conformidad con los principios I-VII antes de aprobarse.
 - Toda violacion de un principio NON-NEGOTIABLE DEBE documentarse en la tabla "Complexity Tracking"
   del `plan.md` de la fase, con justificacion y alternativa rechazada.
 - Nuevas dependencias requieren aprobacion en el documento de Planificacion de la fase, no en PR.
@@ -268,4 +283,4 @@ ad-hoc previas. Todo agente IA y todo desarrollador DEBEN leerla antes de tocar 
 4. Propagar cambios a templates en `.specify/templates/`.
 5. Actualizar `Last Amended`.
 
-**Version**: 1.1.0 | **Ratified**: 2026-06-29 | **Last Amended**: 2026-07-02
+**Version**: 1.2.0 | **Ratified**: 2026-06-29 | **Last Amended**: 2026-07-10

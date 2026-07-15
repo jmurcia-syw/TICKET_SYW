@@ -15,12 +15,13 @@ export interface ClientContact {
   created_at: string
 }
 
-/** Alta por Proyecto (spec 010: el Cliente se deriva del proyecto y la membresía se crea
- * automáticamente). `client_id` directo es la forma legada (spec 007). */
+/** Alta por Proyecto(s) (spec 010/015: el Cliente se deriva de los proyectos —deben ser todos
+ * del mismo Cliente— y la membresía se crea automáticamente en cada uno). `client_id` directo es
+ * la forma legada (spec 007). */
 export interface ClientContactCreateRequest {
   email: string
   username: string
-  project_id?: string
+  project_ids?: string[]
   client_id?: string
 }
 

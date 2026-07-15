@@ -8,6 +8,7 @@ import { ticketService } from '../../services/ticketService'
 import { resourceService } from '../../services/resourceService'
 import type { Resource } from '../../types/resource'
 import { avatarColor, initials, palette, TICKET_STATUS_CHIP } from '../../theme'
+import RichTextEditor, { isRichTextEmpty } from './RichTextEditor'
 
 interface SubtaskListProps {
   ticket: TicketDetail
@@ -21,6 +22,7 @@ export default function SubtaskList({ ticket, onUpdated }: SubtaskListProps) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [descriptionKey, setDescriptionKey] = useState(0)
   const [assigneeId, setAssigneeId] = useState<string | undefined>()
   const [resources, setResources] = useState<Resource[]>([])
   const [saving, setSaving] = useState(false)
@@ -40,14 +42,14 @@ export default function SubtaskList({ ticket, onUpdated }: SubtaskListProps) {
     setSaving(true)
     try {
       await ticketService.create({
-        title: title.trim(), description: description.trim() || 'Subtarea',
+        title: title.trim(), description: isRichTextEmpty(description) ? 'Subtarea' : description,
         client_id: ticket.client?.id, project_id: ticket.project?.id,
         record_type_id: ticket.record_type_id,
         parent_task_id: ticket.id,
         assignee_id: assigneeId,
       })
       message.success('Subtarea creada')
-      setOpen(false); setTitle(''); setDescription(''); setAssigneeId(undefined)
+      setOpen(false); setTitle(''); setDescription(''); setDescriptionKey(k => k + 1); setAssigneeId(undefined)
       onUpdated()
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'No se pudo crear la subtarea'
@@ -107,8 +109,8 @@ export default function SubtaskList({ ticket, onUpdated }: SubtaskListProps) {
         confirmLoading={saving} onOk={create} okText="Crear">
         <Space direction="vertical" style={{ width: '100%' }}>
           <Input placeholder="Título" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
-          <Input.TextArea rows={3} placeholder="Descripción (opcional)" value={description}
-            onChange={e => setDescription(e.target.value)} />
+          <RichTextEditor key={descriptionKey} value={description} onChange={setDescription}
+            placeholder="Descripción (opcional)" />
           <Select placeholder="Encargado (opcional, default: vos)" allowClear showSearch
             optionFilterProp="label" style={{ width: '100%' }}
             value={assigneeId} onChange={setAssigneeId}

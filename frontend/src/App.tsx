@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { ConfigProvider } from 'antd'
+import { useEffect } from 'react'
+import { App as AntApp, ConfigProvider } from 'antd'
 import esES from 'antd/locale/es_ES'
+import { bindMessageApi } from './services/errorNotifier'
 import LoginPage from './pages/LoginPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
@@ -11,6 +13,7 @@ import ProjectPeoplePage from './pages/ProjectPeoplePage'
 import TeamPage from './pages/TeamPage'
 import SkillsPage from './pages/SkillsPage'
 import RolesPermissionsPage from './pages/RolesPermissionsPage'
+import SlaRulesPage from './pages/SlaRulesPage'
 import ClientContactsPage from './pages/ClientContactsPage'
 import TicketsPage from './pages/TicketsPage'
 import MyTasksPage from './pages/MyTasksPage'
@@ -57,18 +60,32 @@ function AppRoutes() {
         <Route path="users" element={<Navigate to="/team" replace />} />
         <Route path="skills" element={<ProtectedRoute requiredPermission={{ module: 'skills', action: 'view' }}><SkillsPage /></ProtectedRoute>} />
         <Route path="roles" element={<ProtectedRoute requiredPermission={{ module: 'roles', action: 'view' }}><RolesPermissionsPage /></ProtectedRoute>} />
+        <Route path="sla-rules" element={<ProtectedRoute requiredPermission={{ module: 'sla_rules', action: 'manage' }}><SlaRulesPage /></ProtectedRoute>} />
         <Route path="client-contacts" element={<ProtectedRoute requiredPermission={{ module: 'client_contacts', action: 'manage' }}><ClientContactsPage /></ProtectedRoute>} />
       </Route>
     </Routes>
   )
 }
 
+// Liga la instancia de mensajes del <App> de antd al notificador global de
+// errores para que los toasts respeten tema y locale del ConfigProvider.
+function MessageApiBinder() {
+  const { message } = AntApp.useApp()
+  useEffect(() => {
+    bindMessageApi(message)
+  }, [message])
+  return null
+}
+
 export default function App() {
   return (
     <ConfigProvider locale={esES} theme={theme}>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <AntApp>
+        <MessageApiBinder />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   )
 }

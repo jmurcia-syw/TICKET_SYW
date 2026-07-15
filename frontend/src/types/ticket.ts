@@ -1,3 +1,5 @@
+import type { TicketSlaState } from './sla'
+
 /** Catálogo único de 10 estados, compartido por Ticket y Tarea/Subtarea (spec 009) — una
  * Tarea puede transicionar a cualquiera de ellos sin restricción de secuencia (ver
  * ticketService.changeStatus). */
@@ -63,6 +65,8 @@ export interface TicketListItem {
   /** Si no es null, este registro es una Subtarea (Nivel 5) de la Tarea indicada. */
   parent_task_id: string | null
   created_at: string
+  /** Resumen de SLA (Fase 4, spec 014) — solo `phase`/`status`, sin el detalle completo. */
+  sla: Pick<TicketSlaState, 'phase' | 'status'>
 }
 
 /** "125" min → "2h 05m"; null → '—'. Usado en el tablero Kanban. */
@@ -133,8 +137,18 @@ export interface RelatedFromItem {
   record_type: 'Ticket' | 'Tarea'
 }
 
+/** Skill requerido para resolver el ticket, opcional (spec 011). */
+export interface TicketSkillRef {
+  id: string
+  code: string
+  label: string
+}
+
 export interface TicketDetail extends TicketListItem {
   description: string
+  /** Adjuntos de la descripción (spec 017) — independientes de los adjuntos de cada
+   * comentario. Incluye tanto imágenes pegadas como archivos adjuntados manualmente. */
+  description_attachments: TicketAttachment[]
   tool_id: string | null
   process_id: string | null
   estimated_resolution_minutes: number | null
@@ -159,6 +173,10 @@ export interface TicketDetail extends TicketListItem {
   assignments: TicketAssignment[]
   /** Subtareas (Nivel 5) de esta Tarea — vacío para Ticket y para Subtarea (spec 009). */
   subtasks: TicketListItem[]
+  /** Skills requeridas para resolverlo, opcional y editable en cualquier estado (spec 011). */
+  skills: TicketSkillRef[]
+  /** Estado de SLA (Fase 4, spec 014) — 'sin_sla' para Tareas/Subtareas (FR-012). */
+  sla: TicketSlaState
 }
 
 export interface TicketFormData {
@@ -184,6 +202,9 @@ export interface TicketFormData {
   parent_task_id?: string | null
   /** Encargado de la Tarea/Subtarea (spec 009) — opcional, default: el propio creador. */
   assignee_id?: string | null
+  /** Skills requeridas al crear (spec 011) — se aplican tras el `create()` vía el endpoint
+   * dedicado `PATCH /api/tickets/{id}/skills` (research.md Decisión 2); no viaja en el POST. */
+  skill_ids?: string[]
 }
 
 export interface TicketFilters {
@@ -199,6 +220,9 @@ export interface TicketFilters {
   assignee_id?: string
   escalation_level?: EscalationLevel
   sort?: string
+  /** Fase 4, spec 014 — indicadores agregados de SLA (Historia 3). */
+  sla_status?: TicketSlaState['status']
+  sla_expiring_within_hours?: number
 }
 
 export interface PanelRow {

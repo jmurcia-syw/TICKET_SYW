@@ -85,7 +85,7 @@ def test_resource_email_outside_domain_rejected(client, unique_name):
 
 
 def test_skill_create_and_delete(client, unique_name):
-    created = client.post("/api/skills", json={"code": f"TEST_{unique_name}", "label": "Test skill"})
+    created = client.post("/api/skills", json={"code": f"TEST_{unique_name}", "label": "Test skill", "skill_type": "tecnico"})
     assert created.status_code == 201
     body = created.get_json()
     assert created.headers["Location"] == f"/api/skills/{body['id']}"
@@ -95,7 +95,7 @@ def test_skill_create_and_delete(client, unique_name):
 
 
 def test_skill_delete_blocked_while_assigned_to_active_resource(client, unique_name):
-    skill = client.post("/api/skills", json={"code": f"USED_{unique_name}", "label": "Used skill"}).get_json()
+    skill = client.post("/api/skills", json={"code": f"USED_{unique_name}", "label": "Used skill", "skill_type": "tecnico"}).get_json()
     _make_resource(client, unique_name, skill_ids=[skill["id"]])
 
     resp = client.delete(f"/api/skills/{skill['id']}")

@@ -14,7 +14,7 @@ cualquier fase del proceso"
 
 ### User Story 1 - Asignar Skills requeridas al ticket (Priority: P1)
 
-Un Coordinador o Resolutor, al crear o editar un Ticket (o Tarea/Subtarea), selecciona de forma
+Un Coordinador, QM o Admin, al crear o editar un Ticket (o Tarea/Subtarea), selecciona de forma
 **opcional** una o varias Skills del catálogo existente que identifican las habilidades técnicas
 o funcionales necesarias para resolverlo. El campo queda vacío por defecto si no se selecciona
 ninguna.
@@ -29,8 +29,8 @@ editarlo y agregar dos Skills del catálogo; verificar que ambas quedan listadas
 
 1. **Given** un ticket nuevo, **When** el Coordinador lo crea sin seleccionar ninguna Skill,
    **Then** el ticket se guarda sin Skills requeridas asociadas (el campo es opcional).
-2. **Given** un ticket existente sin Skills requeridas, **When** el Coordinador o Resolutor lo
-   edita y selecciona dos Skills del catálogo, **Then** el ticket queda asociado a esas dos
+2. **Given** un ticket existente sin Skills requeridas, **When** el Coordinador (u otro rol con
+   permiso de edición del ticket) lo edita y selecciona dos Skills del catálogo, **Then** el ticket queda asociado a esas dos
    Skills y ambas se listan en su detalle.
 3. **Given** un ticket con tres Skills requeridas asociadas, **When** se quita una y se agrega
    otra distinta, **Then** el ticket queda con las dos restantes originales más la nueva (total
@@ -41,9 +41,9 @@ editarlo y agregar dos Skills del catálogo; verificar que ambas quedan listadas
 ### User Story 2 - Cambiar las Skills requeridas en cualquier fase del ticket (Priority: P1)
 
 Independientemente del estado actual del ticket (Nuevo, En análisis, En ejecución, Resuelto,
-Cerrado, Cancelado, etc.), un Coordinador o Resolutor con permiso de edición puede modificar el
-conjunto de Skills requeridas en cualquier momento, sin que el estado del ticket bloquee el
-cambio ni exija una transición o comentario tipificado.
+Cerrado, Cancelado, etc.), un usuario con permiso de edición del ticket (Coordinador, QM o Admin)
+puede modificar el conjunto de Skills requeridas en cualquier momento, sin que el estado del
+ticket bloquee el cambio ni exija una transición o comentario tipificado.
 
 **Why this priority**: es el requisito explícito del solicitante ("se puede cambiar en cualquier
 fase del proceso"); sin esto, la clasificación técnica no puede refinarse a medida que avanza el
@@ -54,7 +54,7 @@ agregar o quitar Skills requeridas, sin reabrir el ticket ni registrar un coment
 
 **Acceptance Scenarios**:
 
-1. **Given** un ticket en estado "En análisis", **When** el Resolutor agrega una Skill
+1. **Given** un ticket en estado "En análisis", **When** el QM agrega una Skill
    requerida, **Then** el cambio se guarda sin alterar el estado del ticket.
 2. **Given** un ticket en estado "Cerrado", **When** el Coordinador quita una Skill previamente
    asignada, **Then** el cambio se guarda sin requerir reabrir el ticket ni comentario asociado.
@@ -88,9 +88,11 @@ confirmar que ambas se muestran con su nombre/etiqueta.
 
 ### Edge Cases
 
-- ¿Qué pasa si una Skill usada como requerida en un ticket se desactiva luego en el catálogo
-  administrable? El ticket conserva la referencia histórica y sigue mostrándola, pero la Skill
-  desactivada deja de ofrecerse al agregar nuevas Skills requeridas (en ese u otros tickets).
+- ¿Qué pasa si se intenta eliminar del catálogo una Skill usada como requerida en algún ticket?
+  El catálogo de Skills (spec `010`) no tiene "desactivar", solo eliminar (`DELETE
+  /api/skills/{id}`, permiso `skills:deactivate`) — igual que ya ocurre si está asignada a algún
+  Recurso, el sistema lo bloquea con `409 skill_in_use` para que ningún ticket pierda su
+  referencia. Solo se puede eliminar una Skill que no esté en uso por ningún ticket ni recurso.
 - ¿Puede repetirse la misma Skill dos veces en el mismo ticket? No — la asociación es única por
   par ticket/Skill; reintentar agregarla no la duplica.
 - ¿Aplica también a Tareas y Subtareas, no solo a Tickets? Sí — Tarea y Subtarea comparten la
@@ -116,14 +118,16 @@ confirmar que ambas se muestran con su nombre/etiqueta.
   ticket.
 - **FR-004**: El detalle del ticket DEBE mostrar las Skills requeridas asociadas junto al resto
   de su clasificación (Tipo, Severidad, Herramienta, Proceso).
-- **FR-005**: Solo los roles internos con permiso de edición del ticket (Coordinador, Resolutor,
-  Admin) DEBEN poder agregar o quitar Skills requeridas; la visibilidad sigue las mismas reglas
-  que el resto de la clasificación del ticket.
+- **FR-005**: Solo los roles con permiso de edición del ticket (`tickets:edit` — Admin,
+  Coordinador y QM en este sistema; el Resolutor no lo tiene, igual que para el resto de la
+  clasificación del ticket como Herramienta/Proceso) DEBEN poder agregar o quitar Skills
+  requeridas; la visibilidad sigue las mismas reglas que el resto de la clasificación del ticket.
 - **FR-006**: Cambiar las Skills requeridas de un ticket NO DEBE disparar notificaciones,
   transiciones de estado, ni requerir un comentario tipificado.
-- **FR-007**: Si una Skill referenciada como requerida por un ticket se desactiva luego en el
-  catálogo, el ticket DEBE conservar la referencia histórica, pero esa Skill NO DEBE ofrecerse
-  al agregar nuevas Skills requeridas a otros tickets.
+- **FR-007**: El sistema DEBE impedir eliminar del catálogo una Skill que esté asignada como
+  requerida a cualquier ticket (`409 skill_in_use`), extendiendo el mismo chequeo que ya existe
+  para Skills asignadas a Recursos — así ningún ticket pierde la referencia a sus Skills
+  requeridas.
 - **FR-008**: El selector de Skills requeridas DEBE tomar sus opciones del catálogo de Skills
   administrable ya existente, sin introducir un catálogo separado.
 
@@ -137,8 +141,8 @@ confirmar que ambas se muestran con su nombre/etiqueta.
 
 ### Measurable Outcomes
 
-- **SC-001**: Un Coordinador o Resolutor puede agregar o quitar una Skill requerida de un ticket
-  en menos de 15 segundos desde el detalle del ticket.
+- **SC-001**: Un Coordinador (u otro rol con permiso de edición del ticket) puede agregar o
+  quitar una Skill requerida de un ticket en menos de 15 segundos desde el detalle del ticket.
 - **SC-002**: El 100% de los tickets existentes antes del cambio siguen funcionando sin errores,
   con cero Skills requeridas asociadas por defecto.
 - **SC-003**: En el 100% de los casos probados, un usuario autorizado puede cambiar las Skills
@@ -153,9 +157,10 @@ confirmar que ambas se muestran con su nombre/etiqueta.
   herramienta y proceso); no se crea un catálogo nuevo ni una lista paralela.
 - Aplica de igual forma a Ticket, Tarea y Subtarea porque comparten la misma tabla/entidad y el
   mismo patrón de campos de clasificación editables en cualquier estado.
-- Solo roles internos con permiso de edición del ticket (Coordinador, Resolutor, Admin) pueden
-  definir o modificar las Skills requeridas; el Usuario/cliente (autoservicio) no las ve ni las
-  edita, igual que el resto de la clasificación técnica del ticket (Tipo, Severidad,
+- Solo roles con permiso `tickets:edit` (Admin, Coordinador, QM — el Resolutor no lo tiene en
+  este sistema, tal como descubierto al reutilizar el permiso ya existente en vez de crear uno
+  nuevo) pueden definir o modificar las Skills requeridas; el Usuario/cliente (autoservicio) no
+  las ve ni las edita, igual que el resto de la clasificación técnica del ticket (Tipo, Severidad,
   Herramienta, Proceso), que ya queda fuera de su formulario simplificado.
 - En esta fase, las Skills requeridas son puramente informativas/de clasificación: no alteran
   automáticamente el Panel de Asignación, el Triage Push ni el Gold Standard Dataset existentes;

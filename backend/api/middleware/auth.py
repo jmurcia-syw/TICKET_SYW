@@ -1,6 +1,6 @@
 import os
 from functools import wraps
-from flask import g, jsonify
+from flask import g
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.database import get_db
@@ -40,7 +40,7 @@ def jwt_required_active(fn):
         repo = UserRepository(db)
         user = repo.get_by_id(uuid.UUID(user_id_str))
         if not user or not user.active:
-            return jsonify({"error": "unauthorized", "message": "Acceso denegado"}), 401
+            return {"error": "unauthorized", "message": "Acceso denegado"}, 401
         g.current_user = user
         return fn(*args, **kwargs)
     return wrapper

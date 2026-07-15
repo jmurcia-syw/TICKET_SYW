@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd'
-import { Empty, Input, Modal, Select, Spin, Tooltip, message } from 'antd'
+import { Empty, Modal, Select, Spin, Tooltip, message } from 'antd'
 import { FieldTimeOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
@@ -15,6 +15,7 @@ import SavedFiltersBar from '../components/tickets/SavedFiltersBar'
 import { avatarColor, initials, palette, vivid, TICKET_STATUS_CHIP } from '../theme'
 import { useAuthStore } from '../store/authStore'
 import type { TicketFilterCriteria } from '../store/savedFiltersStore'
+import RichTextEditor, { isRichTextEmpty } from '../components/tickets/RichTextEditor'
 
 // Estados activos del ciclo de vida (docs/PROPUESTA_VISUAL.html — "Vista Kanban").
 // CERRADO y CANCELADO son finales y no aportan al tablero operativo.
@@ -51,12 +52,15 @@ export default function KanbanPage() {
   const [assignModal, setAssignModal] = useState<{ ticketId: string; mode: 'resolver' | 'pre_analysis' } | null>(null)
   const [commentModal, setCommentModal] = useState<{ ticketId: string; commentType: CommentType } | null>(null)
   const [commentBody, setCommentBody] = useState('')
+  const [commentBodyKey, setCommentBodyKey] = useState(0)
   /** Tarea/Subtarea (spec 009): transición libre — cualquier columna destino es válida, solo
    * exige un comentario. A diferencia de Ticket, no pasa por `getKanbanTransition`. */
   const [taskStatusModal, setTaskStatusModal] = useState<{ ticketId: string; to: TicketStatus } | null>(null)
   const [taskStatusBody, setTaskStatusBody] = useState('')
+  const [taskStatusBodyKey, setTaskStatusBodyKey] = useState(0)
   const [resolutionModal, setResolutionModal] = useState<{ ticketId: string } | null>(null)
   const [resolutionBody, setResolutionBody] = useState('El usuario rechazó la resolución')
+  const [resolutionBodyKey, setResolutionBodyKey] = useState(0)
   const [actionLoading, setActionLoading] = useState(false)
 
   const visibleStatuses = statusFilter.length ? statusFilter : BOARD_STATUSES
@@ -95,7 +99,7 @@ export default function KanbanPage() {
 
     const dragged = columns?.[from]?.find(t => t.id === ticketId)
     if (dragged?.record_type === 'Tarea') {
-      setTaskStatusBody('')
+      setTaskStatusBody(''); setTaskStatusBodyKey(k => k + 1)
       setTaskStatusModal({ ticketId, to })
       return
     }
@@ -116,14 +120,14 @@ export default function KanbanPage() {
         doTesting(ticketId, transition.direction)
         break
       case 'comment':
-        setCommentBody('')
+        setCommentBody(''); setCommentBodyKey(k => k + 1)
         setCommentModal({ ticketId, commentType: transition.commentType })
         break
       case 'assign':
         setAssignModal({ ticketId, mode: transition.mode })
         break
       case 'resolution':
-        setResolutionBody('El usuario rechazó la resolución')
+        setResolutionBody('El usuario rechazó la resolución'); setResolutionBodyKey(k => k + 1)
         setResolutionModal({ ticketId })
         break
     }
@@ -141,7 +145,7 @@ export default function KanbanPage() {
 
   const submitComment = async () => {
     if (!commentModal) return
-    if (!commentBody.trim()) {
+    if (isRichTextEmpty(commentBody)) {
       message.warning('El comentario no puede estar vacío')
       return
     }
@@ -160,7 +164,7 @@ export default function KanbanPage() {
 
   const submitTaskStatusChange = async () => {
     if (!taskStatusModal) return
-    if (!taskStatusBody.trim()) {
+    if (isRichTextEmpty(taskStatusBody)) {
       message.warning('El comentario es obligatorio para cambiar el estado')
       return
     }
@@ -366,8 +370,8 @@ export default function KanbanPage() {
         onOk={submitComment}
         okText="Registrar y avanzar"
       >
-        <Input.TextArea rows={4} value={commentBody} onChange={e => setCommentBody(e.target.value)}
-          placeholder="Escribe el comentario que respalda este cambio de estado..." autoFocus />
+        <RichTextEditor key={commentBodyKey} value={commentBody} onChange={setCommentBody}
+          placeholder="Escribe el comentario que respalda este cambio de estado..." />
       </Modal>
 
       <Modal
@@ -378,8 +382,8 @@ export default function KanbanPage() {
         onOk={submitTaskStatusChange}
         okText="Confirmar"
       >
-        <Input.TextArea rows={4} value={taskStatusBody} onChange={e => setTaskStatusBody(e.target.value)}
-          placeholder="Comentario obligatorio que documenta el cambio de estado..." autoFocus />
+        <RichTextEditor key={taskStatusBodyKey} value={taskStatusBody} onChange={setTaskStatusBody}
+          placeholder="Comentario obligatorio que documenta el cambio de estado..." />
       </Modal>
 
       <Modal
@@ -391,7 +395,7 @@ export default function KanbanPage() {
         okText="Devolver a En Ejecución"
         okButtonProps={{ danger: true }}
       >
-        <Input.TextArea rows={3} value={resolutionBody} onChange={e => setResolutionBody(e.target.value)} />
+        <RichTextEditor key={resolutionBodyKey} value={resolutionBody} onChange={setResolutionBody} />
       </Modal>
     </div>
   )

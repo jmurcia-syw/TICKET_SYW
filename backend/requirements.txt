@@ -12,3 +12,7 @@ SQLAlchemy==2.0.36
 alembic==1.14.0
 requests==2.32.3
 pytest==8.3.4
+celery==5.4.0
+redis==5.2.1
+bleach==6.2.0
+lxml==5.3.0

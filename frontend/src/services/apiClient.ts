@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
+import { notifyApiError } from './errorNotifier'
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:5000',
@@ -16,10 +17,15 @@ apiClient.interceptors.request.use((config) => {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout()
-      window.location.href = '/login'
+  (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        // Sesión inválida/expirada: se conserva el flujo actual, sin toast.
+        useAuthStore.getState().logout()
+        window.location.href = '/login'
+      } else {
+        notifyApiError(error)
+      }
     }
     return Promise.reject(error)
   }

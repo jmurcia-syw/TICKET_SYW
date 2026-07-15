@@ -6,6 +6,7 @@ from backend.domain.entities.comment import COMMENT_TYPES
 from backend.domain.entities.ticket import Ticket
 from backend.domain.errors import DomainError
 from backend.domain.fsm import ticket_fsm
+from backend.domain.services.rich_content_service import strip_html
 
 
 class CommentError(DomainError):
@@ -37,7 +38,7 @@ class CommentService:
             raise CommentError(
                 "validation_error",
                 f"El tipo '{comment_type}' no se registra por esta vía")
-        if not (body or "").strip():
+        if not strip_html(body or "").strip():
             raise CommentError("validation_error", "El comentario no puede estar vacío")
 
         trigger = MANUAL_COMMENT_TRIGGERS[comment_type]

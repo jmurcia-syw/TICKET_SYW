@@ -24,6 +24,11 @@ def create_app() -> Flask:
     from backend.infra.database import close_db
     app.teardown_appcontext(close_db)
 
+    # spec 013: contrato estándar de error {success, message, code} en TODA
+    # respuesta >= 400, sin modificar los returns de las rutas.
+    from backend.api.errors import register_error_handling
+    register_error_handling(app)
+
     api = Api(
         app,
         version="1.0",
@@ -97,6 +102,11 @@ def create_app() -> Flask:
     from backend.api.routes.timer import ns as ns_timer
 
     api.add_namespace(ns_timer)
+
+    # ── spec 014 — SLAs por Proyecto y Prioridad (Fase 4) ──────────────────────
+    from backend.api.routes.sla_rules import ns as ns_sla_rules
+
+    api.add_namespace(ns_sla_rules)
 
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")

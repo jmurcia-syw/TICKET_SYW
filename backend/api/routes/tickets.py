@@ -5,6 +5,7 @@ estado son atómicas: comentario + transición + notificación en la misma trans
 (Decisión 2 de research.md).
 """
 from datetime import datetime, timedelta, timezone
+import logging
 import uuid
 
 from flask import g, request, send_file
@@ -17,9 +18,11 @@ from backend.domain.entities.ticket import Ticket, STATUSES, STATUS_LABELS
 from backend.domain.entities.user import USUARIO_CLIENTE_ROLE_NAME
 from backend.domain.errors import DomainError
 from backend.domain.fsm import ticket_fsm
+from backend.domain.services import sla_service
 from backend.domain.services.assignment_service import AssignmentService
 from backend.domain.services.comment_service import CommentService
 from backend.domain.services.notification_service import NotificationService
+from backend.domain.services.rich_content_service import resolve_pending_images, sanitize_html, strip_html
 from backend.domain.services.ticket_service import TicketService, TicketValidationError
 from backend.infra.database import get_db
 from backend.infra.repositories.catalog_repo import CatalogRepository
@@ -30,10 +33,13 @@ from backend.infra.repositories.notification_repo import NotificationRepository
 from backend.infra.repositories.project_member_repo import ProjectMemberRepository
 from backend.infra.repositories.project_repo import ProjectRepository
 from backend.infra.repositories.resource_repo import ResourceRepository
+from backend.infra.repositories.sla_rule_repo import SlaRuleRepository
 from backend.infra.repositories.task_list_repo import TaskListRepository
 from backend.infra.repositories.ticket_repo import TicketRepository
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.storage import attachments as attachment_storage
+
+logger = logging.getLogger(__name__)
 
 ns = Namespace("tickets", description="Gestión de tickets y su ciclo de vida", path="/api/tickets")
 
@@ -121,6 +127,11 @@ _resource_ref = ns.model("ResourceRef", {
     "full_name": fields.String(description="Nombre completo"),
 })
 
+_sla_summary_out = ns.model("TicketSlaSummary", {
+    "phase": fields.String(allow_null=True, description="contacto | ejecucion | cerrado | null"),
+    "status": fields.String(description="sin_sla | corriendo | pausado | vencido | detenido"),
+})
+
 _ticket_out = ns.model("Ticket", {
     "id": fields.String(description="UUID del ticket"),
     "ticket_number": fields.String(description="Consecutivo legible", example="TK-000123"),
@@ -143,6 +154,9 @@ _ticket_out = ns.model("Ticket", {
     "parent_task_id": fields.String(allow_null=True, description="Si no es null, este "
                                                                   "registro es una Subtarea"),
     "created_at": fields.String(description="Fecha de creación ISO-8601"),
+    "sla": fields.Nested(_sla_summary_out, description="Resumen de SLA (Fase 4, spec 014) "
+                                                        "para pintar el indicador sin abrir "
+                                                        "el detalle (FR-008)"),
 })
 
 _ticket_list_out = ns.model("TicketList", {
@@ -209,8 +223,36 @@ _related_from_out = ns.model("RelatedFromItem", {
     "record_type": fields.String(description="Ticket | Tarea"),
 })
 
+_ticket_skill_ref = ns.model("TicketSkillRef", {
+    "id": fields.String(description="UUID del skill"),
+    "code": fields.String(description="Código del skill"),
+    "label": fields.String(description="Etiqueta del skill"),
+})
+
+_ticket_skills_update = ns.model("TicketSkillsUpdate", {
+    "skill_ids": fields.List(
+        fields.String, required=True,
+        description="Lista completa de UUIDs de Skills requeridas (reemplaza el set actual, "
+                     "spec 011 FR-001/FR-003). Array vacío deja el ticket sin Skills requeridas.",
+        example=[]),
+})
+
+_sla_out = ns.model("TicketSla", {
+    "phase": fields.String(allow_null=True, description="contacto | ejecucion | cerrado | null"),
+    "status": fields.String(description="sin_sla | corriendo | pausado | vencido | detenido"),
+    "phase_limit_minutes": fields.Integer(allow_null=True),
+    "consumed_seconds": fields.Integer(),
+    "rule_id": fields.String(allow_null=True),
+    "contact_result": fields.String(allow_null=True, description="pendiente | cumplido | vencido | null"),
+    "contact_consumed_seconds": fields.Integer(allow_null=True),
+})
+
 _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "description": fields.String(),
+    "description_attachments": fields.List(
+        fields.Nested(_attachment_out),
+        description="Adjuntos de la descripción (spec 017) — independientes de los adjuntos "
+                    "de cada comentario"),
     "tool_id": fields.String(allow_null=True),
     "process_id": fields.String(allow_null=True),
     "resolution_type_id": fields.String(allow_null=True),
@@ -242,6 +284,11 @@ _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "comments": fields.List(fields.Nested(_comment_out)),
     "transitions": fields.List(fields.Nested(_transition_out)),
     "assignments": fields.List(fields.Nested(_assignment_out)),
+    "skills": fields.List(fields.Nested(_ticket_skill_ref),
+                          description="Skills requeridas para resolverlo, opcional (spec 011)"),
+    "sla": fields.Nested(_sla_out, description="Estado de SLA (Fase 4, spec 014) — solo "
+                                               "calculado para record_type 'Ticket' (FR-012); "
+                                               "'sin_sla' para Tareas/Subtareas"),
 })
 
 _assignment_result_ref = ns.model("AssignmentResult", {
@@ -307,6 +354,7 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
     project = ProjectRepository(db).get_by_id(ticket.project_id) if ticket.project_id else None
     assignee = ResourceRepository(db).get_by_id(ticket.assignee_id) if ticket.assignee_id else None
     task_list = TaskListRepository(db).get_by_id(ticket.list_id) if ticket.list_id else None
+    sla_state = sla_service.compute_state(ticket, datetime.now(timezone.utc))
     return {
         "id": str(ticket.id),
         "ticket_number": ticket.number_display,
@@ -327,6 +375,7 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
         "record_type": _record_type_name(ticket.record_type_id, db),
         "parent_task_id": str(ticket.parent_task_id) if ticket.parent_task_id else None,
         "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+        "sla": {"phase": sla_state["phase"], "status": sla_state["status"]},
     }
 
 
@@ -375,6 +424,11 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
                 if is_task and not is_subtask else [])
     d.update({
         "description": ticket.description,
+        "description_attachments": [
+            {"id": str(a.id), "filename": a.filename, "content_type": a.content_type,
+             "size_bytes": a.size_bytes}
+            for a in CommentRepository(db).list_ticket_attachments(ticket.id)
+        ],
         "tool_id": str(ticket.tool_id) if ticket.tool_id else None,
         "process_id": str(ticket.process_id) if ticket.process_id else None,
         "estimated_resolution_minutes": ticket.estimated_resolution_minutes,
@@ -395,6 +449,8 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
         "comments": [_comment_to_dict(c) for c in CommentRepository(db).list_for_ticket(ticket.id)],
         "transitions": TicketRepository(db).list_transitions(ticket.id),
         "assignments": TicketRepository(db).list_assignments(ticket.id),
+        "skills": [{"id": str(s.id), "code": s.code, "label": s.label} for s in (ticket.skills or [])],
+        "sla": sla_service.compute_state(ticket, datetime.now(timezone.utc)),
     })
     return d
 
@@ -419,13 +475,33 @@ def _get_ticket_or_404(db, ticket_id: str):
     return ticket, None
 
 
+def _sla_updates_for_transition(db, ticket: Ticket, new_status: str) -> dict:
+    """Efecto lateral de SLA sobre una transición de estado (Fase 4, spec 014, FR-014).
+
+    Nunca debe romper la transición ya validada/aplicada por el llamador: cualquier excepción
+    se registra en el log y se ignora, devolviendo un dict vacío (sin cambios de SLA) — el SLA
+    es de solo medición, no una regla de negocio que pueda bloquear el ciclo de vida del ticket.
+    Solo aplica a `record_type` == "Ticket" (FR-012); para Tareas/Subtareas siempre es un no-op.
+    """
+    try:
+        if _is_task(ticket, db):
+            return {}
+        updates = sla_service.apply_transition(
+            ticket, new_status, datetime.now(timezone.utc), SlaRuleRepository(db))
+        return updates or {}
+    except Exception:
+        logger.exception("SLA sync failed for ticket %s (-> %s)", ticket.id, new_status)
+        return {}
+
+
 def _apply_transition(db, ticket: Ticket, trigger: str, actor_id: uuid.UUID,
                       comment_id: uuid.UUID | None = None,
                       extra_fields: dict | None = None) -> Ticket:
     """Ejecuta la transición FSM y registra el histórico (sin commit)."""
     new_status = ticket_fsm.apply(ticket.status, trigger)
     repo = TicketRepository(db)
-    fields_to_set = {"status": new_status, **(extra_fields or {})}
+    fields_to_set = {"status": new_status, **_sla_updates_for_transition(db, ticket, new_status),
+                     **(extra_fields or {})}
     updated = repo.update_fields(ticket.id, **fields_to_set)
     repo.add_transition(ticket.id, ticket.status, new_status, actor_id,
                         comment_id=comment_id, commit=True)
@@ -449,6 +525,11 @@ class TicketList(Resource):
         "assignee_id": {"description": "Filtrar por UUID de recurso asignado", "type": "string"},
         "escalation_level": {"description": "n1 | n2 | n3 | n4", "type": "string"},
         "sort": {"description": "created_at | -created_at | priority | status (default -created_at)", "type": "string"},
+        "sla_status": {"description": "sin_sla | corriendo | pausado | vencido | detenido "
+                                       "(Fase 4, spec 014)", "type": "string"},
+        "sla_expiring_within_hours": {"description": "Tickets con SLA corriendo cuyo tiempo "
+                                                       "restante cae dentro de N horas (Fase 4, "
+                                                       "FR-009)", "type": "integer"},
     })
     @ns.response(200, "Listado de tickets", _ticket_list_out)
     @ns.response(400, "Parámetros inválidos", _error)
@@ -468,6 +549,13 @@ class TicketList(Resource):
             return {"error": "validation_error", "message": "page y page_size deben ser enteros"}, 400
         own_only = not current_user_has("tickets", "view")
         statuses = None if own_only else (request.args.getlist("status") or None)
+        sla_expiring_within_hours = None
+        if not own_only and request.args.get("sla_expiring_within_hours") is not None:
+            try:
+                sla_expiring_within_hours = int(request.args["sla_expiring_within_hours"])
+            except ValueError:
+                return {"error": "validation_error",
+                        "message": "sla_expiring_within_hours debe ser un entero"}, 400
         try:
             db = get_db()
             items, total = TicketRepository(db).list_paginated(
@@ -483,6 +571,8 @@ class TicketList(Resource):
                 escalation_level=None if own_only else (request.args.get("escalation_level") or None),
                 sort=request.args.get("sort", "-created_at"),
                 created_by=g.current_user.id if own_only else None,
+                sla_status=None if own_only else (request.args.get("sla_status") or None),
+                sla_expiring_within_hours=sla_expiring_within_hours,
             )
             return {"items": [_ticket_summary(t, db) for t in items],
                     "total": total, "page": page, "page_size": page_size}, 200
@@ -492,7 +582,8 @@ class TicketList(Resource):
     @ns.doc("create_ticket")
     @ns.expect(_ticket_input, validate=False)
     @ns.response(201, "Ticket creado (nace en estado NUEVO)", _ticket_detail_out)
-    @ns.response(400, "Datos inválidos o enum desconocido", _error)
+    @ns.response(400, "Datos inválidos, enum desconocido, o adjunto/imagen no permitida "
+                      "(attachment_error, spec 017)", _error)
     @ns.response(401, "No autenticado", _error)
     @ns.response(403, "Sin permiso tickets:create", _error)
     @ns.response(404, "Cliente, proyecto, catálogo o client_contact_id no encontrado", _error)
@@ -513,15 +604,32 @@ class TicketList(Resource):
         `ticket_type`/`priority`/`severity` (se defaultean en silencio si se omiten, spec 008
         Decisión 1 — pero, a diferencia de la spec 008, si se envían se respetan) y nace en
         estado "nuevo" como cualquier registro (spec 009 revierte el estado inicial "pendiente"
-        de la spec 008 — mismo catálogo compartido con Ticket)."""
-        data = request.get_json(silent=True)
-        if not data:
-            return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
+        de la spec 008 — mismo catálogo compartido con Ticket). Acepta `application/json` (sin
+        adjuntos) o `multipart/form-data` con los mismos campos como partes de formulario, más
+        `inline_images` (imágenes pegadas en `description` vía `data-pending-id`) y/o
+        `attachments` (adjuntos manuales, mismas reglas que en comentarios) — spec 017."""
+        if request.content_type and "multipart/form-data" in request.content_type:
+            # spec 017: descripción con imágenes pegadas y/o adjuntos manuales al crear
+            data = request.form.to_dict()
+            inline_image_files = request.files.getlist("inline_images")
+            attachment_files = request.files.getlist("attachments")
+        else:
+            data = request.get_json(silent=True)
+            if not data:
+                return {"error": "validation_error", "message": "El cuerpo debe ser JSON"}, 400
+            inline_image_files = []
+            attachment_files = []
+
+        def _missing(field_name: str) -> bool:
+            if field_name == "description":
+                return not strip_html(data.get(field_name) or "").strip()
+            return not data.get(field_name)
+
         db = get_db()
         is_encargado = g.current_user.role.name == USUARIO_CLIENTE_ROLE_NAME
         if is_encargado:
             for field_name in ("title", "description"):
-                if not data.get(field_name):
+                if _missing(field_name):
                     return {"error": "validation_error", "message": f"El campo '{field_name}' es requerido"}, 400
             contact = ClientContactRepository(db).get_by_user_id(g.current_user.id)
             if not contact:
@@ -536,7 +644,7 @@ class TicketList(Resource):
             list_id = parent_task_id = None
         else:
             for field_name in ("title", "description", "client_id"):
-                if not data.get(field_name):
+                if _missing(field_name):
                     return {"error": "validation_error", "message": f"El campo '{field_name}' es requerido"}, 400
             client_id = parse_uuid(data["client_id"])
             if not client_id:
@@ -610,9 +718,42 @@ class TicketList(Resource):
                 # propia editable después (spec 009, Assumptions).
                 if parent_ticket and list_id is None:
                     list_id = parent_ticket.list_id
+            # SLA (Fase 4, spec 014, FR-012): solo se calcula para record_type "Ticket", nunca
+            # para Tareas/Subtareas. Un fallo aquí no debe impedir la creación del ticket.
+            sla_fields: dict = {}
+            if not is_task:
+                try:
+                    sla_fields = sla_service.initial_state(
+                        project_id, priority, SlaRuleRepository(db), datetime.now(timezone.utc))
+                except Exception:
+                    logger.exception("SLA init failed for new ticket")
+
+            # spec 017: valida adjuntos/imágenes ANTES de escribir nada; el id del Ticket se
+            # genera ya para poder resolver las URLs de las imágenes pegadas en su descripción
+            ticket_id = uuid.uuid4()
+            staged_inline = []
+            id_by_index: dict[int, str] = {}
+            for index, f in enumerate(inline_image_files):
+                content = f.read()
+                attachment_storage.validate(f.filename, len(content))
+                attachment_id = uuid.uuid4()
+                id_by_index[index] = str(attachment_id)
+                staged_inline.append((attachment_id, f.filename, f.content_type or "application/octet-stream", content))
+            staged_attachments = []
+            for f in attachment_files:
+                content = f.read()
+                attachment_storage.validate(f.filename, len(content))
+                staged_attachments.append((f.filename, f.content_type or "application/octet-stream", content))
+            # Reescribe los `data-pending-id` ANTES de sanear: `sanitize_html` no conoce ese
+            # atributo temporal (no está en la lista blanca) y lo despojaría antes de poder
+            # resolverlo a la URL real del adjunto.
+            description = resolve_pending_images(
+                str(data["description"]).strip(), id_by_index, f"/api/tickets/{ticket_id}/attachments")
+            description = sanitize_html(description)
+
             ticket = Ticket(
-                id=uuid.uuid4(), ticket_number=0,  # lo asigna la secuencia
-                title=str(data["title"]).strip(), description=str(data["description"]).strip(),
+                id=ticket_id, ticket_number=0,  # lo asigna la secuencia
+                title=str(data["title"]).strip(), description=description,
                 ticket_type=ticket_type, priority=priority,
                 severity=severity, client_id=client_id,
                 status="nuevo",
@@ -622,9 +763,25 @@ class TicketList(Resource):
                 related_ticket_id=related_id, created_by=g.current_user.id,
                 client_contact_id=client_contact_id, list_id=list_id,
                 parent_task_id=parent_task_id, assignee_id=task_assignee_id,
+                **sla_fields,
             )
             created = TicketRepository(db).create(ticket)
+            comment_repo = CommentRepository(db)
+            for attachment_id, filename, content_type, content in staged_inline:
+                path = attachment_storage.save(created.id, filename, content)
+                comment_repo.add_attachment(Attachment(
+                    id=attachment_id, ticket_id=created.id, filename=filename,
+                    content_type=content_type, size_bytes=len(content), storage_path=path,
+                ))
+            for filename, content_type, content in staged_attachments:
+                path = attachment_storage.save(created.id, filename, content)
+                comment_repo.add_attachment(Attachment(
+                    id=uuid.uuid4(), ticket_id=created.id, filename=filename,
+                    content_type=content_type, size_bytes=len(content), storage_path=path,
+                ))
             return _ticket_detail(created, db), 201, {"Location": f"/api/tickets/{created.id}"}
+        except attachment_storage.AttachmentError as e:
+            return {"error": "attachment_error", "message": e.message}, 400
         except DomainError as e:
             return {"error": e.code, "message": e.message, **e.extra}, e.status_code
         except Exception:
@@ -688,16 +845,62 @@ class TicketDetail(Resource):
                 tickets_repo=TicketRepository(db), task_lists_repo=TaskListRepository(db),
                 project_members_repo=ProjectMemberRepository(db),
             )
+            if "description" in clean:
+                clean["description"] = sanitize_html(str(clean["description"] or ""))
             for uuid_field in ("tool_id", "process_id", "related_ticket_id"):
                 if uuid_field in clean and clean[uuid_field] is not None:
                     parsed = parse_uuid(str(clean[uuid_field]))
                     if not parsed:
                         return {"error": "validation_error", "message": f"{uuid_field} inválido"}, 400
                     clean[uuid_field] = parsed
+            # SLA (FR-011, clarificación 2026-07-14): `project_id` no es editable en este
+            # sistema (no está en PATCHABLE_FIELDS) — en la práctica solo `priority` puede
+            # disparar el recálculo de la regla aplicable a la fase vigente.
+            if "priority" in clean and clean["priority"] != ticket.priority and not _is_task(ticket, db):
+                try:
+                    sla_updates = sla_service.recalc_rule_for_project_or_priority_change(
+                        ticket, ticket.project_id, clean["priority"],
+                        datetime.now(timezone.utc), SlaRuleRepository(db))
+                    if sla_updates:
+                        clean.update(sla_updates)
+                except Exception:
+                    logger.exception("SLA recalculation failed for ticket %s (priority change)", ticket.id)
             updated = TicketRepository(db).update_fields(ticket.id, **clean)
             return _ticket_detail(updated, db), 200
         except DomainError as e:
             return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
+
+
+@ns.route("/<string:ticket_id>/skills")
+@ns.param("ticket_id", "UUID del ticket")
+class TicketSkills(Resource):
+    @ns.doc("update_ticket_skills")
+    @ns.expect(_ticket_skills_update, validate=False)
+    @ns.response(200, "Skills requeridas actualizadas (reemplaza la lista completa)", _ticket_detail_out)
+    @ns.response(400, "UUID inválido o cuerpo sin skill_ids", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:edit", _error)
+    @ns.response(404, "Ticket no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("tickets", "edit")
+    def patch(self, ticket_id: str):
+        """Reemplaza el set completo de Skills requeridas del ticket (spec 011). Funciona en
+        cualquier estado del ticket, incluidos Cerrado y Cancelado (FR-002) — no pasa por
+        `locked_fields_for`, no dispara notificación ni exige comentario (FR-006)."""
+        uid = parse_uuid(ticket_id)
+        if not uid:
+            return {"error": "validation_error", "message": "ID de ticket inválido"}, 400
+        data = request.get_json(silent=True) or {}
+        skill_ids = [parse_uuid(sid) for sid in data.get("skill_ids", [])]
+        skill_ids = [s for s in skill_ids if s]
+        try:
+            db = get_db()
+            updated = TicketRepository(db).update_skills(uid, skill_ids)
+            if not updated:
+                return {"error": "not_found", "message": "Ticket no encontrado"}, 404
+            return _ticket_detail(updated, db), 200
         except Exception:
             return server_error()
 
@@ -746,7 +949,9 @@ class TicketAssign(Resource):
             )
             CommentRepository(db).add(comment, commit=False)
             new_status = ticket_fsm.apply(ticket.status, trigger)
-            ticket_repo.update_fields(ticket.id, status=new_status, assignee_id=assignee_id)
+            sla_updates = _sla_updates_for_transition(db, ticket, new_status)
+            ticket_repo.update_fields(ticket.id, status=new_status, assignee_id=assignee_id,
+                                      **sla_updates)
             ticket_repo.add_transition(ticket.id, ticket.status, new_status,
                                        g.current_user.id, comment_id=comment.id, commit=False)
             assignment_id = ticket_repo.add_assignment(
@@ -771,9 +976,11 @@ class TicketAssign(Resource):
 class TicketComments(Resource):
     @ns.doc("add_ticket_comment", description=(
         "Acepta `application/json` (sin adjuntos) o `multipart/form-data` con uno o más "
-        "campos `files` (máx 10 MB c/u, tipos permitidos). Los tipos con efecto de "
-        "transición (confirmacion_atencion, solicitud_informacion, termina_analisis, "
-        "solicitud_cierre, respuesta_usuario) mueven el ticket en la misma operación."
+        "campos `files` (adjuntos manuales, máx 10 MB c/u, tipos permitidos) y/o "
+        "`inline_images` (imágenes pegadas incrustadas en `body` vía `data-pending-id`, "
+        "spec 017). Los tipos con efecto de transición (confirmacion_atencion, "
+        "solicitud_informacion, termina_analisis, solicitud_cierre, respuesta_usuario) "
+        "mueven el ticket en la misma operación."
     ))
     @ns.expect(_comment_input, validate=False)
     @ns.response(201, "Comentario registrado (y transición aplicada si el tipo lo dispara)", _comment_result_out)
@@ -790,11 +997,13 @@ class TicketComments(Resource):
             comment_type = request.form.get("comment_type", "")
             body = request.form.get("body", "")
             files = request.files.getlist("files")
+            inline_images = request.files.getlist("inline_images")
         else:
             data = request.get_json(silent=True) or {}
             comment_type = data.get("comment_type", "")
             body = data.get("body", "")
             files = []
+            inline_images = []
         try:
             db = get_db()
             ticket, err = _get_ticket_or_404(db, ticket_id)
@@ -810,6 +1019,20 @@ class TicketComments(Resource):
                 content = f.read()
                 attachment_storage.validate(f.filename, len(content))
                 staged.append((f.filename, f.content_type or "application/octet-stream", content))
+            staged_inline = []
+            id_by_index: dict[int, str] = {}
+            for index, f in enumerate(inline_images):
+                content = f.read()
+                attachment_storage.validate(f.filename, len(content))
+                attachment_id = uuid.uuid4()
+                id_by_index[index] = str(attachment_id)
+                staged_inline.append((attachment_id, f.filename, f.content_type or "application/octet-stream", content))
+            # Reescribe los `data-pending-id` ANTES de sanear: `sanitize_html` no conoce ese
+            # atributo temporal (no está en la lista blanca) y lo despojaría antes de poder
+            # resolverlo a la URL real del adjunto.
+            body = resolve_pending_images(
+                body, id_by_index, f"/api/tickets/{ticket.id}/attachments")
+            body = sanitize_html(body)
 
             comment = Comment.create(ticket_id=ticket.id, comment_type=comment_type,
                                      body=body.strip(), author_id=actor_id)
@@ -821,6 +1044,12 @@ class TicketComments(Resource):
                     id=uuid.uuid4(), comment_id=comment.id, filename=filename,
                     content_type=content_type, size_bytes=len(content), storage_path=path,
                 ), commit=False)
+            for attachment_id, filename, content_type, content in staged_inline:
+                path = attachment_storage.save(ticket.id, filename, content)
+                comment_repo.add_attachment(Attachment(
+                    id=attachment_id, comment_id=comment.id, filename=filename,
+                    content_type=content_type, size_bytes=len(content), storage_path=path,
+                ), commit=False)
 
             updated = ticket
             if trigger is not None:
@@ -830,7 +1059,8 @@ class TicketComments(Resource):
                     extra["resolution_accepted_at"] = None
                 new_status = ticket_fsm.apply(ticket.status, trigger)
                 ticket_repo = TicketRepository(db)
-                ticket_repo.update_fields(ticket.id, status=new_status, **extra)
+                sla_updates = _sla_updates_for_transition(db, ticket, new_status)
+                ticket_repo.update_fields(ticket.id, status=new_status, **sla_updates, **extra)
                 ticket_repo.add_transition(ticket.id, ticket.status, new_status,
                                            actor_id, comment_id=comment.id, commit=False)
                 # notificación al resolutor cuando el usuario responde (FR-023)
@@ -912,7 +1142,8 @@ class TicketResolution(Resource):
         if "accepted" not in data:
             return {"error": "validation_error", "message": "El campo 'accepted' es requerido"}, 400
         accepted = bool(data["accepted"])
-        body = str(data.get("body", "")).strip() or (
+        raw_body = str(data.get("body", "")).strip()
+        body = sanitize_html(raw_body) if raw_body else (
             "El usuario aceptó la resolución" if accepted else "El usuario rechazó la resolución")
         try:
             db = get_db()
@@ -935,7 +1166,9 @@ class TicketResolution(Resource):
             # rechazo → vuelve a EN EJECUCIÓN + notificación al resolutor
             new_status = ticket_fsm.apply(ticket.status, "reject_resolution")
             ticket_repo = TicketRepository(db)
-            ticket_repo.update_fields(ticket.id, status=new_status, resolution_accepted_at=None)
+            sla_updates = _sla_updates_for_transition(db, ticket, new_status)
+            ticket_repo.update_fields(ticket.id, status=new_status, resolution_accepted_at=None,
+                                      **sla_updates)
             ticket_repo.add_transition(ticket.id, ticket.status, new_status, actor_id,
                                        comment_id=comment.id, commit=False)
             if ticket.assignee_id:
@@ -971,10 +1204,10 @@ class TicketClose(Resource):
         """Cierre (FR-012): exige tipo de resolución + descripción; notifica Coordinador y QM."""
         data = request.get_json(silent=True) or {}
         resolution_type_id = parse_uuid(str(data.get("resolution_type_id", "")))
-        body = str(data.get("body", "")).strip()
+        body = sanitize_html(str(data.get("body", "")))
         if not resolution_type_id:
             return {"error": "validation_error", "message": "El campo 'resolution_type_id' es requerido"}, 400
-        if not body:
+        if not strip_html(body).strip():
             return {"error": "validation_error",
                     "message": "La descripción de la solución es requerida para cerrar"}, 400
         try:
@@ -997,9 +1230,10 @@ class TicketClose(Resource):
             CommentRepository(db).add(comment, commit=False)
             new_status = ticket_fsm.apply(ticket.status, "close")
             ticket_repo = TicketRepository(db)
+            sla_updates = _sla_updates_for_transition(db, ticket, new_status)
             ticket_repo.update_fields(ticket.id, status=new_status,
                                       resolution_type_id=resolution_type_id,
-                                      closed_at=datetime.now(timezone.utc))
+                                      closed_at=datetime.now(timezone.utc), **sla_updates)
             ticket_repo.add_transition(ticket.id, ticket.status, new_status, actor_id,
                                        comment_id=comment.id, commit=False)
             # FR-024: notificar a Coordinadores y QMs activos
@@ -1033,8 +1267,8 @@ class TicketCancel(Resource):
     def post(self, ticket_id: str):
         """Cancelar desde cualquier estado no final, con motivo obligatorio."""
         data = request.get_json(silent=True) or {}
-        body = str(data.get("body", "")).strip()
-        if not body:
+        body = sanitize_html(str(data.get("body", "")))
+        if not strip_html(body).strip():
             return {"error": "validation_error", "message": "El motivo de cancelación es requerido"}, 400
         try:
             db = get_db()
@@ -1046,7 +1280,8 @@ class TicketCancel(Resource):
             CommentRepository(db).add(comment, commit=False)
             new_status = ticket_fsm.apply(ticket.status, "cancel")
             ticket_repo = TicketRepository(db)
-            ticket_repo.update_fields(ticket.id, status=new_status)
+            sla_updates = _sla_updates_for_transition(db, ticket, new_status)
+            ticket_repo.update_fields(ticket.id, status=new_status, **sla_updates)
             ticket_repo.add_transition(ticket.id, ticket.status, new_status,
                                        g.current_user.id, comment_id=comment.id, commit=False)
             db.commit()
@@ -1077,7 +1312,7 @@ class TicketStatusChange(Resource):
         comentario obligatorio. Reemplaza `POST /{id}/task-transition` (spec 008, retirado)."""
         data = request.get_json(silent=True) or {}
         new_status = str(data.get("status", "")).strip()
-        comment = str(data.get("comment", "")).strip()
+        comment = sanitize_html(str(data.get("comment", "")))
         if not new_status:
             return {"error": "validation_error", "message": "El campo 'status' es requerido"}, 400
         try:

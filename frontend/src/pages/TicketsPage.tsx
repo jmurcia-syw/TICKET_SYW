@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Form, Input, Modal, Row, Col, Segmented, Select, Space, Table, Tooltip, message } from 'antd'
+import { Button, Form, Input, Modal, Row, Col, Segmented, Select, Space, Table, Tooltip, Upload, message } from 'antd'
 import {
   PlusOutlined, EyeOutlined, UserSwitchOutlined, InboxOutlined, ThunderboltOutlined,
-  ClockCircleOutlined, CheckCircleOutlined, FieldTimeOutlined,
+  ClockCircleOutlined, CheckCircleOutlined, FieldTimeOutlined, UploadOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType, TableProps } from 'antd/es/table'
+import type { UploadFile } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
 import { clientService } from '../services/clientService'
 import { projectService } from '../services/projectService'
 import { clientContactService } from '../services/clientContactService'
 import { catalogService } from '../services/catalogService'
-import { resourceService } from '../services/resourceService'
+import { resourceService, skillService } from '../services/resourceService'
 import { taskListService } from '../services/taskListService'
 import type {
   TicketListItem, TicketFormData, TicketStatus, Priority, Severity,
@@ -20,11 +21,12 @@ import { STATUS_LABELS, TICKET_TYPE_LABELS, PRIORITY_LABELS, SEVERITY_LABELS } f
 import type { CatalogItem } from '../types/catalog'
 import type { ClientListItem } from '../types/client'
 import type { ProjectListItem } from '../types/project'
-import type { Resource } from '../types/resource'
+import type { Resource, Skill } from '../types/resource'
 import type { ClientContact } from '../types/clientContact'
 import type { TaskList } from '../types/taskList'
 import { vivid } from '../theme'
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
+import SlaStatusTag from '../components/tickets/SlaStatusTag'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
 import PageToolbar from '../components/common/PageToolbar'
@@ -33,6 +35,7 @@ import SavedFiltersBar from '../components/tickets/SavedFiltersBar'
 import { textColumnFilter, serverColumnFilter } from '../components/common/columnFilters'
 import { useAuthStore } from '../store/authStore'
 import type { TicketFilterCriteria } from '../store/savedFiltersStore'
+import RichTextEditor, { isRichTextEmpty } from '../components/tickets/RichTextEditor'
 
 const IN_PROGRESS_STATUSES: TicketStatus[] = ['contacto', 'en_analisis', 'en_ejecucion', 'en_pruebas']
 
@@ -40,6 +43,13 @@ const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ v
 const priorityOptions = Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }))
 const severityOptions = Object.entries(SEVERITY_LABELS).map(([value, label]) => ({ value, label }))
 const typeOptions = Object.entries(TICKET_TYPE_LABELS).map(([value, label]) => ({ value, label }))
+const SLA_STATUS_OPTIONS = [
+  { text: 'Corriendo', value: 'corriendo' },
+  { text: 'Pausado', value: 'pausado' },
+  { text: 'Vencido', value: 'vencido' },
+  { text: 'Detenido', value: 'detenido' },
+  { text: 'Sin SLA', value: 'sin_sla' },
+]
 
 export default function TicketsPage() {
   const { hasPermission, role } = useAuthStore()
@@ -60,8 +70,9 @@ export default function TicketsPage() {
   const [priorityFilter, setPriorityFilter] = useState<Priority | undefined>()
   const [severityFilter, setSeverityFilter] = useState<Severity | undefined>()
   const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>()
+  const [slaStatusFilter, setSlaStatusFilter] = useState<TicketListItem['sla']['status'] | undefined>()
   const [assigningId, setAssigningId] = useState<string | null>(null)
-  const [stats, setStats] = useState<{ nuevo: number; enProgreso: number; pendienteUsuario: number; resuelto: number } | null>(null)
+  const [stats, setStats] = useState<{ nuevo: number; enProgreso: number; pendienteUsuario: number; resuelto: number; vencenHoy: number } | null>(null)
 
   const [clients, setClients] = useState<ClientListItem[]>([])
   const [projects, setProjects] = useState<ProjectListItem[]>([])
@@ -70,9 +81,13 @@ export default function TicketsPage() {
   const [tools, setTools] = useState<CatalogItem[]>([])
   const [processes, setProcesses] = useState<CatalogItem[]>([])
   const [resources, setResources] = useState<Resource[]>([])
+  const [skills, setSkills] = useState<Skill[]>([])
   const [recordTypes, setRecordTypes] = useState<CatalogItem[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [taskLists, setTaskLists] = useState<TaskList[]>([])
+  const [pendingDescriptionImages, setPendingDescriptionImages] = useState<File[]>([])
+  const [descriptionAttachments, setDescriptionAttachments] = useState<UploadFile[]>([])
+  const [descriptionKey, setDescriptionKey] = useState(0)
   const [form] = Form.useForm<TicketFormData>()
   const selectedClientId = Form.useWatch('client_id', form)
   const selectedProjectId = Form.useWatch('project_id', form)
@@ -93,25 +108,27 @@ export default function TicketsPage() {
         priority: priorityFilter,
         severity: severityFilter,
         assignee_id: assigneeFilter,
+        sla_status: slaStatusFilter,
       })
       setTickets(res.items)
       setTotal(res.total)
     } finally {
       setLoading(false)
     }
-  }, [page, search, statusFilter, clientFilter, priorityFilter, severityFilter, assigneeFilter])
+  }, [page, search, statusFilter, clientFilter, priorityFilter, severityFilter, assigneeFilter, slaStatusFilter])
 
   useEffect(() => { load() }, [load])
 
   const loadStats = useCallback(async () => {
     try {
-      const [nuevo, enProgreso, pendienteUsuario, resuelto] = await Promise.all([
+      const [nuevo, enProgreso, pendienteUsuario, resuelto, vencenHoy] = await Promise.all([
         ticketService.list({ status: ['nuevo'], page_size: 1 }).then(r => r.total),
         ticketService.list({ status: IN_PROGRESS_STATUSES, page_size: 1 }).then(r => r.total),
         ticketService.list({ status: ['pendiente_usuario'], page_size: 1 }).then(r => r.total),
         ticketService.list({ status: ['resuelto'], page_size: 1 }).then(r => r.total),
+        ticketService.list({ sla_expiring_within_hours: 24, page_size: 1 }).then(r => r.total),
       ])
-      setStats({ nuevo, enProgreso, pendienteUsuario, resuelto })
+      setStats({ nuevo, enProgreso, pendienteUsuario, resuelto, vencenHoy })
     } catch {
       message.error('No se pudieron cargar las estadísticas de tickets')
     }
@@ -135,6 +152,8 @@ export default function TicketsPage() {
       .catch(() => message.error('No se pudo cargar el catálogo de procesos'))
     resourceService.list({ active: true, page_size: 100 }).then(r => setResources(r.items))
       .catch(() => message.error('No se pudo cargar la lista de recursos'))
+    skillService.list(true).then(r => setSkills(r.items))
+      .catch(() => message.error('No se pudo cargar el catálogo de skills'))
     // Fase 3: "Ticket" y "Tarea" son ambos creables — el default al abrir el form es "Ticket"
     // (no el primero alfabético, que sería "Tarea").
     catalogService.list('record-types').then(r => {
@@ -179,10 +198,16 @@ export default function TicketsPage() {
 
   const handleCreate = async (values: TicketFormData) => {
     try {
-      const created = await ticketService.create(values)
+      const { skill_ids, ...ticketFields } = values
+      const rawAttachments = descriptionAttachments.map(f => f.originFileObj).filter((f): f is NonNullable<typeof f> => !!f)
+      const created = await ticketService.create(ticketFields, pendingDescriptionImages, rawAttachments)
+      if (skill_ids?.length) {
+        await ticketService.updateTicketSkills(created.id, skill_ids)
+      }
       message.success(`Ticket ${created.ticket_number} creado`)
       setFormOpen(false)
       form.resetFields()
+      setPendingDescriptionImages([]); setDescriptionAttachments([]); setDescriptionKey(k => k + 1)
       load()
       loadStats()
     } catch (err: unknown) {
@@ -217,6 +242,7 @@ export default function TicketsPage() {
     setPriorityFilter((filters.priority?.[0] as Priority) || undefined)
     setSeverityFilter((filters.severity?.[0] as Severity) || undefined)
     setAssigneeFilter((filters.assignee?.[0] as string) || undefined)
+    setSlaStatusFilter((filters.sla?.[0] as TicketListItem['sla']['status']) || undefined)
   }
 
   const columns: ColumnsType<TicketListItem> = [
@@ -251,6 +277,11 @@ export default function TicketsPage() {
       filters: statusOptions.map(o => ({ text: o.label, value: o.value })),
       filteredValue: statusFilter.length ? statusFilter : null,
       onFilter: () => true,
+    },
+    {
+      title: 'SLA', dataIndex: 'sla', key: 'sla', width: 110,
+      render: (sla: TicketListItem['sla']) => <SlaStatusTag status={sla.status} />,
+      ...serverColumnFilter(SLA_STATUS_OPTIONS, slaStatusFilter),
     },
     {
       title: 'Prioridad', dataIndex: 'priority', key: 'priority', width: 125,
@@ -302,8 +333,8 @@ export default function TicketsPage() {
           <StatCard label="Resueltos" value={stats?.resuelto ?? '—'} icon={<CheckCircleOutlined />} color="green" sub="Pendientes de cierre" />
         </Col>
         <Col xs={12} md={8} lg={4}>
-          <StatCard label="Vencen hoy" value="—" icon={<FieldTimeOutlined />} color="red" placeholder
-            placeholderHint="Contador de SLA — llega en Fase 4 (Gestión de SLAs)" />
+          <StatCard label="Vencen hoy" value={stats?.vencenHoy ?? '—'} icon={<FieldTimeOutlined />} color="red"
+            sub="SLA vence en menos de 24h" />
         </Col>
       </Row>
 
@@ -330,6 +361,7 @@ export default function TicketsPage() {
         action={canCreate && (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => {
             form.resetFields()
+            setPendingDescriptionImages([]); setDescriptionAttachments([]); setDescriptionKey(k => k + 1)
             const ticketType = recordTypes.find(rt => rt.name === 'Ticket') ?? recordTypes[0]
             if (!isEncargado && ticketType) form.setFieldValue('record_type_id', ticketType.id)
             setFormOpen(true)
@@ -349,8 +381,17 @@ export default function TicketsPage() {
           <Form.Item name="title" label="Título" rules={[{ required: true, message: 'El título es requerido' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="description" label="Descripción" rules={[{ required: true, message: 'La descripción es requerida' }]}>
-            <Input.TextArea rows={3} />
+          <Form.Item name="description" label="Descripción"
+            rules={[{ required: true, message: 'La descripción es requerida' },
+              { validator: (_r, v) => (isRichTextEmpty(v || '') ? Promise.reject(new Error('La descripción es requerida')) : Promise.resolve()) }]}>
+            <RichTextEditor key={descriptionKey} placeholder="Descripción" allowImages
+              onPendingImage={file => setPendingDescriptionImages(prev => [...prev, file])} />
+          </Form.Item>
+          <Form.Item label="Adjuntos de la descripción">
+            <Upload multiple beforeUpload={() => false} fileList={descriptionAttachments}
+              onChange={({ fileList }) => setDescriptionAttachments(fileList)}>
+              <Button icon={<UploadOutlined />}>Adjuntar (máx 10 MB c/u)</Button>
+            </Upload>
           </Form.Item>
           {isEncargado && (
             <Form.Item name="project_id" label="Proyecto (opcional)">
@@ -415,6 +456,10 @@ export default function TicketsPage() {
                     options={processes.map(p => ({ value: p.id, label: p.name }))} />
                 </Form.Item>
               </Space>
+              <Form.Item name="skill_ids" label="Skills requeridas (opcional)">
+                <Select mode="multiple" allowClear placeholder="Sin Skills requeridas"
+                  options={skills.map(s => ({ value: s.id, label: `${s.code} — ${s.label}` }))} />
+              </Form.Item>
             </>
           </>}
         </Form>

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, Text, TIMESTAMP
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, ForeignKey, Text, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func, text
@@ -49,9 +49,16 @@ class CommentModel(Base):
 
 class AttachmentModel(Base):
     __tablename__ = "comment_attachments"
+    __table_args__ = (
+        CheckConstraint(
+            "(comment_id IS NOT NULL) <> (ticket_id IS NOT NULL)",
+            name="ck_attachment_exactly_one_parent",
+        ),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
-    comment_id = Column(UUID(as_uuid=True), ForeignKey("ticket_comments.id"), nullable=False)
+    comment_id = Column(UUID(as_uuid=True), ForeignKey("ticket_comments.id"), nullable=True)
+    ticket_id = Column(UUID(as_uuid=True), ForeignKey("tickets.id"), nullable=True)
     filename = Column(Text, nullable=False)
     content_type = Column(Text, nullable=False)
     size_bytes = Column(BigInteger, nullable=False)
@@ -62,6 +69,7 @@ class AttachmentModel(Base):
         return Attachment(
             id=self.id,
             comment_id=self.comment_id,
+            ticket_id=self.ticket_id,
             filename=self.filename,
             content_type=self.content_type,
             size_bytes=self.size_bytes,

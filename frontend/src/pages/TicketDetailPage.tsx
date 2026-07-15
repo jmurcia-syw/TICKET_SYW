@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Col, Descriptions, Divider, InputNumber, Row, Select, Space, Spin, Tag, Tooltip, message } from 'antd'
+import { Button, Card, Col, Descriptions, Divider, InputNumber, Row, Select, Space, Spin, Tooltip, Typography, message } from 'antd'
 import {
   UserSwitchOutlined, SaveOutlined, ClockCircleOutlined,
-  FieldTimeOutlined, PlayCircleOutlined, HistoryOutlined, UnorderedListOutlined,
+  FieldTimeOutlined, PlayCircleOutlined, HistoryOutlined, UnorderedListOutlined, PaperClipOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
@@ -21,10 +21,13 @@ import CommentThread from '../components/tickets/CommentThread'
 import CommentComposer from '../components/tickets/CommentComposer'
 import TaskStatusChanger from '../components/tickets/TaskStatusChanger'
 import SubtaskList from '../components/tickets/SubtaskList'
+import SlaCounter from '../components/tickets/SlaCounter'
 import AssignModal from '../components/tickets/AssignModal'
+import TicketSkillsSelector from '../components/tickets/TicketSkillsSelector'
 import TicketWorkSessions from '../components/worksessions/TicketWorkSessions'
 import TicketTimerWidget from '../components/worksessions/TicketTimerWidget'
 import TicketBreadcrumb from '../components/tickets/TicketBreadcrumb'
+import RichTextViewer from '../components/tickets/RichTextViewer'
 import { useAuthStore } from '../store/authStore'
 import { palette, vivid } from '../theme'
 
@@ -202,7 +205,17 @@ export default function TicketDetailPage() {
              en un único flujo consolidado (Fase 2.2, US1 FR-004) ── */}
         <Col xs={24} lg={14}>
           <Card title="Descripción" size="small">
-            <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{ticket.description}</p>
+            <RichTextViewer html={ticket.description} />
+            {ticket.description_attachments.length > 0 && (
+              <Space direction="vertical" size={2} style={{ marginTop: 8 }}>
+                {ticket.description_attachments.map(a => (
+                  <Typography.Link key={a.id}
+                    onClick={() => ticketService.downloadAttachment(ticket.id, a.id, a.filename)}>
+                    <PaperClipOutlined /> {a.filename} ({(a.size_bytes / 1024).toFixed(0)} KB)
+                  </Typography.Link>
+                ))}
+              </Space>
+            )}
           </Card>
 
           <Card
@@ -265,18 +278,7 @@ export default function TicketDetailPage() {
             title={<span><ClockCircleOutlined style={{ color: vivid.red.text, marginRight: 8 }} />SLA</span>}
             style={{ borderColor: palette.slate200, background: palette.slate50 }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-              <span style={{ fontSize: 22, fontWeight: 700, color: palette.slate400 }}>—:—:—</span>
-              <Tooltip title="Tiempos de atención/análisis/resolución por prioridad — llega en Fase 4 (Gestión de SLAs)">
-                <Tag>Próximamente · Fase 4</Tag>
-              </Tooltip>
-            </div>
-            <div style={{ height: 6, background: palette.slate200, borderRadius: 3, marginBottom: 6 }}>
-              <div style={{ height: 6, borderRadius: 3, background: palette.slate300, width: '0%' }} />
-            </div>
-            <div style={{ fontSize: 11, color: palette.slate400 }}>
-              Contador de atención/análisis/resolución por prioridad y cliente
-            </div>
+            <SlaCounter sla={ticket.sla} />
           </Card>
 
           <Card
@@ -380,6 +382,12 @@ export default function TicketDetailPage() {
                   ? <Select size="small" value={severity} onChange={setSeverity} style={{ width: 90 }}
                       options={Object.entries(SEVERITY_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
                   : ticket.severity.toUpperCase()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Skills requeridas">
+                <TicketSkillsSelector
+                  ticketId={ticket.id} skills={ticket.skills} editable={canEdit}
+                  onUpdated={skills => setTicket({ ...ticket, skills })}
+                />
               </Descriptions.Item>
               <Descriptions.Item label="Fecha de inicio">
                 {timeSummary.startDate
