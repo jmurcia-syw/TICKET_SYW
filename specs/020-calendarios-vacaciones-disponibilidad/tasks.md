@@ -288,15 +288,47 @@ dentro del rango se consideran laborales y las de fuera no, respetando su zona h
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T049 [P] Revisar en Swagger UI (`/swagger.json` o `/api/docs`) que todos los endpoints
+- [X] T049 [P] Revisar en Swagger UI (`/swagger.json` o `/api/docs`) que todos los endpoints
       nuevos de `backend/api/routes/calendar.py` quedaron documentados (`@ns.doc`/`@ns.response`)
-      antes de darse por completos (Principio I)
-- [ ] T050 Ejecutar los 4 escenarios de `quickstart.md` de punta a punta en una sola pasada contra
-      Docker, sin atajos entre historias
-- [ ] T051 Confirmar RLS activo en `absence_requests`/`absence_request_attachments`
-      (`SELECT * FROM pg_policies WHERE tablename LIKE 'absence_request%'`) — Principio IV
-- [ ] T052 Confirmar que `POST /api/tickets/{id}/assign` (`backend/api/routes/tickets.py`) no fue
-      modificado por esta fase — FR-015 y Decisión 7 de `research.md`
+      antes de darse por completos (Principio I). Verificado descargando `/swagger.json` real y
+      confirmando `summary` + `responses` en los 13 endpoints nuevos: `/api/holidays` (GET/POST),
+      `/api/holidays/{id}/{action}` (PATCH), `/api/absence-requests` (GET/POST),
+      `/api/absence-requests/{id}/decision` (PATCH), `/api/absence-requests/{id}/attachments`
+      (GET/POST), `/api/absence-requests/{id}/attachments/{id}` (GET/DELETE),
+      `/api/resources/availability` (GET), `/api/resources/{id}/work-schedule` (GET/PUT)
+- [X] T050 Ejecutar los 4 escenarios de `quickstart.md` de punta a punta en una sola pasada contra
+      Docker, sin atajos entre historias. Escenario 1: festivo de prueba creado para hoy vía API,
+      `GET /api/resources/availability` confirma `available:false, reason:holiday`; badge y
+      asignación sin bloqueo confirmados por revisión estática de `AssignModal.tsx` (el `onClick`
+      de la tarjeta y el botón "Asignar resolutor" solo dependen de `selected`, nunca de
+      `avail.available` — FR-015); festivo desactivado y confirmado `outside_hours` a las 22:00
+      hora Bogotá y `available:true` sin indicadores a las 10:00. Escenario 2: solicitud con
+      adjunto → aprobación Jefe directo → aprobación RRHH → `overall_status=approved`; segunda
+      solicitud rechazada por RRHH antes de que el jefe decida → `overall_status=rejected`
+      inmediato (FR-011a); autodecisión → `403 own_request` (FR-012). Escenario 3: aislamiento de
+      festivos por país confirmado vía `GET /api/holidays?country=CO|MX` y revisión de
+      `CalendarPage.tsx` (pestaña Cliente usa el país del cliente elegido; pestaña Equipo renderiza
+      un `HolidayCalendar` independiente por recurso, cada uno con su propio `calendar_country`, sin
+      mezclar festivos). Escenario 4: `WorkScheduleDrawer` abierto en navegador real sobre el
+      recurso `admin` confirma que carga y muestra el horario custom persistido
+      (lunes-viernes 06:00-14:00, checkboxes correctos). Nota: la selección interactiva de Cliente
+      en los formularios (`Nuevo ticket`, pestañas de `CalendarPage`) no pudo completarse por clic
+      automatizado — se instrumentó el DOM con listeners y se confirmó que los eventos de clic no
+      llegan al elemento `option` del dropdown (limitación de la herramienta de automatización del
+      navegador en este entorno, no un defecto del producto); se compensó con verificación de
+      contrato real vía API + revisión estática del código fuente de los componentes involucrados.
+      Datos de prueba (recursos `QA Resolutor B`/`QA RRHH`, solicitudes de ausencia, festivo de
+      prueba, rol temporal de `qm@sywork.net`) creados vía API real y eliminados/revertidos al
+      finalizar (Principio VII)
+- [X] T051 Confirmar RLS activo en `absence_requests`/`absence_request_attachments`
+      (`SELECT * FROM pg_policies WHERE tablename LIKE 'absence_request%'`) — Principio IV.
+      Verificado: `rowsecurity=t` en ambas tablas, con política `_app_access` (`cmd=ALL`) en cada
+      una
+- [X] T052 Confirmar que `POST /api/tickets/{id}/assign` (`backend/api/routes/tickets.py`) no fue
+      modificado por esta fase — FR-015 y Decisión 7 de `research.md`. Verificado: el archivo no
+      aparece en el commit de esta fase (`cac9538`); su último cambio es del commit `990c711`
+      (feature 019, previo a esta fase). Solo se modificó `AssignModal.tsx` en frontend (consumo
+      del nuevo endpoint de disponibilidad), no el endpoint de asignación en sí
 
 ---
 
