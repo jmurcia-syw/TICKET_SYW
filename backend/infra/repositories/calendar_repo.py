@@ -5,7 +5,8 @@ import uuid
 from sqlalchemy.orm import Session
 
 from backend.infra.models.calendar_model import (
-    HolidayModel, WorkScheduleModel, AbsenceRequestModel, AbsenceRequestAttachmentModel,
+    HolidayModel, HolidaySyncStatusModel, WorkScheduleModel, AbsenceRequestModel,
+    AbsenceRequestAttachmentModel,
 )
 from backend.infra.models.resource_model import ResourceModel
 from backend.domain.entities.calendar import (
@@ -17,18 +18,24 @@ class HolidayRepository:
     def __init__(self, db: Session) -> None:
         self._db = db
 
-    def list_by_country(self, country: str, active: bool | None = True) -> list[Holiday]:
+    def list_by_country(self, country: str, active: bool | None = True,
+                        category: str | None = None) -> list[Holiday]:
         q = self._db.query(HolidayModel).filter(HolidayModel.country == country)
         if active is not None:
             q = q.filter(HolidayModel.active == active)
+        if category is not None:
+            q = q.filter(HolidayModel.category == category)
         return [m.to_entity() for m in q.order_by(HolidayModel.holiday_date).all()]
 
-    def list_by_countries(self, countries: list[str], active: bool | None = True) -> list[Holiday]:
+    def list_by_countries(self, countries: list[str], active: bool | None = True,
+                          category: str | None = None) -> list[Holiday]:
         if not countries:
             return []
         q = self._db.query(HolidayModel).filter(HolidayModel.country.in_(countries))
         if active is not None:
             q = q.filter(HolidayModel.active == active)
+        if category is not None:
+            q = q.filter(HolidayModel.category == category)
         return [m.to_entity() for m in q.order_by(HolidayModel.holiday_date).all()]
 
     def get_by_id(self, holiday_id: uuid.UUID) -> Optional[Holiday]:
@@ -36,8 +43,11 @@ class HolidayRepository:
         return model.to_entity() if model else None
 
     def create(self, holiday: Holiday) -> Holiday:
+        """Creación manual (vía Maestros) — siempre queda con `source='manual'` (FR-009/FR-010),
+        sin importar lo que traiga la entidad."""
         model = HolidayModel(id=holiday.id, country=holiday.country,
-                             holiday_date=holiday.holiday_date, name=holiday.name)
+                             holiday_date=holiday.holiday_date, name=holiday.name,
+                             category=holiday.category, source="manual")
         self._db.add(model)
         self._db.commit()
         self._db.refresh(model)
@@ -52,14 +62,88 @@ class HolidayRepository:
             is not None
         )
 
+    def has_manual_holiday_on_date(self, country: str, holiday_date: date) -> bool:
+        """Usado por la sincronización (research.md Decisión 6): si ya existe un festivo
+        editado/creado a mano en esa fecha (cualquier nombre), no se inserta el de la API para
+        evitar un duplicado nombre-distinto del mismo feriado."""
+        return (
+            self._db.query(HolidayModel.id)
+            .filter(HolidayModel.country == country, HolidayModel.holiday_date == holiday_date,
+                    HolidayModel.source == "manual")
+            .first()
+            is not None
+        )
+
+    def upsert_api_holiday(self, country: str, holiday_date: date, name: str,
+                           category: str = "oficial") -> bool:
+        """Inserta un festivo sincronizado desde la API si no colisiona con un festivo manual
+        existente en la misma fecha, ni con una fila ya sincronizada antes (idempotente).
+        Devuelve `True` si insertó una fila nueva."""
+        if self.has_manual_holiday_on_date(country, holiday_date):
+            return False
+        if self.exists(country, holiday_date, name):
+            return False
+        model = HolidayModel(id=uuid.uuid4(), country=country, holiday_date=holiday_date,
+                             name=name, category=category, source="api")
+        self._db.add(model)
+        self._db.commit()
+        return True
+
     def set_active(self, holiday_id: uuid.UUID, active: bool) -> Optional[Holiday]:
         model = self._db.get(HolidayModel, holiday_id)
         if not model:
             return None
         model.active = active
+        model.source = "manual"
         self._db.commit()
         self._db.refresh(model)
         return model.to_entity()
+
+    def update(self, holiday_id: uuid.UUID, *, name: str | None = None,
+              holiday_date: date | None = None, category: str | None = None) -> Optional[Holiday]:
+        """Edición manual (FR-009): fuerza `source='manual'` sin importar el valor previo, para
+        que la sincronización automática nunca vuelva a sobrescribir esta fila."""
+        model = self._db.get(HolidayModel, holiday_id)
+        if not model:
+            return None
+        if name is not None:
+            model.name = name
+        if holiday_date is not None:
+            model.holiday_date = holiday_date
+        if category is not None:
+            model.category = category
+        model.source = "manual"
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+
+class HolidaySyncStatusRepository:
+    """Estado operativo de sincronización de festivos por país/año (spec 021, sin RLS)."""
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get(self, country: str, year: int) -> Optional[HolidaySyncStatusModel]:
+        return (
+            self._db.query(HolidaySyncStatusModel)
+            .filter(HolidaySyncStatusModel.country == country, HolidaySyncStatusModel.year == year)
+            .first()
+        )
+
+    def record_attempt(self, country: str, year: int, success: bool,
+                       error_message: str | None = None) -> None:
+        existing = self.get(country, year)
+        if existing:
+            existing.success = success
+            existing.error_message = error_message
+            existing.last_synced_at = datetime.utcnow()
+        else:
+            self._db.add(HolidaySyncStatusModel(
+                id=uuid.uuid4(), country=country, year=year, success=success,
+                error_message=error_message,
+            ))
+        self._db.commit()
 
 
 class WorkScheduleRepository:

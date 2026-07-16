@@ -67,3 +67,21 @@ def test_horario_custom_reemplaza_al_default():
     slot = WorkScheduleSlot.create(resource.id, weekday=2, start_time=time(20, 0), end_time=time(23, 0))
     result = compute_availability(resource, WEEKDAY_NIGHT, holidays=[], work_schedule_slots=[slot], active_absence=None)
     assert result.available is True
+
+
+def test_festivo_regional_religioso_no_afecta_disponibilidad():
+    """spec 021, FR-007: solo festivos category='oficial' bloquean disponibilidad."""
+    resource = _resource(timezone="UTC", calendar_country="CO")
+    holiday = Holiday.create("CO", date(2026, 7, 15), "Virgen del Rosario de Chiquinquirá",
+                             category="regional_religioso")
+    result = compute_availability(resource, WEEKDAY_MORNING, holidays=[holiday], work_schedule_slots=[], active_absence=None)
+    assert result.available is True
+
+
+def test_festivo_oficial_si_afecta_disponibilidad():
+    resource = _resource(timezone="UTC", calendar_country="CO")
+    holiday = Holiday.create("CO", date(2026, 7, 15), "Declaracion de la Independencia de Colombia",
+                             category="oficial")
+    result = compute_availability(resource, WEEKDAY_MORNING, holidays=[holiday], work_schedule_slots=[], active_absence=None)
+    assert result.available is False
+    assert result.reason == "holiday"

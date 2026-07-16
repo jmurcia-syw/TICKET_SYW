@@ -1,5 +1,5 @@
 import apiClient from './apiClient'
-import type { Availability, AbsenceRequest, AbsenceRequestAttachment, Holiday, WorkSchedule, WorkScheduleSlot } from '../types/calendar'
+import type { Availability, AbsenceRequest, AbsenceRequestAttachment, Holiday, HolidayCategory, WorkSchedule, WorkScheduleSlot } from '../types/calendar'
 
 export interface AbsenceRequestFormData {
   absence_type_id: string
@@ -60,8 +60,11 @@ export const calendarService = {
   listHolidays: (country: string) =>
     apiClient.get<{ items: Holiday[] }>('/api/holidays', { params: { country } }).then(r => r.data.items),
 
-  createHoliday: (data: { country: string; holiday_date: string; name: string }) =>
+  createHoliday: (data: { country: string; holiday_date: string; name: string; category?: HolidayCategory }) =>
     apiClient.post<Holiday>('/api/holidays', data).then(r => r.data),
+
+  updateHoliday: (id: string, data: { name?: string; holiday_date?: string; category?: HolidayCategory }) =>
+    apiClient.patch<Holiday>(`/api/holidays/${id}`, data).then(r => r.data),
 
   setHolidayActive: (id: string, active: boolean) =>
     apiClient.patch<Holiday>(`/api/holidays/${id}/${active ? 'activate' : 'deactivate'}`).then(r => r.data),

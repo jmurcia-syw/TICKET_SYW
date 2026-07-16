@@ -16,11 +16,27 @@ class HolidayModel(Base):
     holiday_date = Column(Date, nullable=False)
     name = Column(Text, nullable=False)
     active = Column(Boolean, nullable=False, default=True)
+    category = Column(Text, nullable=False, default="oficial")
+    source = Column(Text, nullable=False, default="manual")
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
     def to_entity(self) -> Holiday:
         return Holiday(id=self.id, country=self.country, holiday_date=self.holiday_date,
-                       name=self.name, active=self.active, created_at=self.created_at)
+                       name=self.name, active=self.active, category=self.category,
+                       source=self.source, created_at=self.created_at)
+
+
+class HolidaySyncStatusModel(Base):
+    """Estado operativo de sincronización de festivos por país/año (spec 021). Sin RLS — no
+    contiene datos sensibles ni pertenece a un usuario (research.md Decisión 8)."""
+    __tablename__ = "holiday_sync_status"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    country = Column(Text, nullable=False)
+    year = Column(SmallInteger, nullable=False)
+    last_synced_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    success = Column(Boolean, nullable=False)
+    error_message = Column(Text, nullable=True)
 
 
 class WorkScheduleModel(Base):

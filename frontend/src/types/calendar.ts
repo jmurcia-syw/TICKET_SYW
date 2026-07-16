@@ -1,5 +1,10 @@
 // Fase 5 (spec 020): calendarios, festivos, horario laboral, ausencias y disponibilidad.
 // Ver specs/020-calendarios-vacaciones-disponibilidad/contracts/calendar-disponibilidad.md
+// Spec 021: festivos sincronizados por API, categorización y cumpleaños.
+// Ver specs/021-festivos-api-cumpleanos/contracts/festivos-api-cumpleanos.md
+
+export type HolidayCategory = 'oficial' | 'regional_religioso'
+export type HolidaySource = 'api' | 'manual'
 
 export interface Holiday {
   id: string
@@ -7,6 +12,8 @@ export interface Holiday {
   holiday_date: string
   name: string
   active: boolean
+  category: HolidayCategory
+  source: HolidaySource
 }
 
 export interface WorkScheduleSlot {

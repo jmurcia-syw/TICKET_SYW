@@ -19,8 +19,11 @@ from backend.domain.services.availability_service import (
     DEFAULT_END_TIME, DEFAULT_START_TIME, DEFAULT_WEEKDAYS, compute_availability,
 )
 from backend.infra.database import get_db
+from backend.infra.external.holiday_sync_service import sync_country
 from backend.infra.models.resource_model import ResourceModel
-from backend.infra.repositories.calendar_repo import HolidayRepository, WorkScheduleRepository, AbsenceRequestRepository
+from backend.infra.repositories.calendar_repo import (
+    HolidayRepository, HolidaySyncStatusRepository, WorkScheduleRepository, AbsenceRequestRepository,
+)
 from backend.infra.repositories.catalog_repo import CatalogRepository
 from backend.infra.repositories.resource_repo import ResourceRepository
 from backend.infra.storage import attachments as attachment_storage
@@ -530,6 +533,8 @@ _holiday_out = ns.model("HolidayOut", {
     "holiday_date": fields.String(description="YYYY-MM-DD"),
     "name": fields.String(),
     "active": fields.Boolean(),
+    "category": fields.String(description="oficial | regional_religioso"),
+    "source": fields.String(description="api | manual"),
 })
 
 _holiday_list = ns.model("HolidayList", {"items": fields.List(fields.Nested(_holiday_out))})
@@ -538,14 +543,23 @@ _holiday_input = ns.model("HolidayInput", {
     "country": fields.String(required=True, description="ISO 3166-1 alpha-2"),
     "holiday_date": fields.String(required=True, description="YYYY-MM-DD"),
     "name": fields.String(required=True),
+    "category": fields.String(description="oficial | regional_religioso (default oficial)"),
 })
+
+_holiday_update_input = ns.model("HolidayUpdateInput", {
+    "name": fields.String(),
+    "holiday_date": fields.String(description="YYYY-MM-DD"),
+    "category": fields.String(description="oficial | regional_religioso"),
+})
+
+_HOLIDAY_CATEGORIES = ("oficial", "regional_religioso")
 
 
 def _holiday_to_dict(holiday) -> dict:
     return {
         "id": str(holiday.id), "country": holiday.country,
         "holiday_date": holiday.holiday_date.isoformat(), "name": holiday.name,
-        "active": holiday.active,
+        "active": holiday.active, "category": holiday.category, "source": holiday.source,
     }
 
 
@@ -558,12 +572,21 @@ class HolidayList(Resource):
     @ns.response(500, "Error interno del servidor", _error)
     @require_authenticated()
     def get(self):
-        """Listar festivos activos de un país — lectura abierta a cualquier autenticado (US1/US3)."""
+        """Listar festivos activos de un país — lectura abierta a cualquier autenticado (US1/US3).
+
+        Si el país aún no tiene ningún registro de sincronización (`holiday_sync_status`), intenta
+        una sincronización síncrona única contra la fuente externa antes de responder (spec 021,
+        FR-001/FR-004). Un fallo de esa sincronización nunca produce error HTTP — se responde con
+        lo que ya exista en base (FR-003)."""
         country = request.args.get("country")
         if not country:
             return {"error": "validation_error", "message": "El parámetro 'country' es requerido"}, 400
         try:
             db = get_db()
+            year = datetime.now(dt_timezone.utc).year
+            if HolidaySyncStatusRepository(db).get(country, year) is None:
+                sync_country(db, country, year)
+                sync_country(db, country, year + 1)
             items = [_holiday_to_dict(h) for h in HolidayRepository(db).list_by_country(country)]
             return {"items": items}, 200
         except Exception:
@@ -583,18 +606,58 @@ class HolidayList(Resource):
         country = body.get("country")
         name = body.get("name")
         holiday_date = _parse_date(body.get("holiday_date"))
+        category = body.get("category", "oficial")
         if not country or not name or not holiday_date:
             return {
                 "error": "validation_error",
                 "message": "country, holiday_date (YYYY-MM-DD) y name son requeridos",
             }, 400
+        if category not in _HOLIDAY_CATEGORIES:
+            return {"error": "validation_error", "message": "category debe ser oficial o regional_religioso"}, 400
         try:
             db = get_db()
             repo = HolidayRepository(db)
             if repo.exists(country, holiday_date, name):
                 return {"error": "validation_error", "message": "Ese festivo ya existe para ese país y fecha"}, 400
-            created = repo.create(Holiday.create(country, holiday_date, name))
+            created = repo.create(Holiday.create(country, holiday_date, name, category=category))
             return _holiday_to_dict(created), 201
+        except Exception:
+            return server_error()
+
+
+@ns.route("/holidays/<string:holiday_id>")
+@ns.param("holiday_id", "UUID del festivo")
+class HolidayDetail(Resource):
+    @ns.doc("update_holiday")
+    @ns.expect(_holiday_update_input)
+    @ns.response(200, "Festivo actualizado", _holiday_out)
+    @ns.response(400, "UUID o datos inválidos", _error)
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin permiso holidays:manage", _error)
+    @ns.response(404, "Festivo no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("holidays", "manage")
+    def patch(self, holiday_id: str):
+        """Editar nombre/fecha/categoría de un festivo existente (spec 021, FR-009). Cualquier
+        edición fija `source='manual'` — la sincronización automática nunca vuelve a sobrescribir
+        esta fila."""
+        hid = parse_uuid(holiday_id)
+        if not hid:
+            return {"error": "validation_error", "message": "ID inválido"}, 400
+        body = request.get_json(silent=True) or {}
+        category = body.get("category")
+        if category is not None and category not in _HOLIDAY_CATEGORIES:
+            return {"error": "validation_error", "message": "category debe ser oficial o regional_religioso"}, 400
+        holiday_date = _parse_date(body.get("holiday_date")) if "holiday_date" in body else None
+        if "holiday_date" in body and holiday_date is None:
+            return {"error": "validation_error", "message": "holiday_date debe ser YYYY-MM-DD"}, 400
+        try:
+            db = get_db()
+            updated = HolidayRepository(db).update(
+                hid, name=body.get("name"), holiday_date=holiday_date, category=category)
+            if not updated:
+                return {"error": "not_found", "message": "Festivo no encontrado"}, 404
+            return _holiday_to_dict(updated), 200
         except Exception:
             return server_error()
 

@@ -13,17 +13,28 @@ ABSENCE_DECISION_STATUSES = ("pending", "approved", "rejected")
 
 @dataclass
 class Holiday:
-    """Día festivo de un país (FR-003)."""
+    """Día festivo de un país (FR-003).
+
+    `category` ("oficial" | "regional_religioso", spec 021 FR-005) distingue festivos de
+    cumplimiento nacional de celebraciones locales/religiosas — solo "oficial" afecta el cálculo
+    de disponibilidad (FR-007). `source` ("api" | "manual") marca si la fila vino de la
+    sincronización automática o fue creada/editada a mano; una fila "manual" nunca es
+    sobrescrita por la sincronización (FR-009).
+    """
     id: uuid.UUID
     country: str
     holiday_date: date
     name: str
     active: bool = True
+    category: str = "oficial"
+    source: str = "manual"
     created_at: datetime = field(default_factory=datetime.utcnow)
 
     @classmethod
-    def create(cls, country: str, holiday_date: date, name: str) -> "Holiday":
-        return cls(id=uuid.uuid4(), country=country, holiday_date=holiday_date, name=name)
+    def create(cls, country: str, holiday_date: date, name: str,
+               category: str = "oficial", source: str = "manual") -> "Holiday":
+        return cls(id=uuid.uuid4(), country=country, holiday_date=holiday_date, name=name,
+                   category=category, source=source)
 
 
 @dataclass

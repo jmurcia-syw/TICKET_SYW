@@ -29,8 +29,10 @@ def _local_now(resource: Resource, now_utc: datetime) -> datetime:
 
 
 def _has_holiday_today(holidays: list[Holiday], local_date: date) -> Optional[Holiday]:
+    """Solo festivos `category == "oficial"` afectan disponibilidad (spec 021, FR-007) — un
+    festivo `regional_religioso` es puramente informativo y nunca produce `reason: "holiday"`."""
     for h in holidays:
-        if h.active and h.holiday_date == local_date:
+        if h.active and h.holiday_date == local_date and h.category == "oficial":
             return h
     return None
 

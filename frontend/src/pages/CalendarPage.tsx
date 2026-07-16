@@ -13,8 +13,28 @@ import type { Holiday } from '../types/calendar'
 // calendario para el país del cliente elegido) y "Equipo" (un calendario por cada miembro
 // seleccionado, cada uno en el país de su propio `calendar_country`, sin mezclar festivos entre
 // ellos — FR-001/002/004/005).
+// Spec 021: categoría Oficial (naranja) vs. Regional/Religioso (púrpura), + cumpleaños del
+// recurso (verde, solo en la pestaña Equipo — FR-005 a FR-014).
 
-function HolidayCalendar({ country, title }: { country: string | null; title: string }) {
+const _COLOR_OFICIAL = '#fa8c16'
+const _COLOR_REGIONAL = '#722ed1'
+const _COLOR_CUMPLEANOS = '#389e0d'
+
+/** Ventana de años sobre la que se generan instancias de cumpleaños recurrentes (research.md
+ * Decisión 7 de spec 021 — sin dependencia `@fullcalendar/rrule`). */
+const _BIRTHDAY_YEAR_WINDOW = 2
+
+function _birthdayEvents(fullName: string, birthDate: string | null | undefined) {
+  if (!birthDate) return []
+  const [, month, day] = birthDate.split('-')
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: _BIRTHDAY_YEAR_WINDOW * 2 + 1 }, (_, i) => currentYear - _BIRTHDAY_YEAR_WINDOW + i)
+  return years.map(year => ({
+    title: `🎂 ${fullName}`, start: `${year}-${month}-${day}`, allDay: true, color: _COLOR_CUMPLEANOS,
+  }))
+}
+
+function HolidayCalendar({ country, title, birthDate }: { country: string | null; title: string; birthDate?: string | null }) {
   const [holidays, setHolidays] = useState<Holiday[]>([])
 
   useEffect(() => {
@@ -26,17 +46,23 @@ function HolidayCalendar({ country, title }: { country: string | null; title: st
       .catch(() => message.error(`No se pudieron cargar los festivos de ${country}`))
   }, [country])
 
-  const events = useMemo(() => holidays.map(h => ({
-    title: h.name, start: h.holiday_date, allDay: true, color: '#fa8c16',
-  })), [holidays])
+  const events = useMemo(() => [
+    ...holidays.map(h => ({
+      title: h.name, start: h.holiday_date, allDay: true,
+      color: h.category === 'oficial' ? _COLOR_OFICIAL : _COLOR_REGIONAL,
+    })),
+    ..._birthdayEvents(title, birthDate),
+  ], [holidays, title, birthDate])
+
+  const showEmpty = !country && !birthDate
 
   return (
     <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12 }}>
       <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>{title}</Typography.Text>
-      {!country
+      {showEmpty
         ? <Empty description="Sin país configurado — no hay festivos que mostrar" style={{ margin: '24px 0' }} />
         : <FullCalendar
-            key={country}
+            key={country ?? 'no-country'}
             plugins={[dayGridPlugin]}
             initialView="dayGridMonth"
             height="auto"
@@ -45,6 +71,24 @@ function HolidayCalendar({ country, title }: { country: string | null; title: st
             locale="es"
           />}
     </div>
+  )
+}
+
+function CalendarLegend({ showBirthdays }: { showBirthdays?: boolean }) {
+  const items: [string, string][] = [
+    [_COLOR_OFICIAL, 'Festivo oficial'],
+    [_COLOR_REGIONAL, 'Regional / religioso'],
+  ]
+  if (showBirthdays) items.push([_COLOR_CUMPLEANOS, 'Cumpleaños'])
+  return (
+    <Space size={16}>
+      {items.map(([color, label]) => (
+        <Space key={label} size={6}>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, display: 'inline-block' }} />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>{label}</Typography.Text>
+        </Space>
+      ))}
+    </Space>
   )
 }
 
@@ -76,7 +120,10 @@ export default function CalendarPage() {
             options={clients.map(c => ({ value: c.id, label: c.name }))}
           />
           {selectedClientId
-            ? <HolidayCalendar country={selectedClient?.country ?? null} title={selectedClient?.name ?? ''} />
+            ? <>
+                <CalendarLegend />
+                <HolidayCalendar country={selectedClient?.country ?? null} title={selectedClient?.name ?? ''} />
+              </>
             : <Typography.Text type="secondary">Selecciona un cliente para ver su calendario de festivos.</Typography.Text>}
         </Space>
       ),
@@ -93,11 +140,14 @@ export default function CalendarPage() {
           />
           {selectedResources.length === 0
             ? <Typography.Text type="secondary">Selecciona uno o más miembros del equipo.</Typography.Text>
-            : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-                {selectedResources.map(r => (
-                  <HolidayCalendar key={r.id} country={r.calendar_country} title={r.full_name} />
-                ))}
-              </div>}
+            : <>
+                <CalendarLegend showBirthdays />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+                  {selectedResources.map(r => (
+                    <HolidayCalendar key={r.id} country={r.calendar_country} title={r.full_name} birthDate={r.birth_date} />
+                  ))}
+                </div>
+              </>}
         </Space>
       ),
     },
