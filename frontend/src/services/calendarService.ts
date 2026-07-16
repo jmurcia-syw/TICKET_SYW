@@ -10,6 +10,11 @@ export interface AbsenceRequestFormData {
 
 export type AbsenceRequestScope = 'own' | 'manager' | 'hr'
 
+/** Dedup de solicitudes concurrentes por país — la pestaña Equipo del calendario puede montar
+ * varios `HolidayCalendar` para el mismo país a la vez; sin esto cada uno dispara su propio
+ * GET /api/holidays (que además puede sincronizar contra la API externa en la primera carga). */
+const _holidayRequestCache = new Map<string, Promise<Holiday[]>>()
+
 export const calendarService = {
   getAvailability: (resourceIds?: string[], at?: string) =>
     apiClient
@@ -57,8 +62,16 @@ export const calendarService = {
   downloadAbsenceAttachmentUrl: (requestId: string, attachmentId: string) =>
     `/api/absence-requests/${requestId}/attachments/${attachmentId}`,
 
-  listHolidays: (country: string) =>
-    apiClient.get<{ items: Holiday[] }>('/api/holidays', { params: { country } }).then(r => r.data.items),
+  listHolidays: (country: string) => {
+    const cached = _holidayRequestCache.get(country)
+    if (cached) return cached
+    const promise = apiClient
+      .get<{ items: Holiday[] }>('/api/holidays', { params: { country } })
+      .then(r => r.data.items)
+      .finally(() => _holidayRequestCache.delete(country))
+    _holidayRequestCache.set(country, promise)
+    return promise
+  },
 
   createHoliday: (data: { country: string; holiday_date: string; name: string; category?: HolidayCategory }) =>
     apiClient.post<Holiday>('/api/holidays', data).then(r => r.data),

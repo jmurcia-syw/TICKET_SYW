@@ -5,6 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import { calendarService } from '../services/calendarService'
 import { clientService } from '../services/clientService'
 import { resourceService } from '../services/resourceService'
+import { CALENDAR_CATEGORY_COLORS } from '../theme'
 import type { ClientListItem } from '../types/client'
 import type { Resource } from '../types/resource'
 import type { Holiday } from '../types/calendar'
@@ -13,12 +14,9 @@ import type { Holiday } from '../types/calendar'
 // calendario para el país del cliente elegido) y "Equipo" (un calendario por cada miembro
 // seleccionado, cada uno en el país de su propio `calendar_country`, sin mezclar festivos entre
 // ellos — FR-001/002/004/005).
-// Spec 021: categoría Oficial (naranja) vs. Regional/Religioso (púrpura), + cumpleaños del
-// recurso (verde, solo en la pestaña Equipo — FR-005 a FR-014).
-
-const _COLOR_OFICIAL = '#fa8c16'
-const _COLOR_REGIONAL = '#722ed1'
-const _COLOR_CUMPLEANOS = '#389e0d'
+// Spec 021: categoría Oficial (teal) vs. Regional/Religioso (violeta), + cumpleaños del
+// recurso (lima, solo en la pestaña Equipo — FR-005 a FR-014). Colores en theme.ts
+// (CALENDAR_CATEGORY_COLORS) para no repetir los hex ya usados por prioridad/estado de tickets.
 
 /** Ventana de años sobre la que se generan instancias de cumpleaños recurrentes (research.md
  * Decisión 7 de spec 021 — sin dependencia `@fullcalendar/rrule`). */
@@ -30,7 +28,8 @@ function _birthdayEvents(fullName: string, birthDate: string | null | undefined)
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: _BIRTHDAY_YEAR_WINDOW * 2 + 1 }, (_, i) => currentYear - _BIRTHDAY_YEAR_WINDOW + i)
   return years.map(year => ({
-    title: `🎂 ${fullName}`, start: `${year}-${month}-${day}`, allDay: true, color: _COLOR_CUMPLEANOS,
+    title: `🎂 ${fullName}`, start: `${year}-${month}-${day}`, allDay: true,
+    color: CALENDAR_CATEGORY_COLORS.cumpleanos,
   }))
 }
 
@@ -49,7 +48,7 @@ function HolidayCalendar({ country, title, birthDate }: { country: string | null
   const events = useMemo(() => [
     ...holidays.map(h => ({
       title: h.name, start: h.holiday_date, allDay: true,
-      color: h.category === 'oficial' ? _COLOR_OFICIAL : _COLOR_REGIONAL,
+      color: h.category === 'oficial' ? CALENDAR_CATEGORY_COLORS.oficial : CALENDAR_CATEGORY_COLORS.regional_religioso,
     })),
     ..._birthdayEvents(title, birthDate),
   ], [holidays, title, birthDate])
@@ -76,10 +75,10 @@ function HolidayCalendar({ country, title, birthDate }: { country: string | null
 
 function CalendarLegend({ showBirthdays }: { showBirthdays?: boolean }) {
   const items: [string, string][] = [
-    [_COLOR_OFICIAL, 'Festivo oficial'],
-    [_COLOR_REGIONAL, 'Regional / religioso'],
+    [CALENDAR_CATEGORY_COLORS.oficial, 'Festivo oficial'],
+    [CALENDAR_CATEGORY_COLORS.regional_religioso, 'Regional / religioso'],
   ]
-  if (showBirthdays) items.push([_COLOR_CUMPLEANOS, 'Cumpleaños'])
+  if (showBirthdays) items.push([CALENDAR_CATEGORY_COLORS.cumpleanos, 'Cumpleaños'])
   return (
     <Space size={16}>
       {items.map(([color, label]) => (
