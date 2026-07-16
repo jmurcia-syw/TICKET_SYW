@@ -5,6 +5,8 @@ import type { ColumnsType, TableProps } from 'antd/es/table'
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input'
 import 'react-phone-number-input/style.css'
 import { clientService } from '../services/clientService'
+import { COUNTRIES } from '../data/countries'
+import { TIMEZONES } from '../data/timezones'
 import apiClient from '../services/apiClient'
 import type {
   ClientListItem, ClientDetail, ClientFormData, ClientSystem, ClientSystemFormData,
@@ -306,6 +308,14 @@ export default function ClientsPage() {
           </Form.Item>
           <Form.Item name="annual_billing_usd" label="Facturación anual (USD)">
             <InputNumber min={0} style={{ width: '100%' }} formatter={v => `$ ${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} />
+          </Form.Item>
+          <Form.Item name="country" label="País" extra="Determina qué festivos se muestran en el Calendario del cliente.">
+            <Select allowClear showSearch optionFilterProp="label" style={{ width: '100%' }}
+              options={COUNTRIES.map(c => ({ value: c.code, label: c.name }))} />
+          </Form.Item>
+          <Form.Item name="timezone" label="Huso horario">
+            <Select allowClear showSearch style={{ width: '100%' }}
+              options={TIMEZONES.map(tz => ({ value: tz, label: tz }))} />
           </Form.Item>
           <Form.Item name="notes" label="Notas"><Input.TextArea rows={3} /></Form.Item>
         </Form>

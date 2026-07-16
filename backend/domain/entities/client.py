@@ -77,6 +77,10 @@ class Client:
     vpn_credentials: Optional[str] = None
     annual_billing_usd: Optional[float] = None
     notes: Optional[str] = None
+    # Calendario del cliente (Fase 5, spec 020): huso horario y país de residencia, usados
+    # para resaltar festivos en su calendario (FR-001/FR-004).
+    timezone: Optional[str] = None
+    country: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 

@@ -7,6 +7,10 @@ export interface ClientListItem {
   contact_email: string | null
   contact_phone: string | null
   annual_billing_usd: number | null
+  /** Huso horario IANA del calendario del cliente (Fase 5), ej. "America/Bogota". */
+  timezone: string | null
+  /** País de residencia, ISO 3166-1 alpha-2 (Fase 5), ej. "CO". */
+  country: string | null
   created_at: string
   updated_at: string
 }
@@ -22,6 +26,8 @@ export interface ClientFormData {
   contact_phone?: string | null
   annual_billing_usd?: number | null
   notes?: string | null
+  timezone?: string | null
+  country?: string | null
 }
 
 export interface ClientSystem {

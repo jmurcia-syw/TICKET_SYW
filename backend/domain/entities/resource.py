@@ -48,6 +48,9 @@ class Resource:
     certifications: Optional[str] = None
     team: Optional[str] = None
     manager_id: Optional[uuid.UUID] = None
+    # Huso horario del recurso (Fase 5, spec 020) — `calendar_country` ya define el país/festivos;
+    # `timezone` es explícito porque un mismo país puede abarcar más de una zona horaria.
+    timezone: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 

@@ -11,6 +11,10 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",
+    "@fullcalendar/core": "^6.1.21",
+    "@fullcalendar/daygrid": "^6.1.21",
+    "@fullcalendar/react": "^6.1.21",
+    "@fullcalendar/timegrid": "^6.1.21",
     "@hello-pangea/dnd": "^17.0.0",
     "@tiptap/extension-image": "^3.27.4",
     "@tiptap/pm": "^3.27.4",

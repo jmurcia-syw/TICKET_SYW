@@ -23,7 +23,9 @@ apiClient.interceptors.response.use(
         // Sesión inválida/expirada: se conserva el flujo actual, sin toast.
         useAuthStore.getState().logout()
         window.location.href = '/login'
-      } else {
+      } else if (error.config?.headers?.['X-Skip-Error-Notify'] !== 'true') {
+        // Escape hatch para probes esperados (ej. ¿soy Jefe de alguien? — un 403 es un
+        // resultado normal, no un error que deba interrumpir al usuario con un toast).
         notifyApiError(error)
       }
     }

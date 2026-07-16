@@ -41,12 +41,17 @@ class TeamCatalogModel(_CatalogMixin, Base):
     __tablename__ = "catalog_teams"
 
 
+class AbsenceTypeCatalogModel(_CatalogMixin, Base):
+    __tablename__ = "catalog_absence_types"
+
+
 CATALOG_MODELS = {
     "tools": ToolCatalogModel,
     "processes": ProcessCatalogModel,
     "resolution-types": ResolutionTypeCatalogModel,
     "record-types": RecordTypeCatalogModel,
     "teams": TeamCatalogModel,
+    "absence-types": AbsenceTypeCatalogModel,
 }
 
 # columna de tickets que referencia cada catálogo (para el bloqueo por uso). "teams" no aplica —

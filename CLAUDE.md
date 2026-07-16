@@ -2,13 +2,17 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Unidades de tiempo (minutos/horas/días) al configurar SLA — el campo "Tiempo límite de diagnóstico, análisis y ejecución" acepta horas/días y convierte a minutos
+**Active feature**: Fase 5 SDD V3 — Calendarios multi-zona horaria con festivos por país, horario laboral semanal, gestión de vacaciones/permisos con doble aprobación (Jefe directo + rol RRHH) y alerta de disponibilidad (sin bloquear) al asignar tickets
+**Spec**: specs/020-calendarios-vacaciones-disponibilidad/spec.md
+**Plan**: specs/020-calendarios-vacaciones-disponibilidad/plan.md
+**Research**: specs/020-calendarios-vacaciones-disponibilidad/research.md
+**Data model**: specs/020-calendarios-vacaciones-disponibilidad/data-model.md
+**Quickstart**: specs/020-calendarios-vacaciones-disponibilidad/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada)**: Unidades de tiempo (minutos/horas/días) al configurar SLA — el campo "Tiempo límite de diagnóstico, análisis y ejecución" acepta horas/días y convierte a minutos
 **Spec**: specs/019-sla-unidades-tiempo/spec.md
 **Plan**: specs/019-sla-unidades-tiempo/plan.md
-**Research**: specs/019-sla-unidades-tiempo/research.md
-**Data model**: specs/019-sla-unidades-tiempo/data-model.md
-**Quickstart**: specs/019-sla-unidades-tiempo/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (en curso)**: Accesos y conexiones múltiples del Cliente (VPN/URL por ambiente/Escritorio remoto) en Maestros > Clientes — resuelve OBS-0001/OBS-0008/OBS-0017 del framework UAT
 **Spec**: specs/018-cliente-accesos-conexiones/spec.md

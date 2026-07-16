@@ -31,6 +31,8 @@ export interface Resource {
   certifications: string | null
   team: string | null
   manager_id: string | null
+  /** Huso horario IANA del recurso (Fase 5), ej. "America/Bogota". */
+  timezone: string | null
   skills: Skill[]
   created_at: string
 }
@@ -53,6 +55,7 @@ export interface ResourceFormData {
   certifications?: string | null
   team?: string | null
   manager_id?: string | null
+  timezone?: string | null
 }
 
 export interface ResourceCompensation {

@@ -323,7 +323,19 @@
       "Bash(xargs grep -l \"ENABLE ROW LEVEL SECURITY\")",
       "Bash(awk 'NR==493' \"UAT/01_Iterations/ITER-003/ITER-003.md\")",
       "Bash(sed -i 's/\"start_date\": \"2026-01-01\",/\"start_date\": _PROJECT_START,/' backend/tests/api/test_tickets_sla.py backend/tests/api/test_sla_rules.py backend/tests/api/test_tickets_subtasks.py backend/tests/api/test_tickets_sla_filters.py)",
-      "Bash(sed -i 's/\"start_date\": \"2026-01-15\",/\"start_date\": _PROJECT_START,/' backend/tests/api/test_client_contacts_projects.py backend/tests/api/test_project_members.py backend/tests/api/test_tickets_client_contact.py)"
+      "Bash(sed -i 's/\"start_date\": \"2026-01-15\",/\"start_date\": _PROJECT_START,/' backend/tests/api/test_client_contacts_projects.py backend/tests/api/test_project_members.py backend/tests/api/test_tickets_client_contact.py)",
+      "Bash(grep -n \"Cat\\\\\\\\álogos\\\\|Catalogos\\\\|Maestros\" frontend/src/components/layout/*.tsx frontend/src/components/**/Sidebar*.tsx)",
+      "Bash(python -m pytest backend/tests/api/test_client_access_api.py -q)",
+      "Bash(test -f frontend/.eslintrc.cjs -o -f frontend/.eslintrc.js -o -f frontend/eslint.config.js -o -f frontend/eslint.config.ts)",
+      "Bash(timeout 20 bash -c 'until docker logs sywork_frontend 2>&1 | tail -5 | grep -q \"ready\\\\|Local:\"; do sleep 1; done')",
+      "Bash(rm -f /tmp/tok.txt)",
+      "Bash(python -m pytest backend/tests/domain/test_availability_service.py -v)",
+      "Bash(curl -s -H 'Authorization: Bearer __CMDSUB_OUTPUT__' 'http://localhost:5000/api/clients?page=1&page_size=20')",
+      "Bash(python3 -m json.tool)",
+      "Bash(rm -f /tmp/token_admin2.txt)",
+      "Bash(grep -n \"^  \\)$\\\\|^}$\" frontend/src/pages/TeamPage.tsx)",
+      "Bash(curl -s -H 'Authorization: Bearer __CMDSUB_OUTPUT__' 'http://localhost:5000/api/resources/availability?resource_ids=__TRACKED_VAR__&at=2026-07-16T20:00:00Z')",
+      "Bash(curl -s -H 'Authorization: Bearer __CMDSUB_OUTPUT__' 'http://localhost:5000/api/resources/availability?resource_ids=__TRACKED_VAR__&at=2026-07-16T15:00:00Z')"
     ]
   }
 }

@@ -141,6 +141,7 @@ class ResourceRepository:
             certifications=resource.certifications,
             team=resource.team,
             manager_id=resource.manager_id,
+            timezone=resource.timezone,
         )
         if resource.skills:
             skill_models = [self._db.get(SkillModel, s.id) for s in resource.skills]

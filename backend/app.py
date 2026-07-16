@@ -108,6 +108,12 @@ def create_app() -> Flask:
 
     api.add_namespace(ns_sla_rules)
 
+    # ── spec 020 — Fase 5: calendarios, festivos, horario laboral, ausencias y
+    #    disponibilidad (esta sesión: solo Historia 1, disponibilidad) ─────────
+    from backend.api.routes.calendar import ns as ns_calendar
+
+    api.add_namespace(ns_calendar)
+
     # ── Health ────────────────────────────────────────────────────────────────
     ns_health = api.namespace("health", description="Estado del servicio y conectividad de DB")
 

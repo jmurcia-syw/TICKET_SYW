@@ -40,6 +40,8 @@ class ClientModel(Base):
     vpn_credentials = Column(LargeBinary, nullable=True)
     annual_billing_usd = Column(Numeric(14, 2), nullable=True)
     notes = Column(Text, nullable=True)
+    timezone = Column(Text, nullable=True)
+    country = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
@@ -56,6 +58,8 @@ class ClientModel(Base):
             vpn_credentials=_decrypt(self.vpn_credentials) if include_sensitive else None,
             annual_billing_usd=float(self.annual_billing_usd) if self.annual_billing_usd is not None else None,
             notes=self.notes,
+            timezone=self.timezone,
+            country=self.country,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
@@ -74,6 +78,8 @@ class ClientModel(Base):
             vpn_credentials=_encrypt(client.vpn_credentials),
             annual_billing_usd=client.annual_billing_usd,
             notes=client.notes,
+            timezone=client.timezone,
+            country=client.country,
         )
 
 

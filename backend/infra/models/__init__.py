@@ -20,3 +20,4 @@ import backend.infra.models.notification_model  # noqa: E402, F401
 import backend.infra.models.project_member_model  # noqa: E402, F401
 import backend.infra.models.ticket_timer_model  # noqa: E402, F401
 import backend.infra.models.work_session_model  # noqa: E402, F401
+import backend.infra.models.calendar_model  # noqa: E402, F401

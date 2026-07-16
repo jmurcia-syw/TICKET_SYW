@@ -29,6 +29,8 @@ _client_out = ns.model("Client", {
     "contact_phone": fields.String(description="Teléfono del contacto"),
     "annual_billing_usd": fields.Float(description="Facturación anual del cliente en USD (SDD V3)"),
     "notes": fields.String(description="Notas internas"),
+    "timezone": fields.String(description="Huso horario IANA del calendario del cliente (Fase 5)", example="America/Bogota"),
+    "country": fields.String(description="País de residencia, ISO 3166-1 alpha-2 (Fase 5)", example="CO"),
     "created_at": fields.String(description="Fecha de creación ISO-8601"),
     "updated_at": fields.String(description="Fecha de última actualización ISO-8601"),
 })
@@ -54,6 +56,8 @@ _client_input = ns.model("ClientInput", {
     "vpn_credentials": fields.String(description="Credenciales VPN (cifradas en reposo)"),
     "annual_billing_usd": fields.Float(description="Facturación anual en USD"),
     "notes": fields.String(description="Notas internas"),
+    "timezone": fields.String(description="Huso horario IANA del calendario del cliente (Fase 5)", example="America/Bogota"),
+    "country": fields.String(description="País de residencia, ISO 3166-1 alpha-2 (Fase 5)", example="CO"),
 })
 
 _client_update = ns.model("ClientUpdate", {
@@ -65,6 +69,8 @@ _client_update = ns.model("ClientUpdate", {
     "vpn_credentials": fields.String(description="Credenciales VPN"),
     "annual_billing_usd": fields.Float(description="Facturación anual en USD"),
     "notes": fields.String(description="Notas internas"),
+    "timezone": fields.String(description="Huso horario IANA del calendario del cliente (Fase 5)"),
+    "country": fields.String(description="País de residencia, ISO 3166-1 alpha-2 (Fase 5)"),
 })
 
 _system_out = ns.model("ClientSystem", {
@@ -147,6 +153,8 @@ def _client_to_dict(client, include_sensitive: bool = False) -> dict:
         "contact_phone": client.contact_phone,
         "annual_billing_usd": client.annual_billing_usd,
         "notes": client.notes,
+        "timezone": client.timezone,
+        "country": client.country,
         "created_at": client.created_at.isoformat() if client.created_at else None,
         "updated_at": client.updated_at.isoformat() if client.updated_at else None,
     }
@@ -325,6 +333,8 @@ class ClientList(Resource):
                 vpn_ips=data.get("vpn_ips"),
                 vpn_credentials=data.get("vpn_credentials"),
                 notes=data.get("notes"),
+                timezone=data.get("timezone"),
+                country=data.get("country"),
                 **billing,
             )
             created = repo.create(client)
@@ -401,7 +411,8 @@ class ClientDetail(Resource):
             billing, billing_error = _parse_billing(data)
             if billing_error:
                 return {"error": "validation_error", "message": billing_error}, 400
-            for field in ("name", "contact_name", "contact_email", "contact_phone", "vpn_ips", "vpn_credentials", "notes"):
+            for field in ("name", "contact_name", "contact_email", "contact_phone", "vpn_ips", "vpn_credentials",
+                          "notes", "timezone", "country"):
                 if field in data:
                     setattr(client, field, data[field])
             for field, value in billing.items():
