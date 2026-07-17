@@ -142,7 +142,7 @@ export default function RolesPermissionsPage() {
         onCancel={() => setFormOpen(false)}
         onOk={() => form.submit()}
         okText="Guardar"
-        width={640}
+        width={editingRole ? 1040 : 520}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item name="name" label="Nombre" rules={[{ required: true, message: 'El nombre es requerido' }]}>

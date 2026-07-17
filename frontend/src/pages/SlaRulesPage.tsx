@@ -27,6 +27,7 @@ export default function SlaRulesPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form] = Form.useForm<SlaRuleFormData>()
+  const [formResetToken, setFormResetToken] = useState(0)
 
   const load = async (projectId?: string) => {
     setLoading(true)
@@ -47,7 +48,14 @@ export default function SlaRulesPage() {
     projectService.list({ page_size: 200, active: true }).then(r => setProjects(r.items)).catch(() => undefined)
   }, [])
 
-  const openCreate = () => { form.resetFields(); setEditingId(null); setFormOpen(true) }
+  const openCreate = () => {
+    form.resetFields()
+    setEditingId(null)
+    // Fuerza el remount de SlaRuleForm (spec 019, research.md Decisión 4) para que el estado
+    // local de unidad/monto del campo de ejecución arranque limpio en cada apertura.
+    setFormResetToken(t => t + 1)
+    setFormOpen(true)
+  }
 
   const openEdit = (rule: SlaRule) => {
     setEditingId(rule.id)
@@ -57,6 +65,7 @@ export default function SlaRulesPage() {
       contact_minutes: rule.contact_minutes,
       execution_minutes: rule.execution_minutes,
     })
+    setFormResetToken(t => t + 1)
     setFormOpen(true)
   }
 
@@ -136,7 +145,7 @@ export default function SlaRulesPage() {
 
       <Modal title={editingId ? 'Editar regla de SLA' : 'Nueva regla de SLA'} open={formOpen}
         onCancel={() => setFormOpen(false)} onOk={() => form.submit()} okText="Guardar">
-        <SlaRuleForm form={form} projects={projects} editing={!!editingId} onFinish={handleSubmit} />
+        <SlaRuleForm key={formResetToken} form={form} projects={projects} editing={!!editingId} onFinish={handleSubmit} />
       </Modal>
     </div>
   )

@@ -19,7 +19,7 @@ _comp_svc = CompensationService()
 _PROFILE_TEXT_FIELDS = (
     "identification", "nationality", "marital_status", "contract_type",
     "calendar_country", "education_level", "specialty", "seniority",
-    "certifications", "team",
+    "certifications", "team", "timezone",
 )
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -85,6 +85,7 @@ _resource_out = ns.model("ResourceRecord", {
     "certifications": fields.String(description="Certificaciones"),
     "team": fields.String(description="Equipo al que pertenece"),
     "manager_id": fields.String(description="UUID del recurso jefe directo"),
+    "timezone": fields.String(description="Huso horario IANA del recurso (Fase 5)", example="America/Bogota"),
     "skills": fields.List(fields.Nested(_skill_ref), description="Skills asignados"),
     "created_at": fields.String(description="Fecha de creación ISO-8601"),
 })
@@ -113,6 +114,7 @@ _resource_input = ns.model("ResourceInput", {
     "certifications": fields.String(description="Certificaciones"),
     "team": fields.String(description="Equipo"),
     "manager_id": fields.String(description="UUID del recurso jefe directo"),
+    "timezone": fields.String(description="Huso horario IANA del recurso (Fase 5)"),
     "skill_ids": fields.List(fields.String, description="Lista de UUIDs de skills", example=[]),
 })
 
@@ -132,6 +134,7 @@ _resource_update = ns.model("ResourceUpdate", {
     "certifications": fields.String(description="Certificaciones"),
     "team": fields.String(description="Equipo"),
     "manager_id": fields.String(description="UUID del recurso jefe directo (null para quitar)"),
+    "timezone": fields.String(description="Huso horario IANA del recurso (Fase 5)"),
 })
 
 _compensation_out = ns.model("ResourceCompensation", {
@@ -185,6 +188,7 @@ def _resource_to_dict(resource) -> dict:
         "certifications": resource.certifications,
         "team": resource.team,
         "manager_id": str(resource.manager_id) if resource.manager_id else None,
+        "timezone": resource.timezone,
         "skills": [{"id": str(s.id), "code": s.code, "label": s.label} for s in (resource.skills or [])],
         "created_at": resource.created_at.isoformat() if resource.created_at else None,
     }

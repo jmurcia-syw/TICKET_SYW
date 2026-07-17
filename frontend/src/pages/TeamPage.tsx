@@ -6,6 +6,7 @@ import {
 import {
   PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined, DollarOutlined,
   SettingOutlined, KeyOutlined, LockOutlined, UnlockOutlined, CopyOutlined, LinkOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { resourceService, skillService } from '../services/resourceService'
@@ -23,6 +24,8 @@ import PageToolbar from '../components/common/PageToolbar'
 import { clientColumnFilter, clientTextColumnFilter } from '../components/common/columnFilters'
 import { palette, avatarColor, initials, roleColor } from '../theme'
 import { COUNTRIES } from '../data/countries'
+import { TIMEZONES } from '../data/timezones'
+import WorkScheduleDrawer from '../components/resources/WorkScheduleDrawer'
 import { format, subYears } from 'date-fns'
 import { mapApiErrorToFormFields, type FieldErrorRule } from '../services/formErrorMapper'
 
@@ -101,6 +104,8 @@ export default function TeamPage() {
   const [compOpen, setCompOpen] = useState<Resource | null>(null)
   const [compensation, setCompensation] = useState<ResourceCompensation | null>(null)
   const [compForm] = Form.useForm<CompensationFormData>()
+
+  const [scheduleResource, setScheduleResource] = useState<Resource | null>(null)
 
   const [provisionalPassword, setProvisionalPassword] = useState<string | null>(null)
   const [confirmDeactivateResource, setConfirmDeactivateResource] = useState<string | null>(null)
@@ -406,6 +411,11 @@ export default function TeamPage() {
             <Form.Item name="calendar_country" label="País calendario">
               <Select allowClear style={{ width: '100%' }} options={['Colombia', 'Argentina', 'Ecuador', 'Otro'].map(v => ({ value: v, label: v }))} />
             </Form.Item>
+            <Form.Item name="timezone" label="Huso horario"
+              extra="Se usa para calcular disponibilidad y horario laboral (Fase 5).">
+              <Select allowClear showSearch style={{ width: '100%' }}
+                options={TIMEZONES.map(tz => ({ value: tz, label: tz }))} />
+            </Form.Item>
 
             <Form.Item name="education_level" label="Nivel de estudios">
               <Select allowClear style={{ width: '100%' }} options={EDUCATION_LEVEL_OPTIONS} />
@@ -509,6 +519,9 @@ export default function TeamPage() {
             )}
             {r && canViewCompensation && (
               <Tooltip title="Compensación"><Button size="small" icon={<DollarOutlined />} onClick={() => openCompensation(r)} /></Tooltip>
+            )}
+            {r && (canManageResource || isOwnProfile(r)) && (
+              <Tooltip title="Horario laboral"><Button size="small" icon={<ClockCircleOutlined />} onClick={() => setScheduleResource(r)} /></Tooltip>
             )}
             {u && canChangeRole && (
               <Tooltip title="Cambiar rol"><Button size="small" icon={<SettingOutlined />} onClick={() => openRoleChange(u)} /></Tooltip>
@@ -741,6 +754,12 @@ export default function TeamPage() {
           description="¿Confirmas resetear la contraseña de esta cuenta? Se generará una nueva contraseña temporal y la actual dejará de funcionar."
           onConfirm={() => handleResetPassword(confirmResetPassword)} onCancel={() => setConfirmResetPassword(null)} />
       )}
+
+      <WorkScheduleDrawer
+        resourceId={scheduleResource?.id ?? null}
+        resourceName={scheduleResource?.full_name}
+        onClose={() => setScheduleResource(null)}
+      />
     </div>
   )
 }

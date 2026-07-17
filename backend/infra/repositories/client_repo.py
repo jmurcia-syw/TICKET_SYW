@@ -45,7 +45,7 @@ class ClientRepository:
         if not model:
             return client
         for field in ("name", "slug", "active", "contact_name", "contact_email", "contact_phone",
-                      "annual_billing_usd", "notes"):
+                      "annual_billing_usd", "notes", "timezone", "country"):
             setattr(model, field, getattr(client, field))
         if client.vpn_ips is not None:
             from backend.infra.models.client_model import _encrypt

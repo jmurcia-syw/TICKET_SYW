@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { TeamOutlined, ProjectOutlined, UserOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined, AppstoreOutlined, ClockCircleOutlined, BarChartOutlined, UnorderedListOutlined, FieldTimeOutlined } from '@ant-design/icons'
+import { TeamOutlined, ProjectOutlined, UserOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined, AppstoreOutlined, ClockCircleOutlined, BarChartOutlined, UnorderedListOutlined, FieldTimeOutlined, CalendarOutlined } from '@ant-design/icons'
 import type { Permission } from '../types/api'
 
 export interface NavLeaf {
@@ -62,4 +62,15 @@ export function getVisibleWorkSessionNavItems(permissions: Permission[]): NavLea
   return workSessionsNavItems.filter(item =>
     permissions.some(p => p.module === item.module)
   )
+}
+
+/** Ítems de la Fase 5 (spec 020, Historia 2) — vacaciones y permisos. `create` lo tiene
+ * cualquier rol interno vinculado a un Recurso (no `Encargado`, contacto externo). */
+export const absenceNavItems: NavLeaf[] = [
+  { key: '/absence-requests', icon: <CalendarOutlined />, label: 'Vacaciones y Permisos', module: 'absence_requests', action: 'create' },
+  { key: '/calendar', icon: <CalendarOutlined />, label: 'Calendarios', module: 'resources', action: 'view' },
+]
+
+export function getVisibleAbsenceNavItems(permissions: Permission[]): NavLeaf[] {
+  return absenceNavItems.filter(item => hasNavAccess(permissions, item))
 }

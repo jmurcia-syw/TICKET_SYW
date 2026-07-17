@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Checkbox, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { PermissionCatalogItem, RoleDetail } from '../../types/role'
+import { palette } from '../../theme'
 
 const ACTION_LABELS: Record<string, string> = {
   view: 'Ver', create: 'Crear', edit: 'Editar', deactivate: 'Desactivar',
@@ -50,18 +51,40 @@ export default function PermissionMatrix({ role, allPermissions, onChange }: Pro
   }
 
   const columns: ColumnsType<ModuleRow> = [
-    { title: 'Módulo', dataIndex: 'module', render: (m: string) => <strong>{m}</strong> },
+    {
+      title: 'Módulo',
+      dataIndex: 'module',
+      fixed: 'left',
+      width: 160,
+      render: (m: string) => <strong>{m}</strong>,
+      onCell: () => ({ style: { background: palette.slate50 } }),
+    },
     ...ACTIONS.map(action => ({
       title: actionLabel(action),
       key: action,
       align: 'center' as const,
+      width: 96,
       render: (_: unknown, row: ModuleRow) => {
         const perm = row.byAction[action]
-        if (!perm) return <span style={{ color: '#bfbfbf' }}>—</span>
+        if (!perm) return <span style={{ color: palette.slate300 }}>—</span>
         return <Checkbox checked={selected.has(perm.id)} onChange={() => toggle(perm.id)} />
+      },
+      onCell: (row: ModuleRow) => {
+        const perm = row.byAction[action]
+        if (!perm) return {}
+        return { style: { cursor: 'pointer' }, onClick: () => toggle(perm.id) }
       },
     })),
   ]
 
-  return <Table rowKey="module" columns={columns} dataSource={rows} pagination={false} size="small" />
+  return (
+    <Table
+      rowKey="module"
+      columns={columns}
+      dataSource={rows}
+      pagination={false}
+      size="small"
+      scroll={{ x: 'max-content' }}
+    />
+  )
 }

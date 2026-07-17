@@ -37,6 +37,17 @@ export const palette = {
   brandOrange50: '#FBEDE7',
   brandOrange500: '#D97757',
   brandOrange600: '#B85C3E',
+  violet500: '#9254DE',
+  lime600: '#7CB305',
+}
+
+// Categorías del calendario de festivos/cumpleaños (spec 021) — colores elegidos para no
+// repetir ningún hex de PRIORITY_CHIP/TICKET_STATUS_CHIP/STATUS_COLORS, que ya agotan
+// naranja/verde/púrpura vivos como semántica de tickets.
+export const CALENDAR_CATEGORY_COLORS = {
+  oficial: palette.teal700,
+  regional_religioso: palette.violet500,
+  cumpleanos: palette.lime600,
 }
 
 export const STATUS_COLORS = {

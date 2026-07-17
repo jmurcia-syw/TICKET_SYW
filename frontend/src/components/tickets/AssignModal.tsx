@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Input, Modal, Tag, Tooltip, message } from 'antd'
-import { UserSwitchOutlined, ExperimentOutlined, BulbOutlined, FireOutlined } from '@ant-design/icons'
+import { UserSwitchOutlined, ExperimentOutlined, BulbOutlined, FireOutlined, WarningOutlined } from '@ant-design/icons'
 import { resourceService } from '../../services/resourceService'
 import { ticketService } from '../../services/ticketService'
+import { calendarService } from '../../services/calendarService'
 import type { Resource } from '../../types/resource'
+import type { Availability, AvailabilityReason } from '../../types/calendar'
 import { avatarColor, initials, palette, vivid } from '../../theme'
+
+// FR-014: motivo legible por resolutor no disponible (fuera de horario, festivo o ausencia
+// aprobada). Nunca bloquea la asignación (FR-015) — es solo un indicador informativo.
+const UNAVAILABLE_LABELS: Record<Exclude<AvailabilityReason, null>, string> = {
+  outside_hours: 'Fuera de horario',
+  holiday: 'Festivo',
+  absence: 'Ausencia aprobada',
+}
 
 interface AssignModalProps {
   ticketId: string | null
@@ -26,6 +36,7 @@ function workloadColor(count: number): string {
 export default function AssignModal({ ticketId, onClose, onAssigned, forcedMode }: AssignModalProps) {
   const [resources, setResources] = useState<Resource[]>([])
   const [workload, setWorkload] = useState<Record<string, number>>({})
+  const [availability, setAvailability] = useState<Record<string, Availability>>({})
   const [selected, setSelected] = useState<string | undefined>()
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
@@ -41,6 +52,13 @@ export default function AssignModal({ ticketId, onClose, onAssigned, forcedMode 
         data.matrix.forEach(row => { map[row.resource.id] = row.total })
         setWorkload(map)
       }).catch(() => message.error('No se pudo cargar la carga de los resolutores'))
+      // FR-013/FR-014: disponibilidad informativa, nunca bloquea el flujo de asignación —
+      // un fallo aquí no debe impedir asignar, por eso no muestra error al usuario.
+      calendarService.getAvailability().then(items => {
+        const map: Record<string, Availability> = {}
+        items.forEach(a => { map[a.resource_id] = a })
+        setAvailability(map)
+      }).catch(() => {})
     }
   }, [ticketId])
 
@@ -117,6 +135,8 @@ export default function AssignModal({ ticketId, onClose, onAssigned, forcedMode 
           const isSelected = selected === r.id
           const color = avatarColor(r.id)
           const isLightest = r.id === lightestLoadId
+          const avail = availability[r.id]
+          const isUnavailable = avail && !avail.available
           return (
             <div
               key={r.id}
@@ -132,6 +152,14 @@ export default function AssignModal({ ticketId, onClose, onAssigned, forcedMode 
                 <Tooltip title="Resolutor con menor carga actual">
                   <Tag color="success" style={{ position: 'absolute', top: -9, right: 8, fontSize: 10 }}>
                     Menor carga
+                  </Tag>
+                </Tooltip>
+              )}
+              {isUnavailable && (
+                <Tooltip title={avail.detail ?? 'No disponible en este momento'}>
+                  <Tag color="error" icon={<WarningOutlined />}
+                    style={{ position: 'absolute', top: -9, left: 8, fontSize: 10 }}>
+                    {avail.reason ? UNAVAILABLE_LABELS[avail.reason] : 'No disponible'}
                   </Tag>
                 </Tooltip>
               )}

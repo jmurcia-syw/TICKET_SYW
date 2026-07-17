@@ -15,6 +15,8 @@ import SkillsPage from './pages/SkillsPage'
 import RolesPermissionsPage from './pages/RolesPermissionsPage'
 import SlaRulesPage from './pages/SlaRulesPage'
 import ClientContactsPage from './pages/ClientContactsPage'
+import AbsenceRequestsPage from './pages/AbsenceRequestsPage'
+import CalendarPage from './pages/CalendarPage'
 import TicketsPage from './pages/TicketsPage'
 import MyTasksPage from './pages/MyTasksPage'
 import KanbanPage from './pages/KanbanPage'
@@ -62,6 +64,8 @@ function AppRoutes() {
         <Route path="roles" element={<ProtectedRoute requiredPermission={{ module: 'roles', action: 'view' }}><RolesPermissionsPage /></ProtectedRoute>} />
         <Route path="sla-rules" element={<ProtectedRoute requiredPermission={{ module: 'sla_rules', action: 'manage' }}><SlaRulesPage /></ProtectedRoute>} />
         <Route path="client-contacts" element={<ProtectedRoute requiredPermission={{ module: 'client_contacts', action: 'manage' }}><ClientContactsPage /></ProtectedRoute>} />
+        <Route path="absence-requests" element={<ProtectedRoute requiredPermission={{ module: 'absence_requests', action: 'create' }}><AbsenceRequestsPage /></ProtectedRoute>} />
+        <Route path="calendar" element={<ProtectedRoute requiredPermission={{ module: 'resources', action: 'view' }}><CalendarPage /></ProtectedRoute>} />
       </Route>
     </Routes>
   )

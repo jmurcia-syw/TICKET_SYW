@@ -55,6 +55,7 @@ class ResourceModel(Base):
     certifications = Column(Text, nullable=True)
     team = Column(Text, nullable=True)
     manager_id = Column(UUID(as_uuid=True), ForeignKey("resources.id"), nullable=True)
+    timezone = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
@@ -80,6 +81,7 @@ class ResourceModel(Base):
             certifications=self.certifications,
             team=self.team,
             manager_id=self.manager_id,
+            timezone=self.timezone,
             skills=[s.to_entity() for s in (self.skills or [])],
             created_at=self.created_at,
             updated_at=self.updated_at,
