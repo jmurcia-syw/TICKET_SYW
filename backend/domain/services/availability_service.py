@@ -3,12 +3,15 @@
 Función pura de dominio (Principio I) — sin imports de Flask/SQLAlchemy. El orden de evaluación
 es fijo (FR-013): ausencia aprobada vigente > día festivo > horario laboral.
 """
+import logging
 from datetime import date, datetime, time
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 from backend.domain.entities.calendar import Holiday, WorkScheduleSlot, AbsenceRequest, Availability
 from backend.domain.entities.resource import Resource
+
+logger = logging.getLogger(__name__)
 
 # Horario laboral por defecto cuando el recurso no tiene franjas propias configuradas
 # (research.md Decisión 3 / spec.md Assumptions): lunes a viernes, 08:00-17:00 local.
@@ -24,6 +27,10 @@ def _local_now(resource: Resource, now_utc: datetime) -> datetime:
         try:
             return now_utc.astimezone(ZoneInfo(resource.timezone))
         except Exception:
+            logger.exception(
+                "No se pudo resolver timezone '%s' del recurso %s; se usa UTC sin convertir",
+                resource.timezone, resource.id,
+            )
             return now_utc
     return now_utc
 
@@ -47,6 +54,15 @@ def _within_schedule(slots: list[WorkScheduleSlot], local_weekday: int, local_ti
     return local_weekday in DEFAULT_WEEKDAYS and DEFAULT_START_TIME <= local_time < DEFAULT_END_TIME
 
 
+def _absence_covers_now(active_absence: AbsenceRequest, local_now: datetime) -> bool:
+    """FR-017 (spec 022): una ausencia sin horas (`start_time`/`end_time` nulos) cubre el día
+    completo, igual que antes; una ausencia parcial solo cuenta mientras la hora local esté
+    dentro de `[start_time, end_time)` de ese día."""
+    if active_absence.start_time is None or active_absence.end_time is None:
+        return True
+    return active_absence.start_time <= local_now.time() < active_absence.end_time
+
+
 def compute_availability(
     resource: Resource,
     now_utc: datetime,
@@ -54,13 +70,16 @@ def compute_availability(
     work_schedule_slots: list[WorkScheduleSlot],
     active_absence: Optional[AbsenceRequest],
 ) -> Availability:
-    """Disponibilidad de `resource` en `now_utc` (FR-013 a FR-016).
+    """Disponibilidad de `resource` en `now_utc` (FR-013 a FR-016; permisos parciales FR-017).
 
     `holidays` debe venir ya filtrado por el país del recurso (o vacío si no tiene país). Una
     ausencia aprobada (`active_absence`) siempre cuenta, incluso sin `timezone`/país configurados
-    — es un dato explícito, no depende de la zona horaria del recurso.
+    — es un dato explícito, no depende de la zona horaria del recurso. La hora local se calcula
+    igual para la ausencia parcial y para festivo/horario, así que se resuelve una sola vez.
     """
-    if active_absence is not None:
+    local_now = _local_now(resource, now_utc)
+
+    if active_absence is not None and _absence_covers_now(active_absence, local_now):
         return Availability(
             available=False,
             reason="absence",
@@ -73,7 +92,6 @@ def compute_availability(
     if not resource.timezone and not resource.calendar_country:
         return Availability(available=True)
 
-    local_now = _local_now(resource, now_utc)
     local_date = local_now.date()
     local_time = local_now.time()
 

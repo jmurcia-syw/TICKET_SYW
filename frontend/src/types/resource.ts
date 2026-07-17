@@ -33,6 +33,10 @@ export interface Resource {
   manager_id: string | null
   /** Huso horario IANA del recurso (Fase 5), ej. "America/Bogota". */
   timezone: string | null
+  /** Franja Horaria global (spec 022): "heredado" sigue la plantilla de `work_hour_template_id`;
+   * "personalizado" usa el horario propio editado desde el Perfil. */
+  schedule_mode: 'heredado' | 'personalizado'
+  work_hour_template_id: string | null
   skills: Skill[]
   created_at: string
 }

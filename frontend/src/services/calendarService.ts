@@ -1,11 +1,17 @@
 import apiClient from './apiClient'
-import type { Availability, AbsenceRequest, AbsenceRequestAttachment, Holiday, HolidayCategory, WorkSchedule, WorkScheduleSlot } from '../types/calendar'
+import type {
+  Availability, AbsenceRequest, AbsenceRequestAttachment, Holiday, HolidayCategory, WorkSchedule,
+  WorkScheduleSlot, WorkHourTemplate, WorkHourTemplateFormData, PersonalizedResource, Workload,
+} from '../types/calendar'
 
 export interface AbsenceRequestFormData {
   absence_type_id: string
   start_date: string
   end_date: string
   notes?: string | null
+  /** Permiso parcial por horas (spec 022, FR-017) — omitir ambos para día completo. */
+  start_time?: string | null
+  end_time?: string | null
 }
 
 export type AbsenceRequestScope = 'own' | 'manager' | 'hr'
@@ -87,4 +93,29 @@ export const calendarService = {
 
   setWorkSchedule: (resourceId: string, slots: WorkScheduleSlot[]) =>
     apiClient.put<WorkSchedule>(`/api/resources/${resourceId}/work-schedule`, { items: slots }).then(r => r.data),
+
+  // ── Franjas Horarias globales (spec 022, FR-001 a FR-005) ──────────────────
+
+  listWorkHourTemplates: (country: string) =>
+    apiClient.get<{ items: WorkHourTemplate[] }>('/api/work-hour-templates', { params: { country } })
+      .then(r => r.data.items),
+
+  createWorkHourTemplate: (data: WorkHourTemplateFormData) =>
+    apiClient.post<WorkHourTemplate>('/api/work-hour-templates', data).then(r => r.data),
+
+  updateWorkHourTemplate: (id: string, data: Partial<WorkHourTemplateFormData> & { active?: boolean }) =>
+    apiClient.patch<WorkHourTemplate>(`/api/work-hour-templates/${id}`, data).then(r => r.data),
+
+  listPersonalizedResources: () =>
+    apiClient.get<{ items: PersonalizedResource[] }>('/api/work-hour-templates/personalized')
+      .then(r => r.data.items),
+
+  assignWorkHourTemplate: (resourceId: string, templateId: string) =>
+    apiClient.patch(`/api/resources/${resourceId}/work-hour-template`, { work_hour_template_id: templateId })
+      .then(r => r.data),
+
+  // ── Carga de trabajo (spec 022, FR-007) ────────────────────────────────────
+
+  getWorkload: (resourceId: string, date?: string) =>
+    apiClient.get<Workload>(`/api/resources/${resourceId}/workload`, { params: { date } }).then(r => r.data),
 }

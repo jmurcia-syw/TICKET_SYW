@@ -51,6 +51,11 @@ class Resource:
     # Huso horario del recurso (Fase 5, spec 020) — `calendar_country` ya define el país/festivos;
     # `timezone` es explícito porque un mismo país puede abarcar más de una zona horaria.
     timezone: Optional[str] = None
+    # Franja Horaria global (spec 022, FR-003/FR-004): "heredado" resuelve el horario efectivo
+    # desde `work_hour_template_id` en tiempo de lectura; "personalizado" usa las filas propias
+    # de `work_schedules` (sin cambios de esquema en esa tabla).
+    schedule_mode: str = "heredado"
+    work_hour_template_id: Optional[uuid.UUID] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 

@@ -2,6 +2,8 @@
 // Ver specs/020-calendarios-vacaciones-disponibilidad/contracts/calendar-disponibilidad.md
 // Spec 021: festivos sincronizados por API, categorización y cumpleaños.
 // Ver specs/021-festivos-api-cumpleanos/contracts/festivos-api-cumpleanos.md
+// Spec 022: Franjas Horarias globales, SLA dinámico y calendario superpuesto.
+// Ver specs/022-rrhh-calendario-sla-dinamico/contracts/rrhh-calendario-sla-dinamico.md
 
 export type HolidayCategory = 'oficial' | 'regional_religioso'
 export type HolidaySource = 'api' | 'manual'
@@ -54,6 +56,9 @@ export interface AbsenceRequest {
   notes: string | null
   attachments: AbsenceRequestAttachment[]
   created_at: string
+  /** Permiso parcial por horas (spec 022, FR-017) — ambos `null` = día completo. */
+  start_time: string | null
+  end_time: string | null
 }
 
 export type AvailabilityReason = 'outside_hours' | 'holiday' | 'absence' | null
@@ -63,4 +68,49 @@ export interface Availability {
   available: boolean
   reason: AvailabilityReason
   detail: string | null
+}
+
+// ── Franja Horaria global (spec 022, FR-001/FR-002) ──────────────────────────
+
+export type ScheduleMode = 'heredado' | 'personalizado'
+
+export interface WorkHourTemplate {
+  id: string
+  country: string
+  name: string
+  timezone: string
+  active: boolean
+  slots: WorkScheduleSlot[]
+}
+
+export interface WorkHourTemplateFormData {
+  country: string
+  name: string
+  timezone: string
+  slots: WorkScheduleSlot[]
+}
+
+export interface PersonalizedResource {
+  resource_id: string
+  full_name: string
+  calendar_country: string | null
+}
+
+// ── SLA dinámico (spec 022, FR-006 a FR-010) — `SlaPauseReason` vive en './sla' junto con el
+// resto del tipo `TicketSlaState` que ya expone el bloque `sla` del ticket. ─────────────────
+
+export interface TicketWorkloadItem {
+  ticket_id: string
+  ticket_number: string
+  priority: string
+  severity: string
+  remaining_minutes: number
+}
+
+export interface Workload {
+  resource_id: string
+  date: string
+  committed_minutes: number
+  available_minutes_remaining: number
+  tickets: TicketWorkloadItem[]
 }

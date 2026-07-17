@@ -5,6 +5,7 @@ from sqlalchemy.sql import func, text
 from backend.infra.models import Base
 from backend.domain.entities.calendar import (
     Holiday, WorkScheduleSlot, AbsenceRequest, AbsenceRequestAttachment,
+    WorkHourTemplate, WorkHourTemplateSlot,
 )
 
 
@@ -70,6 +71,8 @@ class AbsenceRequestModel(Base):
     hr_decided_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     hr_decided_at = Column(TIMESTAMP(timezone=True), nullable=True)
     notes = Column(Text, nullable=True)
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
@@ -81,6 +84,7 @@ class AbsenceRequestModel(Base):
             manager_decided_at=self.manager_decided_at,
             hr_status=self.hr_status, hr_decided_by=self.hr_decided_by,
             hr_decided_at=self.hr_decided_at, notes=self.notes,
+            start_time=self.start_time, end_time=self.end_time,
             created_at=self.created_at, updated_at=self.updated_at,
         )
 
@@ -90,7 +94,40 @@ class AbsenceRequestModel(Base):
             id=request.id, resource_id=request.resource_id, absence_type_id=request.absence_type_id,
             start_date=request.start_date, end_date=request.end_date,
             manager_status=request.manager_status, notes=request.notes,
+            start_time=request.start_time, end_time=request.end_time,
         )
+
+
+class WorkHourTemplateModel(Base):
+    """Franja Horaria global por país (spec 022, FR-001/FR-002)."""
+    __tablename__ = "work_hour_templates"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    country = Column(Text, nullable=False)
+    name = Column(Text, nullable=False)
+    timezone = Column(Text, nullable=False)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    def to_entity(self) -> "WorkHourTemplate":
+        return WorkHourTemplate(id=self.id, country=self.country, name=self.name,
+                                timezone=self.timezone, active=self.active,
+                                created_at=self.created_at, updated_at=self.updated_at)
+
+
+class WorkHourTemplateSlotModel(Base):
+    __tablename__ = "work_hour_template_slots"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    template_id = Column(UUID(as_uuid=True), ForeignKey("work_hour_templates.id", ondelete="CASCADE"), nullable=False)
+    weekday = Column(SmallInteger, nullable=False)
+    start_time = Column(Time, nullable=False)
+    end_time = Column(Time, nullable=False)
+
+    def to_entity(self) -> "WorkHourTemplateSlot":
+        return WorkHourTemplateSlot(id=self.id, template_id=self.template_id, weekday=self.weekday,
+                                    start_time=self.start_time, end_time=self.end_time)
 
 
 class AbsenceRequestAttachmentModel(Base):

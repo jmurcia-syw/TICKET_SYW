@@ -29,6 +29,10 @@ export interface SlaRulePatchData {
 export type SlaPhase = 'contacto' | 'ejecucion' | 'cerrado'
 export type SlaStatus = 'sin_sla' | 'corriendo' | 'pausado' | 'vencido' | 'detenido'
 export type SlaContactResult = 'pendiente' | 'cumplido' | 'vencido'
+/** Motivo de la pausa (spec 022, motor de SLA dinámico) — `null` si `status != 'pausado'`;
+ * `'ticket_status'` si la pausa es por estado del ticket (comportamiento ya existente);
+ * `'outside_hours' | 'holiday' | 'absence'` si es por disponibilidad real del recurso asignado. */
+export type SlaPauseReason = 'outside_hours' | 'holiday' | 'absence' | 'ticket_status' | null
 
 export interface TicketSlaState {
   phase: SlaPhase | null
@@ -38,4 +42,5 @@ export interface TicketSlaState {
   rule_id: string | null
   contact_result?: SlaContactResult | null
   contact_consumed_seconds?: number | null
+  pause_reason?: SlaPauseReason
 }

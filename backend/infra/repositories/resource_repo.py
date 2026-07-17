@@ -177,6 +177,18 @@ class ResourceRepository:
     def set_active(self, resource_id: uuid.UUID, active: bool) -> Optional[Resource]:
         return self.update(resource_id, active=active)
 
+    def list_by_schedule_mode(self, mode: str) -> list[Resource]:
+        """Recursos por `schedule_mode` (`"heredado"` | `"personalizado"`, spec 022, FR-005) —
+        usado por la pantalla de RRHH para listar Personalizados y por la propagación de una
+        Franja Horaria (quiénes la heredan)."""
+        models = (
+            self._db.query(ResourceModel)
+            .filter(ResourceModel.schedule_mode == mode)
+            .order_by(ResourceModel.full_name)
+            .all()
+        )
+        return [m.to_entity() for m in models]
+
 
 class CompensationRepository:
     """Acceso al area protegida de compensacion (FR-032/FR-033, SDD V3)."""

@@ -104,6 +104,19 @@ class TicketRepository:
                   .all())
         return [m.to_entity() for m in models]
 
+    def list_active_sla_by_assignee(self, resource_id: uuid.UUID) -> list[Ticket]:
+        """Tickets con SLA activo (`corriendo` o `pausado`) asignados a `resource_id` (spec 022,
+        endpoint de carga de trabajo `GET /api/resources/{id}/workload`)."""
+        models = (
+            self._db.query(TicketModel)
+            .filter(
+                TicketModel.assignee_id == resource_id,
+                TicketModel.sla_status.in_(("corriendo", "pausado")),
+            )
+            .all()
+        )
+        return [m.to_entity() for m in models]
+
     def create(self, ticket: Ticket) -> Ticket:
         model = TicketModel(
             id=ticket.id,
