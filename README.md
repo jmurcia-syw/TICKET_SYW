@@ -3,17 +3,17 @@
 Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM
 de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre **GitHub Spec Kit**.
 
-> **Fase activa**: `Contenido enriquecido en tickets/comentarios` (spec `017`) ✅ implementada —
-> formato de texto (negrilla/cursiva/subrayado/listas/hipervínculos) en comentarios y en la
-> descripción de Ticket/Tarea, pegado de contenido con imágenes incrustadas (respaldadas por
-> adjuntos reales, no solo texto plano) y adjuntos manuales también en la descripción (paridad
-> con los comentarios, spec 002). Saneamiento HTML server-side (`bleach`/`lxml`) antes de
-> persistir y de nuevo en el cliente (`DOMPurify`) antes de renderizar — defensa en profundidad
-> contra XSS. Precedida por dos correcciones sobre el Usuario/cliente: pertenencia a **múltiples
-> Proyectos** (spec `015`) y la posibilidad de **corregir el Cliente** de un Usuario/cliente mal
-> dado de alta agregando un Proyecto de otro Cliente, con el selector de Proyecto mostrando
-> "Cliente — Proyecto" para desambiguar homónimos (spec `016`). Validadas con 23 tests dirigidos
-> y recorrido E2E contra Docker real. Rama: `develp_Jp`
+> **Fase activa**: `Festivos sincronizados por API, categorización visual y cumpleaños en el
+> Calendario` (spec `021`) ✅ implementada — los festivos oficiales de cada país se sincronizan
+> automáticamente desde una API pública (Nager.Date, con reintento y sin bloquear el sistema si
+> falla), se categorizan como **Oficial** (afecta disponibilidad) o **Regional/Religioso** (solo
+> informativo) con color/etiqueta propios, y la pestaña "Equipo" del calendario muestra el
+> cumpleaños de cada Recurso como evento anual recurrente. Precedida por la Fase 5 SDD V3
+> completa (spec `020`): calendarios multi-zona horaria por Cliente/Equipo, horario laboral
+> semanal, vacaciones/permisos con doble aprobación (Jefe directo + rol RRHH) y alerta de
+> disponibilidad (sin bloquear) al asignar tickets; por Accesos y conexiones múltiples del
+> Cliente — VPN/URL por ambiente/Escritorio remoto (spec `018`); y por unidades de tiempo
+> (minutos/horas/días) al configurar SLA (spec `019`). Rama: `develp_Jp`
 
 ---
 
@@ -26,7 +26,7 @@ de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre *
 | **2 — Registro de tiempos** | Registro diario de tiempos por recurso (hora inicio/fin), rol Usuario/cliente (autoservicio con Cliente fijo), breadcrumbs de navegación, Usuario/cliente seleccionable/editable por Cliente en el ticket, "Mis Tareas" (specs `004`, `005`, `006`, `007`) | ✅ **Completa** |
 | **3 — Tareas** | Tarea/Subtarea sobre la misma tabla de Ticket (jerarquía Cliente → Proyecto → Lista → Tarea → Subtarea), ciclo de vida unificado con Ticket (10 estados, transición libre + comentario), visibles en Kanban, Listas administrables tipo Teamwork/Asana, Subtareas con Usuario/cliente propio, fix de Registro de tiempo para creador de la Tarea (specs `008`, `009`) | ✅ **Completa** |
 | **4 — SLAs** | SLAs configurables por Proyecto × Prioridad, contador de 2 fases con pausa/reanudación según estado del ticket, indicadores en listado/dashboard y notificación proactiva de vencimientos vía Celery+Redis (spec `014`) | ✅ **Completa** |
-| 5 | Asignación por disponibilidad + calendarios por país/recurso | ⏳ Pendiente |
+| **5 — Calendarios y disponibilidad** | Calendarios multi-zona horaria por Cliente/Equipo, festivos por país sincronizados por API pública y categorizados (Oficial/Regional), horario laboral semanal, vacaciones/permisos con doble aprobación (Jefe directo + RRHH), cumpleaños del equipo y alerta de disponibilidad (sin bloquear) al asignar tickets (specs `020`, `021`) | ✅ **Completa** |
 | 6 | Motor FSM automatizado + triggers de comentarios + Google Chat | ⏳ Pendiente |
 | 7 | Focus Room + agente IA asistente (evaluar Triage Agent) | ⏳ Pendiente |
 | 8 | Portal de clientes + integraciones + tickets por email | ⏳ Pendiente |
@@ -40,16 +40,41 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 > (spec `010`), el cronómetro manual de tiempo (spec `012`, provisional), las Skills requeridas
 > del ticket (spec `011`) y el manejo global de errores (spec `013`) son cambios transversales
 > sobre las Fases 1-3 ya completas, previos a la Fase 4 (SLAs, spec `014`) ya completada arriba.
-> El Usuario/cliente en múltiples Proyectos y la corrección de su Cliente (specs `015`/`016`) y
-> el contenido enriquecido en tickets/comentarios (spec `017`) son cambios transversales
-> posteriores a la Fase 4, también ya completados.
+> El Usuario/cliente en múltiples Proyectos y la corrección de su Cliente (specs `015`/`016`), el
+> contenido enriquecido en tickets/comentarios (spec `017`), los accesos y conexiones múltiples
+> del Cliente (spec `018`) y las unidades de tiempo del SLA (spec `019`) son cambios transversales
+> posteriores a la Fase 4, previos a la Fase 5 (Calendarios y disponibilidad, specs `020`/`021`)
+> ya completada arriba.
 
 ---
 
-## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`) + Manejo global de errores (spec `013`) + SLAs (spec `014`, Fase 4) + Usuario/cliente multi-Proyecto (spec `015`/`016`) + Contenido enriquecido (spec `017`)
+## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`) + Manejo global de errores (spec `013`) + SLAs (spec `014`, Fase 4) + Usuario/cliente multi-Proyecto (spec `015`/`016`) + Contenido enriquecido (spec `017`) + Accesos del Cliente (spec `018`) + Unidades de tiempo SLA (spec `019`) + Calendarios/Vacaciones/Disponibilidad (spec `020`, Fase 5) + Festivos por API y cumpleaños (spec `021`)
 
 ### Funcionalidad operativa
 
+- **Festivos sincronizados por API, categorización visual y cumpleaños** (spec `021`): una tarea
+  Celery sincroniza los festivos oficiales de cada país desde la API pública Nager.Date (con
+  reintento; si falla, el sistema sigue operando con los festivos ya cargados), categorizándolos
+  como **Oficial** (afecta el cómputo de disponibilidad) o **Regional/Religioso** (solo
+  informativo), cada uno con color/etiqueta propios sin colisionar entre sí. La pestaña "Equipo"
+  del calendario muestra el cumpleaños de cada Recurso (`birth_date`) como evento anual
+  recurrente. Corrige además el calendario colombiano, al que le faltaban el 20 de julio y los
+  festivos móviles de la Ley Emiliani.
+- **Calendarios, vacaciones y disponibilidad** (spec `020`, Fase 5 SDD V3): calendario
+  multi-zona horaria por Cliente (huso/país) y por Equipo (zona por miembro), festivos por país,
+  horario laboral semanal configurable por usuario, rol **RRHH** con solicitudes de ausencia
+  (vacaciones/incapacidad/permiso) que exigen doble aprobación en cadena (Jefe directo + RRHH), y
+  una alerta visual de disponibilidad (nunca bloqueante) al asignar un ticket a un recurso con
+  ausencia o fuera de horario.
+- **Unidades de tiempo en SLA** (spec `019`): al configurar el tiempo límite de
+  Diagnóstico/Análisis/Ejecución de un SLA, el campo acepta minutos, horas o días y convierte
+  internamente a minutos (el tiempo de Contacto sigue solo en minutos); no cambia el motor de
+  cómputo de SLA de la spec `014`.
+- **Accesos y conexiones múltiples del Cliente** (spec `018`): reemplaza los antiguos campos
+  únicos de VPN del Cliente por múltiples registros de acceso/conexión (VPN, URL por ambiente
+  DEV/TEST/PROD, Escritorio remoto), cada uno con usuario/contraseña y adjuntos propios y
+  enmascarado de datos sensibles por defecto; corrige un bug de aislamiento de datos entre
+  Clientes y resuelve las observaciones UAT OBS-0001/OBS-0008/OBS-0017.
 - **Contenido enriquecido en tickets y comentarios** (spec `017`): la descripción de
   Ticket/Tarea y los comentarios admiten formato de texto (negrilla, cursiva, subrayado, listas,
   hipervínculos) vía un editor TipTap con toolbar; pegar contenido con formato (de un correo,
@@ -160,6 +185,13 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 
 ### Verificación
 
+- **Validación de las specs `020`/`021`** (Calendarios/Vacaciones/Disponibilidad + Festivos por
+  API): 52/52 tareas de la spec `020` (7 fases: Setup, Foundational, US1-US4, Polish) y 27/27
+  tareas de la spec `021` (6 fases) marcadas completas; el commit `26b4caf` corrige, tras
+  validación, una colisión de colores entre categorías de festivo y peticiones duplicadas a la
+  API de festivos.
+- **Validación de las specs `018`/`019`** (Accesos del Cliente + unidades de tiempo de SLA):
+  29/29 tareas de la spec `018` y 11/11 de la spec `019` marcadas completas.
 - **Validación de las specs `015`/`016`** (Usuario/cliente multi-Proyecto + corrección de
   Cliente): 13/13 tests dirigidos en verde (`test_client_contacts_projects.py`), `tsc -b` sin
   errores, quickstart de ambas specs (Escenarios 1-4) validado contra Docker real.
@@ -202,9 +234,12 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 ### Backend
 - **Python 3.12** + **Flask 3.x** + **Flask-RESTX** (Swagger en `/swagger`)
 - **python-transitions** (FSM del ciclo de vida — Capa 1, dominio puro)
-- **SQLAlchemy 2.x** + **Alembic** (revisión `025` — dueño único del schema)
+- **SQLAlchemy 2.x** + **Alembic** (revisión `040` — dueño único del schema)
 - **PostgreSQL 16** on-premise con RLS y pgcrypto
 - **Flask-JWT-Extended** + login provisional usuario/contraseña + **Google OAuth2** (`@sywork.net`)
+- **Celery 5.4** + **Redis 5.2**: tarea periódica de vencimientos de SLA (spec `014`) y
+  sincronización de festivos por país (spec `021`)
+- **`requests`** (spec `021`): cliente de la API pública de festivos Nager.Date
 
 ### Frontend
 - **React 19** + **TypeScript strict** (prohibido `any`)
@@ -212,7 +247,9 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 - **pnpm** exclusivamente · **date-fns**
 
 ### Infraestructura
-- **Docker Compose**: `sywork_db` (5432) · `sywork_backend` (5000) · `sywork_frontend` (5173)
+- **Docker Compose**: `sywork_db` (5432) · `sywork_backend` (5000) · `sywork_frontend` (5173) ·
+  `sywork_redis` (broker de Celery) · `sywork_worker` (Celery worker — vencimientos de SLA y
+  sincronización de festivos)
 - Adjuntos en volumen `uploads/` (fuera de git)
 
 ---
@@ -222,35 +259,47 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 ```
 backend/
 ├── domain/            # Capa 1 — sin imports de Flask/SQLAlchemy
-│   ├── entities/      # Ticket, Comment, Notification, Client, Project, Resource, User, Role,
-│   │                  # ClientContact, WorkSession, ProjectMember, ProjectTeam
+│   ├── entities/      # Ticket, Comment, Notification, Client (+ ClientSystem, ClientAccess,
+│   │                  # ClientAccessAttachment, spec 018), Project, Resource, User, Role,
+│   │                  # ClientContact, WorkSession, ProjectMember, ProjectTeam, Calendar (+
+│   │                  # Holiday, WorkSchedule, AbsenceRequest, spec 020/021)
 │   ├── fsm/           # ticket_fsm.py — matriz de 16 transiciones (python-transitions)
 │   └── services/      # ticket, comment, assignment, notification, compensation,
 │                      # client_contact, work_session, project_member, skill,
-│                      # rich_content (saneamiento HTML + resolución de imágenes pegadas), ...
+│                      # rich_content (saneamiento HTML + resolución de imágenes pegadas),
+│                      # absence_service, availability_service (spec 020),
+│                      # holiday_sync_service (spec 021), ...
 ├── infra/             # Capa 2
+│   ├── external/      # holiday_api_client.py — cliente de la API pública Nager.Date (spec 021)
 │   ├── models/        # SQLAlchemy (tickets, comments, catalogs, notifications, maestros,
-│   │                  # client_contacts, work_sessions, task_lists, project_member_model)
-│   ├── repositories/  # paginación, filtros, historiales append-only
+│   │                  # client_contacts, work_sessions, task_lists, project_member_model,
+│   │                  # calendar_model — festivos/horarios/ausencias, spec 020/021)
+│   ├── repositories/  # paginación, filtros, historiales append-only, calendar_repo
 │   ├── storage/       # adjuntos en filesystem (uploads/tickets/{id}/)
-│   └── migrations/    # Alembic 001..029
+│   └── migrations/    # Alembic 001..040
+├── workers/           # celery_app.py, sla_tasks.py (spec 014), holiday_sync_tasks.py (spec 021)
 └── api/               # Capa 3
     ├── middleware/    # auth.py (JWT + usuario activo), rbac.py (@require_permission)
     └── routes/        # tickets, catalogs, notifications, assignment_panel, client_contacts,
-                       # work_sessions, task_lists, project_members + maestros
+                       # work_sessions, task_lists, project_members, calendar (festivos,
+                       # horarios, ausencias, disponibilidad — spec 020/021) + maestros
 
 frontend/src/
 ├── components/tickets/     # TicketStatusTag, AssignModal, CommentThread, CommentComposer,
 │                           # TicketBreadcrumb, TaskStatusChanger, SubtaskList,
 │                           # RichTextEditor, RichTextViewer (TipTap + DOMPurify, spec 017)
 ├── components/worksessions/ # WorkSessionForm, TimeLogModal, TicketWorkSessions
+├── components/sla/         # SlaRuleForm (selector de unidad minutos/horas/días, spec 019)
 ├── components/common/      # NotificationBell, ProtectedRoute, ConfirmationModal, ...
 ├── pages/                  # TicketsPage, TicketDetailPage, AssignmentPanelPage, CatalogsPage,
 │                           # MyTasksPage, WorkSessionsPage, TimeReportPage, ClientContactsPage,
-│                           # ProjectListsPage, ProjectPeoplePage, KanbanPage, SkillsPage + maestros
+│                           # ProjectListsPage, ProjectPeoplePage, KanbanPage, SkillsPage,
+│                           # SlaRulesPage, CalendarPage (festivos, horario, vacaciones, Equipo
+│                           # con cumpleaños — spec 020/021) + maestros
 ├── services/                # ticketService, catalogService, notificationService,
 │                            # clientContactService, workSessionService, taskListService,
-│                            # projectMemberService, resourceService + maestros
+│                            # projectMemberService, resourceService, slaService,
+│                            # calendarService + maestros
 ├── store/               # authStore (Zustand: token, permisos, hasPermission)
 └── types/               # tipos estrictos por dominio
 ```
@@ -263,7 +312,7 @@ frontend/src/
 
 | Componente | Uso |
 |------------|-----|
-| **Docker Desktop** (o Docker Engine + Compose v2) | Orquesta los 3 servicios: `sywork_db`, `sywork_backend`, `sywork_frontend` |
+| **Docker Desktop** (o Docker Engine + Compose v2) | Orquesta los 5 servicios: `sywork_db`, `sywork_backend`, `sywork_frontend`, `sywork_redis`, `sywork_worker` |
 | **Git** | Clonar el repositorio |
 | Node.js 20+ y pnpm | Solo si vas a correr el frontend **fuera** de Docker |
 | Python 3.12 | Solo si vas a correr el backend **fuera** de Docker |
@@ -312,15 +361,18 @@ DEV_SKIP_AUTH=false           # SIEMPRE false: la API exige JWT en toda ruta (FR
 docker compose up --build -d
 ```
 
-Esto construye las 3 imágenes y arranca, en orden:
+Esto construye las imágenes y arranca, en orden:
 
 1. **`sywork_db`** (Postgres 16) — espera a estar `healthy` antes de continuar.
 2. **`sywork_backend`** (Flask) — corre `alembic upgrade head` automáticamente al iniciar
-   (revisión `022`) y luego levanta el servidor en `:5000`.
+   (revisión `040`) y luego levanta el servidor en `:5000`.
 3. **`sywork_frontend`** (Vite) — sirve la SPA en `:5173`.
+4. **`sywork_redis`** — broker de Celery.
+5. **`sywork_worker`** (Celery) — vencimientos de SLA (spec `014`) y sincronización periódica
+   de festivos por país (spec `021`).
 
 ```bash
-docker compose ps                       # verificar que los 3 estén "Up"
+docker compose ps                       # verificar que los 5 estén "Up"
 docker compose logs -f backend           # seguir logs de arranque / migraciones
 curl http://localhost:5000/health/       # {"status": "ok", "database": {"connected": true}}
 ```
@@ -447,11 +499,15 @@ docker exec sywork_backend python -m backend.scripts.seed_tickets 500   # datos 
 | `015` | [encargado-multiples-proyectos](specs/015-encargado-multiples-proyectos/spec.md) | Un Usuario/cliente puede pertenecer a múltiples Proyectos del mismo Cliente, no solo uno | ✅ Completa — tasks 15/15, quickstart 4/4 |
 | `016` | [corregir-cliente-encargado](specs/016-corregir-cliente-encargado/spec.md) | Corregir el Cliente de un Usuario/cliente agregando un Proyecto de otro Cliente cuando queda en 0 Proyectos; desambiguar Proyectos homónimos ("Cliente — Proyecto" en el selector) | ✅ Completa — tasks 10/10, quickstart 4/4 |
 | `017` | [contenido-enriquecido-ticket](specs/017-contenido-enriquecido-ticket/spec.md) | Formato de texto enriquecido, pegado de contenido con imágenes incrustadas y adjuntos manuales en comentarios y en la descripción de Ticket/Tarea | ✅ Completa — tasks 37/37, 10 tests dirigidos, quickstart 7/7 validado contra Docker real |
+| `018` | [cliente-accesos-conexiones](specs/018-cliente-accesos-conexiones/spec.md) | Múltiples registros de acceso/conexión del Cliente (VPN, URL por ambiente, Escritorio remoto) con adjuntos y enmascarado por defecto; corrige aislamiento entre clientes (OBS-0001/0008/0017) | ✅ Completa — tasks 29/29 |
+| `019` | [sla-unidades-tiempo](specs/019-sla-unidades-tiempo/spec.md) | Selector de unidad (minutos/horas/días) en el tiempo límite de Diagnóstico/Análisis/Ejecución del SLA, con conversión interna a minutos | ✅ Completa — tasks 11/11 |
+| `020` | [calendarios-vacaciones-disponibilidad](specs/020-calendarios-vacaciones-disponibilidad/spec.md) | Fase 5 SDD V3: calendarios multi-zona horaria, festivos por país, horario laboral semanal, vacaciones/permisos con doble aprobación (Jefe directo + RRHH) y alerta de disponibilidad al asignar tickets | ✅ Completa — tasks 52/52 (7 fases) |
+| `021` | [festivos-api-cumpleanos](specs/021-festivos-api-cumpleanos/spec.md) | Festivos oficiales sincronizados por API pública (Nager.Date), categorización Oficial/Regional con color propio, y cumpleaños de Recursos en la pestaña "Equipo" del calendario | ✅ Completa — tasks 27/27 (6 fases) |
 
 Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.md`,
 `data-model.md`, `contracts/`, `tasks.md`, `quickstart.md`.
 
-**Transversales**: [Constitución v1.1.0](.specify/memory/constitution.md) ·
+**Transversales**: [Constitución v1.3.0](.specify/memory/constitution.md) ·
 [MER actual](docs/MER.md) (maestros + tickets, generado del schema real)
 
 ## Pendientes conocidos
@@ -462,11 +518,13 @@ Cada carpeta de spec sigue la misma estructura: `spec.md`, `plan.md`, `research.
   frontend (T071).
 - El cifrado pgcrypto es placeholder de desarrollo → reemplazar por `pgp_sym_encrypt`
   antes de producción.
-- Fase 5 (Asignación por disponibilidad + calendarios) y siguientes del roadmap SDD V3 aún no
-  iniciadas.
+- Fase 6 (motor FSM automatizado + triggers de comentarios + Google Chat) y siguientes del
+  roadmap SDD V3 (Fases 7-8) aún no iniciadas.
 - Spec `010`: correr la suite completa de tests (no ejecutada durante el desarrollo por
   directriz explícita FR-020) para confirmar ausencia de regresiones fuera de los archivos
   tocados.
 - Spec `014` (SLAs): FR-011 (recalcular SLA al cambiar el Proyecto de un ticket) solo es
   parcialmente alcanzable — `project_id` no está hoy en los campos editables (`PATCHABLE_FIELDS`)
   de ningún endpoint, así que solo el cambio de Prioridad ejercita esa lógica en producción.
+- Spec `011` (Skills requeridas en el ticket): la spec quedó redactada pero sin `plan.md`/
+  `tasks.md` — no implementada aún.
