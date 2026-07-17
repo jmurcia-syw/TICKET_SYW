@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { TeamOutlined, ProjectOutlined, UserOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined, AppstoreOutlined, ClockCircleOutlined, BarChartOutlined, UnorderedListOutlined, FieldTimeOutlined, CalendarOutlined } from '@ant-design/icons'
+import { TeamOutlined, ProjectOutlined, UserOutlined, StarOutlined, DatabaseOutlined, SafetyCertificateOutlined, FileTextOutlined, DashboardOutlined, TagsOutlined, AppstoreOutlined, ClockCircleOutlined, BarChartOutlined, UnorderedListOutlined, FieldTimeOutlined, CalendarOutlined, IdcardOutlined } from '@ant-design/icons'
 import type { Permission } from '../types/api'
 
 export interface NavLeaf {
@@ -65,12 +65,28 @@ export function getVisibleWorkSessionNavItems(permissions: Permission[]): NavLea
 }
 
 /** Ítems de la Fase 5 (spec 020, Historia 2) — vacaciones y permisos. `create` lo tiene
- * cualquier rol interno vinculado a un Recurso (no `Encargado`, contacto externo). */
+ * cualquier rol interno vinculado a un Recurso (no `Encargado`, contacto externo).
+ *
+ * Spec 022 (FR-001): agrupados bajo el menú "RRHH" (mismo comportamiento visual que
+ * "Maestros") junto con la administración de Franjas Horarias globales. */
+export const RRHH_GROUP_KEY = 'rrhh'
+
+export const rrhhGroupIcon = <IdcardOutlined />
+
 export const absenceNavItems: NavLeaf[] = [
-  { key: '/absence-requests', icon: <CalendarOutlined />, label: 'Vacaciones y Permisos', module: 'absence_requests', action: 'create' },
-  { key: '/calendar', icon: <CalendarOutlined />, label: 'Calendarios', module: 'resources', action: 'view' },
+  { key: '/calendar', icon: <CalendarOutlined />, label: 'Calendario', module: 'resources', action: 'view' },
+  { key: '/absence-requests', icon: <CalendarOutlined />, label: 'Permisos', module: 'absence_requests', action: 'create' },
+]
+
+export const rrhhNavItems: NavLeaf[] = [
+  ...absenceNavItems,
+  { key: '/rrhh/franjas-horarias', icon: <FieldTimeOutlined />, label: 'Franjas Horarias', module: 'work_hour_templates', action: 'manage' },
 ]
 
 export function getVisibleAbsenceNavItems(permissions: Permission[]): NavLeaf[] {
   return absenceNavItems.filter(item => hasNavAccess(permissions, item))
+}
+
+export function getVisibleRrhhNavItems(permissions: Permission[]): NavLeaf[] {
+  return rrhhNavItems.filter(item => hasNavAccess(permissions, item))
 }

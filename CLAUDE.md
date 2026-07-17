@@ -2,13 +2,20 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Festivos sincronizados por API pública, categorización visual (Oficial vs. Regional/Religioso) y cumpleaños de Recursos en el Calendario
+**Active feature**: RRHH — Franjas Horarias globales por país (herencia + modo Personalizado), Calendario de Equipo Superpuesto (Mes/Semana/Día, ausencias parciales por horas) y Motor de SLA Dinámico basado en disponibilidad real
+**Spec**: specs/022-rrhh-calendario-sla-dinamico/spec.md
+**Plan**: specs/022-rrhh-calendario-sla-dinamico/plan.md
+**Research**: specs/022-rrhh-calendario-sla-dinamico/research.md
+**Data model**: specs/022-rrhh-calendario-sla-dinamico/data-model.md
+**Quickstart**: specs/022-rrhh-calendario-sla-dinamico/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada)**: Festivos sincronizados por API pública, categorización visual (Oficial vs. Regional/Religioso) y cumpleaños de Recursos en el Calendario
 **Spec**: specs/021-festivos-api-cumpleanos/spec.md
 **Plan**: specs/021-festivos-api-cumpleanos/plan.md
 **Research**: specs/021-festivos-api-cumpleanos/research.md
 **Data model**: specs/021-festivos-api-cumpleanos/data-model.md
 **Quickstart**: specs/021-festivos-api-cumpleanos/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada)**: Fase 5 SDD V3 — Calendarios multi-zona horaria con festivos por país, horario laboral semanal, gestión de vacaciones/permisos con doble aprobación (Jefe directo + rol RRHH) y alerta de disponibilidad (sin bloquear) al asignar tickets
 **Spec**: specs/020-calendarios-vacaciones-disponibilidad/spec.md

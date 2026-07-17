@@ -1,12 +1,17 @@
 import re
-from datetime import date
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 
 from flask_restx import Namespace, Resource, fields
+from backend.infra.repositories.calendar_repo import (
+    AbsenceRequestRepository, HolidayRepository, resolve_effective_schedule_slots,
+)
 from backend.infra.repositories.catalog_repo import CatalogRepository
 from backend.infra.repositories.resource_repo import ResourceRepository, SkillRepository, CompensationRepository
+from backend.infra.repositories.ticket_repo import TicketRepository
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.database import get_db
 from backend.domain.entities.resource import Resource as ResourceEntity, Skill
+from backend.domain.services import sla_service
 from backend.domain.services.skill_service import SkillService, SkillBusinessError
 from backend.domain.services.compensation_service import CompensationService, CompensationBusinessError
 from backend.api.routes._shared import parse_uuid, error_model, server_error
@@ -86,6 +91,8 @@ _resource_out = ns.model("ResourceRecord", {
     "team": fields.String(description="Equipo al que pertenece"),
     "manager_id": fields.String(description="UUID del recurso jefe directo"),
     "timezone": fields.String(description="Huso horario IANA del recurso (Fase 5)", example="America/Bogota"),
+    "schedule_mode": fields.String(description="heredado | personalizado (Franja Horaria, spec 022)"),
+    "work_hour_template_id": fields.String(description="UUID de la Franja Horaria heredada (spec 022)"),
     "skills": fields.List(fields.Nested(_skill_ref), description="Skills asignados"),
     "created_at": fields.String(description="Fecha de creación ISO-8601"),
 })
@@ -189,6 +196,8 @@ def _resource_to_dict(resource) -> dict:
         "team": resource.team,
         "manager_id": str(resource.manager_id) if resource.manager_id else None,
         "timezone": resource.timezone,
+        "schedule_mode": resource.schedule_mode,
+        "work_hour_template_id": str(resource.work_hour_template_id) if resource.work_hour_template_id else None,
         "skills": [{"id": str(s.id), "code": s.code, "label": s.label} for s in (resource.skills or [])],
         "created_at": resource.created_at.isoformat() if resource.created_at else None,
     }
@@ -681,6 +690,90 @@ class ResourceActivate(Resource):
             return server_error()
 
 
+# ── Carga de trabajo (spec 022, FR-007 — sin persistencia, cómputo puro de lectura) ────────────
+
+_workload_ticket_out = ns.model("TicketWorkloadItem", {
+    "ticket_id": fields.String(),
+    "ticket_number": fields.String(),
+    "priority": fields.String(),
+    "severity": fields.String(),
+    "remaining_minutes": fields.Integer(),
+})
+
+_workload_out = ns.model("WorkloadOut", {
+    "resource_id": fields.String(),
+    "date": fields.String(description="YYYY-MM-DD"),
+    "committed_minutes": fields.Integer(description="Suma de tiempo de SLA comprometido de tickets activos"),
+    "available_minutes_remaining": fields.Integer(description="Minutos de disponibilidad real restantes ese día"),
+    "tickets": fields.List(fields.Nested(_workload_ticket_out)),
+})
+
+
+@ns.route("/resources/<string:resource_id>/workload")
+@ns.param("resource_id", "UUID del recurso")
+class ResourceWorkload(Resource):
+    @ns.doc("get_resource_workload", params={"date": {"description": "YYYY-MM-DD (default: hoy)", "type": "string"}})
+    @ns.response(200, "Carga de trabajo del recurso", _workload_out)
+    @ns.response(400, "UUID o fecha inválida", _error)
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin permiso resources:view", _error)
+    @ns.response(404, "Recurso no encontrado", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    def get(self, resource_id: str):
+        """Carga de trabajo del recurso: tickets con SLA activo vs. disponibilidad real restante
+        (research.md Decisión 9) — cómputo puro de lectura, no persiste nada."""
+        from flask import request
+        rid = parse_uuid(resource_id)
+        if not rid:
+            return {"error": "validation_error", "message": "ID de recurso invalido"}, 400
+        date_param = request.args.get("date")
+        target_date = date.fromisoformat(date_param) if date_param else datetime.now(dt_timezone.utc).date()
+        try:
+            db = get_db()
+            resource = ResourceRepository(db).get_by_id(rid)
+            if not resource:
+                return {"error": "not_found", "message": "Recurso no encontrado"}, 404
+
+            holidays = HolidayRepository(db).list_by_country(resource.calendar_country) if resource.calendar_country else []
+            schedule_slots = resolve_effective_schedule_slots(db, resource)
+            absences = AbsenceRequestRepository(db).list_approved_between(rid, target_date, target_date)
+
+            now = datetime.now(dt_timezone.utc)
+            today = now.date()
+            day_start = datetime.combine(target_date, datetime.min.time(), tzinfo=dt_timezone.utc)
+            day_end = day_start + timedelta(days=1)
+            from_dt = max(now, day_start) if target_date == today else day_start
+            available_seconds = sla_service.compute_available_seconds(
+                resource, from_dt, day_end, holidays, schedule_slots, absences)
+
+            tickets_out = []
+            committed_minutes = 0
+            for ticket in TicketRepository(db).list_active_sla_by_assignee(rid):
+                sla_state = sla_service.compute_state(
+                    ticket, now, resource=resource, holidays=holidays,
+                    schedule_slots=schedule_slots, absences=absences)
+                if sla_state["phase_limit_minutes"] is None:
+                    continue
+                remaining_minutes = max(0, sla_state["phase_limit_minutes"] - sla_state["consumed_seconds"] // 60)
+                committed_minutes += remaining_minutes
+                tickets_out.append({
+                    "ticket_id": str(ticket.id), "ticket_number": ticket.number_display,
+                    "priority": ticket.priority, "severity": ticket.severity,
+                    "remaining_minutes": remaining_minutes,
+                })
+
+            return {
+                "resource_id": str(rid), "date": target_date.isoformat(),
+                "committed_minutes": committed_minutes,
+                "available_minutes_remaining": available_seconds // 60,
+                "tickets": tickets_out,
+            }, 200
+        except ValueError:
+            return {"error": "validation_error", "message": "date debe ser YYYY-MM-DD"}, 400
+        except Exception:
+            return server_error()
+
+
 # ── Compensación protegida (FR-032/FR-033, SDD V3) ───────────────────────────
 # A diferencia del resto de rutas de maestros (enforcement diferido, FR-017),
 # esta ruta exige JWT + permiso `compensation` porque es dato sensible (FR-033),
@@ -807,7 +900,7 @@ from backend.api.middleware.rbac import enforce_module as _enforce
 
 for _cls in (SkillList, SkillDetail):
     _cls.method_decorators = [_enforce("skills")]
-for _cls in (ResourceList, ResourceSkills, ResourceDeactivate, ResourceActivate):
+for _cls in (ResourceList, ResourceSkills, ResourceDeactivate, ResourceActivate, ResourceWorkload):
     _cls.method_decorators = [_enforce("resources")]
 # FR-012: un Resolutor sin resources:edit puede editar SU propio perfil
 ResourceDetail.method_decorators = [_enforce("resources", allow_own_resource_edit=True)]

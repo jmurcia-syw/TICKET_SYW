@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Form, Input, Modal, Select, Space, Table, Tabs, Tag, Typography, Upload, message } from 'antd'
-import { PlusOutlined, UploadOutlined, DownloadOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
+import { Button, Space, Table, Tabs, Tag, Typography, message } from 'antd'
+import { PlusOutlined, DownloadOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import type { UploadFile } from 'antd'
 import { calendarService } from '../services/calendarService'
-import { catalogService } from '../services/catalogService'
 import type { AbsenceRequest, AbsenceDecisionStatus } from '../types/calendar'
-import type { CatalogItem } from '../types/catalog'
 import { useAuthStore } from '../store/authStore'
 import PageToolbar from '../components/common/PageToolbar'
+import AbsenceRequestFormModal from '../components/calendar/AbsenceRequestFormModal'
 
 // Fase 5 (spec 020, Historia 2): solicitud y aprobación en cadena de ausencias — Jefe directo +
 // RRHH, cada uno decide de forma independiente (FR-008 a FR-012a).
@@ -28,13 +26,6 @@ function apiError(err: unknown, fallback: string): string {
   return (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? fallback
 }
 
-interface CreateFormValues {
-  absence_type_id: string
-  start_date: string
-  end_date: string
-  notes?: string
-}
-
 export default function AbsenceRequestsPage() {
   const { hasPermission } = useAuthStore()
   const isHr = hasPermission('absence_requests', 'view_all')
@@ -43,12 +34,9 @@ export default function AbsenceRequestsPage() {
   const [managerQueue, setManagerQueue] = useState<AbsenceRequest[]>([])
   const [hrQueue, setHrQueue] = useState<AbsenceRequest[]>([])
   const [showManagerTab, setShowManagerTab] = useState(false)
-  const [types, setTypes] = useState<CatalogItem[]>([])
   const [loading, setLoading] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
-  const [files, setFiles] = useState<UploadFile[]>([])
   const [decidingId, setDecidingId] = useState<string | null>(null)
-  const [form] = Form.useForm<CreateFormValues>()
 
   const loadOwn = useCallback(async () => {
     setLoading(true)
@@ -84,29 +72,6 @@ export default function AbsenceRequestsPage() {
   useEffect(() => { loadOwn() }, [loadOwn])
   useEffect(() => { loadManager() }, [loadManager])
   useEffect(() => { loadHr() }, [loadHr])
-  useEffect(() => {
-    catalogService.list('absence-types').then(r => setTypes(r.items))
-      .catch(() => message.error('No se pudieron cargar los tipos de ausencia'))
-  }, [])
-
-  const handleCreate = async (values: CreateFormValues) => {
-    try {
-      const rawFiles = files.map(f => f.originFileObj).filter((f): f is NonNullable<typeof f> => !!f)
-      await calendarService.createAbsenceRequest({
-        absence_type_id: values.absence_type_id,
-        start_date: values.start_date,
-        end_date: values.end_date,
-        notes: values.notes || null,
-      }, rawFiles)
-      message.success('Solicitud enviada')
-      setCreateOpen(false)
-      form.resetFields()
-      setFiles([])
-      loadOwn()
-    } catch (err: unknown) {
-      message.error(apiError(err, 'Error al crear la solicitud'))
-    }
-  }
 
   const decide = async (id: string, role: 'manager' | 'hr', decision: 'approved' | 'rejected') => {
     setDecidingId(id)
@@ -126,6 +91,11 @@ export default function AbsenceRequestsPage() {
     { title: 'Tipo', dataIndex: 'absence_type', render: (t: AbsenceRequest['absence_type']) => t.name },
     { title: 'Desde', dataIndex: 'start_date' },
     { title: 'Hasta', dataIndex: 'end_date' },
+    {
+      title: 'Horas', key: 'hours',
+      render: (_: unknown, r: AbsenceRequest) => r.start_time && r.end_time
+        ? `${r.start_time}-${r.end_time}` : <Typography.Text type="secondary">Día completo</Typography.Text>,
+    },
     { title: 'Jefe directo', dataIndex: 'manager_status', render: (s: AbsenceDecisionStatus) => <Tag color={STATUS_COLORS[s]}>{STATUS_LABELS[s]}</Tag> },
     { title: 'RRHH', dataIndex: 'hr_status', render: (s: AbsenceDecisionStatus) => <Tag color={STATUS_COLORS[s]}>{STATUS_LABELS[s]}</Tag> },
     { title: 'Estado general', dataIndex: 'overall_status', render: (s: AbsenceDecisionStatus) => <Tag color={STATUS_COLORS[s]}>{STATUS_LABELS[s]}</Tag> },
@@ -189,7 +159,7 @@ export default function AbsenceRequestsPage() {
       <PageToolbar
         filters={null}
         action={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setFiles([]); setCreateOpen(true) }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
             Nueva solicitud
           </Button>
         }
@@ -197,28 +167,7 @@ export default function AbsenceRequestsPage() {
 
       <Tabs items={tabs} />
 
-      <Modal title="Nueva solicitud de ausencia" open={createOpen} onCancel={() => setCreateOpen(false)}
-        onOk={() => form.submit()} okText="Enviar">
-        <Form form={form} layout="vertical" onFinish={handleCreate}>
-          <Form.Item name="absence_type_id" label="Tipo" rules={[{ required: true, message: 'El tipo es requerido' }]}>
-            <Select options={types.map(t => ({ value: t.id, label: t.name }))} />
-          </Form.Item>
-          <Form.Item name="start_date" label="Desde" rules={[{ required: true, message: 'La fecha de inicio es requerida' }]}>
-            <Input type="date" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="end_date" label="Hasta" rules={[{ required: true, message: 'La fecha de fin es requerida' }]}>
-            <Input type="date" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="notes" label="Notas">
-            <Input.TextArea rows={3} placeholder="Comentario opcional" />
-          </Form.Item>
-          <Form.Item label="Adjuntos (ej. certificado de incapacidad)">
-            <Upload multiple beforeUpload={() => false} fileList={files} onChange={({ fileList }) => setFiles(fileList)}>
-              <Button icon={<UploadOutlined />}>Adjuntar (máx 10 MB c/u)</Button>
-            </Upload>
-          </Form.Item>
-        </Form>
-      </Modal>
+      <AbsenceRequestFormModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={loadOwn} />
     </div>
   )
 }

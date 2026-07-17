@@ -25,6 +25,9 @@ from backend.domain.services.notification_service import NotificationService
 from backend.domain.services.rich_content_service import resolve_pending_images, sanitize_html, strip_html
 from backend.domain.services.ticket_service import TicketService, TicketValidationError
 from backend.infra.database import get_db
+from backend.infra.repositories.calendar_repo import (
+    AbsenceRequestRepository, HolidayRepository, resolve_effective_schedule_slots,
+)
 from backend.infra.repositories.catalog_repo import CatalogRepository
 from backend.infra.repositories.client_contact_repo import ClientContactRepository
 from backend.infra.repositories.client_repo import ClientRepository
@@ -350,12 +353,30 @@ def _close_eligible(ticket: Ticket) -> bool:
     return (now - resolved) >= timedelta(days=CLOSE_ELIGIBLE_DAYS)
 
 
+def _resolve_sla_context(db, ticket: Ticket) -> dict:
+    """Resuelve `resource`/`holidays`/`schedule_slots`/`absences` para el motor de SLA dinámico
+    (spec 022, research.md Decisión 10 — cierra el hallazgo C1 de `/speckit-analyze`). Sin
+    recurso asignado, devuelve un contexto vacío y `sla_service.compute_state` conserva el
+    wall-clock puro (parámetros opcionales, sin romper tickets sin asignar)."""
+    if not ticket.assignee_id:
+        return {}
+    resource = ResourceRepository(db).get_by_id(ticket.assignee_id)
+    if not resource:
+        return {}
+    holidays = HolidayRepository(db).list_by_country(resource.calendar_country) if resource.calendar_country else []
+    schedule_slots = resolve_effective_schedule_slots(db, resource)
+    now = datetime.now(timezone.utc)
+    from_date = (ticket.sla_last_resume_at or now).date()
+    absences = AbsenceRequestRepository(db).list_approved_between(resource.id, from_date, now.date())
+    return {"resource": resource, "holidays": holidays, "schedule_slots": schedule_slots, "absences": absences}
+
+
 def _ticket_summary(ticket: Ticket, db) -> dict:
     client = ClientRepository(db).get_by_id(ticket.client_id)
     project = ProjectRepository(db).get_by_id(ticket.project_id) if ticket.project_id else None
     assignee = ResourceRepository(db).get_by_id(ticket.assignee_id) if ticket.assignee_id else None
     task_list = TaskListRepository(db).get_by_id(ticket.list_id) if ticket.list_id else None
-    sla_state = sla_service.compute_state(ticket, datetime.now(timezone.utc))
+    sla_state = sla_service.compute_state(ticket, datetime.now(timezone.utc), **_resolve_sla_context(db, ticket))
     return {
         "id": str(ticket.id),
         "ticket_number": ticket.number_display,
@@ -376,7 +397,8 @@ def _ticket_summary(ticket: Ticket, db) -> dict:
         "record_type": _record_type_name(ticket.record_type_id, db),
         "parent_task_id": str(ticket.parent_task_id) if ticket.parent_task_id else None,
         "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
-        "sla": {"phase": sla_state["phase"], "status": sla_state["status"]},
+        "sla": {"phase": sla_state["phase"], "status": sla_state["status"],
+                "pause_reason": sla_state["pause_reason"]},
     }
 
 
@@ -451,7 +473,7 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
         "transitions": TicketRepository(db).list_transitions(ticket.id),
         "assignments": TicketRepository(db).list_assignments(ticket.id),
         "skills": [{"id": str(s.id), "code": s.code, "label": s.label} for s in (ticket.skills or [])],
-        "sla": sla_service.compute_state(ticket, datetime.now(timezone.utc)),
+        "sla": sla_service.compute_state(ticket, datetime.now(timezone.utc), **_resolve_sla_context(db, ticket)),
     })
     return d
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Alert, Button, Descriptions, Form, Input, Select, Space, Spin, Table, Tabs, Tag, message } from 'antd'
-import { EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons'
+import { ClockCircleOutlined, EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { resourceService } from '../services/resourceService'
@@ -12,6 +12,7 @@ import { avatarColor, initials, palette, roleColor } from '../theme'
 import StatusTag from '../components/common/StatusTag'
 import TicketStatusTag from '../components/tickets/TicketStatusTag'
 import PriorityBadge from '../components/tickets/PriorityBadge'
+import WorkScheduleDrawer from '../components/resources/WorkScheduleDrawer'
 
 type ProfileEditableFields = Pick<ResourceFormData,
   'full_name' | 'notes' | 'identification' | 'nationality' | 'birth_date' | 'marital_status' |
@@ -25,6 +26,7 @@ export default function MyProfilePage() {
   const [notFound, setNotFound] = useState(false)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [editingSchedule, setEditingSchedule] = useState(false)
   const [form] = Form.useForm<ProfileEditableFields>()
 
   const [tickets, setTickets] = useState<TicketListItem[]>([])
@@ -189,8 +191,18 @@ export default function MyProfilePage() {
                   <Descriptions.Item label="Equipo">{resource.team ?? '—'}</Descriptions.Item>
                   <Descriptions.Item label="Certificaciones" span={2}>{resource.certifications ?? '—'}</Descriptions.Item>
                   <Descriptions.Item label="Notas" span={2}>{resource.notes ?? '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Horario laboral" span={2}>
+                    <Tag color={resource.schedule_mode === 'personalizado' ? 'gold' : 'blue'}>
+                      {resource.schedule_mode === 'personalizado' ? 'Personalizado' : 'Heredado (Franja Horaria)'}
+                    </Tag>
+                  </Descriptions.Item>
                 </Descriptions>
-                <Button icon={<EditOutlined />} onClick={startEdit} style={{ marginTop: 12 }}>Editar mis datos</Button>
+                <Space style={{ marginTop: 12 }}>
+                  <Button icon={<EditOutlined />} onClick={startEdit}>Editar mis datos</Button>
+                  <Button icon={<ClockCircleOutlined />} onClick={() => setEditingSchedule(true)}>
+                    Editar mi horario laboral
+                  </Button>
+                </Space>
               </>
             ),
           },
@@ -213,6 +225,12 @@ export default function MyProfilePage() {
               locale={{ emptyText: 'No tienes tickets asignados actualmente' }} />,
           },
         ]}
+      />
+
+      <WorkScheduleDrawer
+        resourceId={editingSchedule ? resource.id : null}
+        resourceName={resource.full_name}
+        onClose={() => { setEditingSchedule(false); load() }}
       />
     </div>
   )

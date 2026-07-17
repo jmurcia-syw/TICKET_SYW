@@ -6,11 +6,12 @@ from sqlalchemy.orm import Session
 
 from backend.infra.models.calendar_model import (
     HolidayModel, HolidaySyncStatusModel, WorkScheduleModel, AbsenceRequestModel,
-    AbsenceRequestAttachmentModel,
+    AbsenceRequestAttachmentModel, WorkHourTemplateModel, WorkHourTemplateSlotModel,
 )
 from backend.infra.models.resource_model import ResourceModel
 from backend.domain.entities.calendar import (
     Holiday, WorkScheduleSlot, AbsenceRequest, AbsenceRequestAttachment,
+    WorkHourTemplate, WorkHourTemplateSlot,
 )
 
 
@@ -245,6 +246,26 @@ class AbsenceRequestRepository:
         )
         return model.to_entity() if model else None
 
+    def list_approved_between(self, resource_id: uuid.UUID, start_date: date,
+                              end_date: date) -> list[AbsenceRequest]:
+        """Solicitudes con ambos lados `approved` que se solapan con `[start_date, end_date]`
+        (spec 022, research.md Decisión 11) — usado por `compute_available_seconds` para sumar
+        disponibilidad a lo largo de un rango multi-día (`sla_last_resume_at` -> `now`).
+        `get_active_absence` es de un solo día; `list_overlapping` incluye `pending`; ninguno de
+        los dos alcanza para este cálculo."""
+        models = (
+            self._db.query(AbsenceRequestModel)
+            .filter(
+                AbsenceRequestModel.resource_id == resource_id,
+                AbsenceRequestModel.manager_status == "approved",
+                AbsenceRequestModel.hr_status == "approved",
+                AbsenceRequestModel.start_date <= end_date,
+                AbsenceRequestModel.end_date >= start_date,
+            )
+            .all()
+        )
+        return [m.to_entity() for m in models]
+
     def update_decision(self, request_id: uuid.UUID, *, manager_status: str | None = None,
                         manager_decided_by: uuid.UUID | None = None,
                         hr_status: str | None = None,
@@ -296,3 +317,91 @@ class AbsenceRequestRepository:
         self._db.delete(model)
         self._db.commit()
         return True
+
+
+class WorkHourTemplateRepository:
+    """Franja Horaria global por país (spec 022, FR-001/FR-002) — Capa 2. La persistencia vive
+    aquí, no en `work_hour_template_service.py` (Capa 1, solo validación — research.md
+    Decisión 12)."""
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def list_by_country(self, country: str, active: bool | None = None) -> list[WorkHourTemplate]:
+        q = self._db.query(WorkHourTemplateModel).filter(WorkHourTemplateModel.country == country)
+        if active is not None:
+            q = q.filter(WorkHourTemplateModel.active == active)
+        return [m.to_entity() for m in q.order_by(WorkHourTemplateModel.name).all()]
+
+    def get_by_id(self, template_id: uuid.UUID) -> Optional[WorkHourTemplate]:
+        model = self._db.get(WorkHourTemplateModel, template_id)
+        return model.to_entity() if model else None
+
+    def create(self, template: WorkHourTemplate, slots: list[WorkHourTemplateSlot]) -> WorkHourTemplate:
+        model = WorkHourTemplateModel(id=template.id, country=template.country, name=template.name,
+                                      timezone=template.timezone, active=template.active)
+        self._db.add(model)
+        self._db.flush()
+        self._db.add_all([
+            WorkHourTemplateSlotModel(id=s.id, template_id=model.id, weekday=s.weekday,
+                                      start_time=s.start_time, end_time=s.end_time)
+            for s in slots
+        ])
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def update(self, template_id: uuid.UUID, *, name: str | None = None,
+              timezone: str | None = None, active: bool | None = None) -> Optional[WorkHourTemplate]:
+        model = self._db.get(WorkHourTemplateModel, template_id)
+        if not model:
+            return None
+        if name is not None:
+            model.name = name
+        if timezone is not None:
+            model.timezone = timezone
+        if active is not None:
+            model.active = active
+        self._db.commit()
+        self._db.refresh(model)
+        return model.to_entity()
+
+    def list_slots(self, template_id: uuid.UUID) -> list[WorkHourTemplateSlot]:
+        models = (
+            self._db.query(WorkHourTemplateSlotModel)
+            .filter(WorkHourTemplateSlotModel.template_id == template_id)
+            .order_by(WorkHourTemplateSlotModel.weekday)
+            .all()
+        )
+        return [m.to_entity() for m in models]
+
+    def replace_slots(self, template_id: uuid.UUID,
+                      slots: list[WorkHourTemplateSlot]) -> list[WorkHourTemplateSlot]:
+        self._db.query(WorkHourTemplateSlotModel).filter(
+            WorkHourTemplateSlotModel.template_id == template_id).delete()
+        models = [
+            WorkHourTemplateSlotModel(id=s.id, template_id=template_id, weekday=s.weekday,
+                                      start_time=s.start_time, end_time=s.end_time)
+            for s in slots
+        ]
+        self._db.add_all(models)
+        self._db.commit()
+        return self.list_slots(template_id)
+
+
+def resolve_effective_schedule_slots(db: Session, resource) -> list[WorkScheduleSlot]:
+    """Resuelve el horario efectivo de `resource` según su `schedule_mode` (spec 022, FR-004):
+    `personalizado` -> sus propias filas de `work_schedules`; `heredado` -> los slots de su
+    `WorkHourTemplate` (convertidos al shape de `WorkScheduleSlot` para reusar
+    `availability_service._within_schedule` sin cambios), o lista vacía si aún no tiene
+    plantilla asignada (cae al default hardcodeado L-V 08:00-17:00, comportamiento ya
+    existente). Único punto de resolución reusado por US1 (endpoint de disponibilidad ya
+    existente), US2 (motor de SLA dinámico) y el endpoint de carga de trabajo."""
+    if resource.schedule_mode == "personalizado" or not resource.work_hour_template_id:
+        return WorkScheduleRepository(db).list_by_resource(resource.id)
+    template_slots = WorkHourTemplateRepository(db).list_slots(resource.work_hour_template_id)
+    return [
+        WorkScheduleSlot(id=s.id, resource_id=resource.id, weekday=s.weekday,
+                        start_time=s.start_time, end_time=s.end_time)
+        for s in template_slots
+    ]

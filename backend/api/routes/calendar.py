@@ -13,8 +13,12 @@ from flask_restx import Namespace, Resource, fields
 
 from backend.api.middleware.rbac import current_user_has, enforce_module, require_authenticated, require_permission
 from backend.api.routes._shared import parse_uuid, error_model, server_error
-from backend.domain.entities.calendar import AbsenceRequest, AbsenceRequestAttachment, Holiday, WorkScheduleSlot
-from backend.domain.services import absence_service
+from backend.domain.entities.calendar import (
+    AbsenceRequest, AbsenceRequestAttachment, Holiday, WorkScheduleSlot,
+    WorkHourTemplate, WorkHourTemplateSlot,
+)
+from backend.domain.services import absence_service, work_hour_template_service
+from backend.domain.services.work_hour_template_service import WorkHourTemplateServiceError
 from backend.domain.services.availability_service import (
     DEFAULT_END_TIME, DEFAULT_START_TIME, DEFAULT_WEEKDAYS, compute_availability,
 )
@@ -23,6 +27,7 @@ from backend.infra.external.holiday_sync_service import sync_country
 from backend.infra.models.resource_model import ResourceModel
 from backend.infra.repositories.calendar_repo import (
     HolidayRepository, HolidaySyncStatusRepository, WorkScheduleRepository, AbsenceRequestRepository,
+    WorkHourTemplateRepository, resolve_effective_schedule_slots,
 )
 from backend.infra.repositories.catalog_repo import CatalogRepository
 from backend.infra.repositories.resource_repo import ResourceRepository
@@ -100,17 +105,19 @@ class ResourceAvailability(Resource):
                 resources, _total = resource_repo.list_paginated(page=1, page_size=1000, active=True)
 
             holiday_repo = HolidayRepository(db)
-            schedule_repo = WorkScheduleRepository(db)
             absence_repo = AbsenceRequestRepository(db)
             # Aproximación: se usa la fecha UTC para buscar la ausencia vigente (las solicitudes
-            # son por día completo, sin franja horaria — Assumptions de spec.md); el cálculo de
-            # festivo/horario sí convierte a la hora local de cada recurso dentro del servicio.
+            # sin horas son por día completo; con horas se evalúan en availability_service —
+            # research.md Decisión 7); el cálculo de festivo/horario sí convierte a la hora local
+            # de cada recurso dentro del servicio.
             approx_date = now_utc.date()
 
             items = []
             for resource in resources:
                 holidays = holiday_repo.list_by_country(resource.calendar_country) if resource.calendar_country else []
-                slots = schedule_repo.list_by_resource(resource.id)
+                # Franja Horaria: heredado -> slots de la plantilla; personalizado -> propios
+                # (spec 022, FR-004, research.md Decisión 10).
+                slots = resolve_effective_schedule_slots(db, resource)
                 active_absence = absence_repo.get_active_absence(resource.id, approx_date)
                 availability = compute_availability(resource, now_utc, holidays, slots, active_absence)
                 items.append(_availability_to_dict(resource.id, availability))
@@ -148,6 +155,8 @@ _absence_request_out = ns.model("AbsenceRequestOut", {
     "hr_status": fields.String(description="pending | approved | rejected"),
     "overall_status": fields.String(description="pending | approved | rejected (derivado)"),
     "notes": fields.String(),
+    "start_time": fields.String(description="HH:MM — null si es de día completo (FR-017)"),
+    "end_time": fields.String(description="HH:MM — null si es de día completo (FR-017)"),
     "attachments": fields.List(fields.Nested(_absence_attachment_out)),
     "created_at": fields.String(),
 })
@@ -161,6 +170,8 @@ _absence_request_input = ns.model("AbsenceRequestInput", {
     "start_date": fields.String(required=True, description="YYYY-MM-DD"),
     "end_date": fields.String(required=True, description="YYYY-MM-DD"),
     "notes": fields.String(),
+    "start_time": fields.String(description="HH:MM — permiso parcial por horas (FR-017), opcional"),
+    "end_time": fields.String(description="HH:MM — debe venir junto con start_time"),
 })
 
 _absence_decision_input = ns.model("AbsenceDecisionInput", {
@@ -195,6 +206,8 @@ def _absence_request_to_dict(db, absence_request: AbsenceRequest) -> dict:
         "hr_status": absence_request.hr_status,
         "overall_status": absence_service.overall_status(absence_request.manager_status, absence_request.hr_status),
         "notes": absence_request.notes,
+        "start_time": absence_request.start_time.strftime("%H:%M") if absence_request.start_time else None,
+        "end_time": absence_request.end_time.strftime("%H:%M") if absence_request.end_time else None,
         "attachments": [
             {"id": str(a.id), "filename": a.filename, "content_type": a.content_type, "size_bytes": a.size_bytes}
             for a in attachments
@@ -278,6 +291,11 @@ class AbsenceRequestList(Resource):
                 "error": "validation_error",
                 "message": "absence_type_id, start_date y end_date son requeridos (fechas en formato YYYY-MM-DD)",
             }, 400
+        start_time_raw, end_time_raw = data.get("start_time"), data.get("end_time")
+        start_time = _parse_time(start_time_raw) if start_time_raw else None
+        end_time = _parse_time(end_time_raw) if end_time_raw else None
+        if (start_time_raw and not start_time) or (end_time_raw and not end_time):
+            return {"error": "validation_error", "message": "start_time/end_time deben tener formato HH:MM"}, 400
         try:
             db = get_db()
             current_resource = _current_resource(db)
@@ -290,18 +308,20 @@ class AbsenceRequestList(Resource):
                 return {"error": "validation_error", "message": "Tipo de ausencia inexistente"}, 400
             try:
                 absence_service.validate_date_range(start_date, end_date)
+                absence_service.validate_partial_hours(start_date, end_date, start_time, end_time)
             except absence_service.AbsenceServiceError as e:
                 return {"error": e.code, "message": e.message}, 400
             repo = AbsenceRequestRepository(db)
             overlapping = repo.list_overlapping(current_resource.id, start_date, end_date)
             try:
-                absence_service.assert_no_overlap(overlapping)
+                absence_service.assert_no_overlap(overlapping, start_date, end_date, start_time, end_time)
             except absence_service.AbsenceServiceError as e:
                 return {"error": e.code, "message": e.message}, 400
             manager_status = absence_service.initial_manager_status(current_resource.manager_id is not None)
             new_request = AbsenceRequest.create(
                 current_resource.id, absence_type_id, start_date, end_date,
                 notes=(data.get("notes") or None), manager_status=manager_status,
+                start_time=start_time, end_time=end_time,
             )
             created = repo.create(new_request)
             for f in files:
@@ -798,9 +818,264 @@ class ResourceWorkSchedule(Resource):
             if not ResourceRepository(db).get_by_id(rid):
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
             updated = WorkScheduleRepository(db).replace_for_resource(rid, slots)
+            # FR-004: editar el horario propio (o el de un recurso) siempre pasa a
+            # "personalizado" — deja de seguir la Franja Horaria heredada, sin importar si tenía
+            # una asignada antes.
+            ResourceRepository(db).update(rid, schedule_mode="personalizado", work_hour_template_id=None)
             return _work_schedule_to_dict(updated), 200
         except Exception:
             return server_error()
 
 
 ResourceWorkSchedule.method_decorators = [enforce_module("resources", allow_own_resource_edit=True)]
+
+
+# ── Franjas Horarias globales (Historia 1, spec 022 — FR-001 a FR-005) ─────────────────────────
+
+_work_hour_template_slot = ns.model("WorkHourTemplateSlotIO", {
+    "weekday": fields.Integer(description="0=lunes ... 6=domingo"),
+    "start_time": fields.String(description="HH:MM"),
+    "end_time": fields.String(description="HH:MM, debe ser mayor que start_time"),
+})
+
+_work_hour_template_out = ns.model("WorkHourTemplateOut", {
+    "id": fields.String(),
+    "country": fields.String(description="ISO 3166-1 alpha-2"),
+    "name": fields.String(),
+    "timezone": fields.String(description="Zona IANA, ej. America/Bogota"),
+    "active": fields.Boolean(),
+    "slots": fields.List(fields.Nested(_work_hour_template_slot)),
+})
+
+_work_hour_template_list = ns.model("WorkHourTemplateList", {
+    "items": fields.List(fields.Nested(_work_hour_template_out)),
+})
+
+_work_hour_template_input = ns.model("WorkHourTemplateInput", {
+    "country": fields.String(required=True),
+    "name": fields.String(required=True),
+    "timezone": fields.String(required=True),
+    "slots": fields.List(fields.Nested(_work_hour_template_slot), required=True),
+})
+
+_work_hour_template_update_input = ns.model("WorkHourTemplateUpdateInput", {
+    "name": fields.String(),
+    "timezone": fields.String(),
+    "active": fields.Boolean(),
+    "slots": fields.List(fields.Nested(_work_hour_template_slot)),
+})
+
+_personalized_resource_out = ns.model("PersonalizedResourceOut", {
+    "resource_id": fields.String(),
+    "full_name": fields.String(),
+    "calendar_country": fields.String(),
+})
+
+_personalized_resource_list = ns.model("PersonalizedResourceList", {
+    "items": fields.List(fields.Nested(_personalized_resource_out)),
+})
+
+
+def _parse_slot_items(items) -> "list[dict] | None":
+    """Convierte `items` crudo del body en dicts con `time` ya parseado, o `None` si el formato
+    no es válido (weekday/start_time/end_time ausentes o mal formados se detectan luego en
+    `work_hour_template_service.validate_slots`, que exige `time` real)."""
+    if not isinstance(items, list):
+        return None
+    parsed = []
+    for item in items:
+        if not isinstance(item, dict):
+            return None
+        parsed.append({
+            "weekday": item.get("weekday"),
+            "start_time": _parse_time(item.get("start_time")),
+            "end_time": _parse_time(item.get("end_time")),
+        })
+    return parsed
+
+
+def _work_hour_template_to_dict(db, template: WorkHourTemplate) -> dict:
+    slots = WorkHourTemplateRepository(db).list_slots(template.id)
+    return {
+        "id": str(template.id), "country": template.country, "name": template.name,
+        "timezone": template.timezone, "active": template.active,
+        "slots": [
+            {"weekday": s.weekday, "start_time": s.start_time.strftime("%H:%M"),
+             "end_time": s.end_time.strftime("%H:%M")}
+            for s in sorted(slots, key=lambda s: s.weekday)
+        ],
+    }
+
+
+@ns.route("/work-hour-templates")
+class WorkHourTemplateList(Resource):
+    @ns.doc("list_work_hour_templates", params={"country": {"description": "ISO 3166-1 alpha-2", "type": "string"}})
+    @ns.response(200, "Franjas Horarias del país (activas e inactivas)", _work_hour_template_list)
+    @ns.response(400, "Falta el parámetro country", _error)
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_authenticated()
+    def get(self):
+        """Listar Franjas Horarias de un país — lectura abierta a cualquier autenticado (FR-001)."""
+        country = request.args.get("country")
+        if not country:
+            return {"error": "validation_error", "message": "El parámetro 'country' es requerido"}, 400
+        try:
+            db = get_db()
+            templates = WorkHourTemplateRepository(db).list_by_country(country)
+            return {"items": [_work_hour_template_to_dict(db, t) for t in templates]}, 200
+        except Exception:
+            return server_error()
+
+    @ns.doc("create_work_hour_template")
+    @ns.expect(_work_hour_template_input)
+    @ns.response(201, "Franja Horaria creada", _work_hour_template_out)
+    @ns.response(400, "Datos inválidos (timezone no IANA, slots inválidos)", _error)
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin permiso work_hour_templates:manage", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("work_hour_templates", "manage")
+    def post(self):
+        """Crear una Franja Horaria global por país (RRHH/Admin, FR-001/FR-002)."""
+        body = request.get_json(silent=True) or {}
+        country = body.get("country")
+        name = body.get("name")
+        timezone_value = body.get("timezone")
+        slots_raw = _parse_slot_items(body.get("slots"))
+        if not country or not name or not timezone_value or slots_raw is None:
+            return {
+                "error": "validation_error",
+                "message": "country, name, timezone y slots son requeridos",
+            }, 400
+        try:
+            work_hour_template_service.validate_timezone(timezone_value)
+            work_hour_template_service.validate_slots(slots_raw)
+        except WorkHourTemplateServiceError as e:
+            return {"error": e.code, "message": e.message}, 400
+        try:
+            db = get_db()
+            template = WorkHourTemplate.create(country, name, timezone_value)
+            slot_entities = [
+                WorkHourTemplateSlot.create(template.id, s["weekday"], s["start_time"], s["end_time"])
+                for s in slots_raw
+            ]
+            created = WorkHourTemplateRepository(db).create(template, slot_entities)
+            return _work_hour_template_to_dict(db, created), 201
+        except Exception:
+            return server_error()
+
+
+@ns.route("/work-hour-templates/personalized")
+class WorkHourTemplatePersonalized(Resource):
+    @ns.doc("list_personalized_resources")
+    @ns.response(200, "Recursos en modo Personalizado", _personalized_resource_list)
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin permiso work_hour_templates:manage", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("work_hour_templates", "manage")
+    def get(self):
+        """Recursos con `schedule_mode = personalizado` (FR-005) — excluidos de las
+        actualizaciones masivas de una Franja Horaria global."""
+        try:
+            db = get_db()
+            resources = ResourceRepository(db).list_by_schedule_mode("personalizado")
+            return {"items": [
+                {"resource_id": str(r.id), "full_name": r.full_name, "calendar_country": r.calendar_country}
+                for r in resources
+            ]}, 200
+        except Exception:
+            return server_error()
+
+
+@ns.route("/work-hour-templates/<string:template_id>")
+@ns.param("template_id", "UUID de la Franja Horaria")
+class WorkHourTemplateDetail(Resource):
+    @ns.doc("update_work_hour_template")
+    @ns.expect(_work_hour_template_update_input)
+    @ns.response(200, "Franja Horaria actualizada", _work_hour_template_out)
+    @ns.response(400, "UUID o datos inválidos", _error)
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin permiso work_hour_templates:manage", _error)
+    @ns.response(404, "Franja Horaria no encontrada", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("work_hour_templates", "manage")
+    def patch(self, template_id: str):
+        """Editar nombre/timezone/activo o reemplazar los `slots` (FR-003): el cambio se refleja
+        automáticamente para todo recurso `heredado` asignado a esta plantilla en su siguiente
+        consulta de disponibilidad — sin llamada adicional del cliente."""
+        tid = parse_uuid(template_id)
+        if not tid:
+            return {"error": "validation_error", "message": "ID inválido"}, 400
+        body = request.get_json(silent=True) or {}
+        timezone_value = body.get("timezone")
+        if timezone_value is not None:
+            try:
+                work_hour_template_service.validate_timezone(timezone_value)
+            except WorkHourTemplateServiceError as e:
+                return {"error": e.code, "message": e.message}, 400
+        slots_raw = None
+        if "slots" in body:
+            slots_raw = _parse_slot_items(body.get("slots"))
+            if slots_raw is None:
+                return {"error": "validation_error", "message": "'slots' debe ser una lista"}, 400
+            try:
+                work_hour_template_service.validate_slots(slots_raw)
+            except WorkHourTemplateServiceError as e:
+                return {"error": e.code, "message": e.message}, 400
+        try:
+            db = get_db()
+            repo = WorkHourTemplateRepository(db)
+            if not repo.get_by_id(tid):
+                return {"error": "not_found", "message": "Franja Horaria no encontrada"}, 404
+            updated = repo.update(tid, name=body.get("name"), timezone=timezone_value,
+                                  active=body.get("active"))
+            if slots_raw is not None:
+                slot_entities = [
+                    WorkHourTemplateSlot.create(tid, s["weekday"], s["start_time"], s["end_time"])
+                    for s in slots_raw
+                ]
+                repo.replace_slots(tid, slot_entities)
+            return _work_hour_template_to_dict(db, updated), 200
+        except Exception:
+            return server_error()
+
+
+@ns.route("/resources/<string:resource_id>/work-hour-template")
+@ns.param("resource_id", "UUID del recurso")
+class ResourceWorkHourTemplate(Resource):
+    @ns.doc("assign_work_hour_template")
+    @ns.response(200, "Franja Horaria asignada al recurso")
+    @ns.response(400, "UUID inválido", _error)
+    @ns.response(401, "No autenticado (token ausente o invalido)", _error)
+    @ns.response(403, "Sin permiso work_hour_templates:manage", _error)
+    @ns.response(404, "Recurso o Franja Horaria no encontrada, o país no coincide", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("work_hour_templates", "manage")
+    def patch(self, resource_id: str):
+        """Asignar/reasignar una Franja Horaria a un recurso desde RRHH (FR-003) — el recurso
+        pasa a `schedule_mode = heredado` y descarta sus filas propias de `work_schedules` si
+        existían."""
+        rid = parse_uuid(resource_id)
+        body = request.get_json(silent=True) or {}
+        template_id = parse_uuid(body.get("work_hour_template_id"))
+        if not rid or not template_id:
+            return {"error": "validation_error", "message": "resource_id y work_hour_template_id son requeridos"}, 400
+        try:
+            db = get_db()
+            resource = ResourceRepository(db).get_by_id(rid)
+            if not resource:
+                return {"error": "not_found", "message": "Recurso no encontrado"}, 404
+            template = WorkHourTemplateRepository(db).get_by_id(template_id)
+            if not template:
+                return {"error": "not_found", "message": "Franja Horaria no encontrada"}, 404
+            if resource.calendar_country and template.country != resource.calendar_country:
+                return {"error": "country_mismatch", "message": "La Franja Horaria no coincide con el país del recurso"}, 404
+            WorkScheduleRepository(db).replace_for_resource(rid, [])
+            updated = ResourceRepository(db).update(
+                rid, schedule_mode="heredado", work_hour_template_id=template_id)
+            return {
+                "resource_id": str(updated.id), "schedule_mode": updated.schedule_mode,
+                "work_hour_template_id": str(updated.work_hour_template_id) if updated.work_hour_template_id else None,
+            }, 200
+        except Exception:
+            return server_error()

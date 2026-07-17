@@ -6,6 +6,11 @@ con la fase de SLA vigente corriendo, evalúa en tiempo real si ya superaron su 
 al Resolutor/encargado asignado y a los `ProjectMember` con rol Coordinador del proyecto del
 ticket (clarificación 2026-07-14, FR-010) — reutiliza `notification_service.py`, sin canal nuevo.
 
+Spec 022 (Historia 2, research.md Decisión 10 — cierra el hallazgo C1 de `/speckit-analyze`):
+antes de evaluar `is_breach`, resuelve el contexto de calendario del recurso asignado (horario
+efectivo + festivos + ausencias) para que el vencimiento se calcule sobre disponibilidad real,
+no wall-clock puro.
+
 Capa de infraestructura (usa DB/repos) — la lógica de decisión vive en
 `backend/domain/services/sla_service.py` (dominio puro).
 """
@@ -16,6 +21,9 @@ import uuid
 from backend.domain.services import sla_service
 from backend.domain.services.notification_service import NotificationService
 from backend.infra.database import close_db, get_db
+from backend.infra.repositories.calendar_repo import (
+    AbsenceRequestRepository, HolidayRepository, resolve_effective_schedule_slots,
+)
 from backend.infra.repositories.notification_repo import NotificationRepository
 from backend.infra.repositories.project_member_repo import ProjectMemberRepository
 from backend.infra.repositories.resource_repo import ResourceRepository
@@ -24,6 +32,22 @@ from backend.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 _notif_svc = NotificationService()
+
+
+def _resolve_sla_context(db, ticket, resource_repo: ResourceRepository) -> dict:
+    """Mismo criterio que `backend/api/routes/tickets.py::_resolve_sla_context` (research.md
+    Decisión 10) — contexto vacío si el ticket no tiene recurso asignado."""
+    if not ticket.assignee_id:
+        return {}
+    resource = resource_repo.get_by_id(ticket.assignee_id)
+    if not resource:
+        return {}
+    holidays = HolidayRepository(db).list_by_country(resource.calendar_country) if resource.calendar_country else []
+    schedule_slots = resolve_effective_schedule_slots(db, resource)
+    now = datetime.now(timezone.utc)
+    from_date = (ticket.sla_last_resume_at or now).date()
+    absences = AbsenceRequestRepository(db).list_approved_between(resource.id, from_date, now.date())
+    return {"resource": resource, "holidays": holidays, "schedule_slots": schedule_slots, "absences": absences}
 
 
 @celery_app.task(name="backend.workers.sla_tasks.check_sla_breaches")
@@ -39,7 +63,8 @@ def check_sla_breaches() -> int:
 
         breached_count = 0
         for ticket in ticket_repo.list_active_sla_running():
-            if not sla_service.is_breach(ticket, now):
+            context = _resolve_sla_context(db, ticket, resource_repo)
+            if not sla_service.is_breach(ticket, now, **context):
                 continue
             ticket_repo.update_fields(ticket.id, sla_status="vencido")
 
