@@ -15,6 +15,7 @@ festivos + ausencias, incluidas las parciales por horas) — research.md Decisi�
 parámetros nuevos de `compute_consumed_seconds`/`compute_state` son opcionales (default `None`):
 sin ellos se preserva el wall-clock puro original, sin romper llamadores no migrados todavía.
 """
+import logging
 from datetime import date, datetime, time, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -23,6 +24,8 @@ from backend.domain.fsm.ticket_fsm import SLA_PHASE_FOR_STATE, STATE_COUNTS_FOR_
 from backend.domain.services.availability_service import (
     DEFAULT_END_TIME, DEFAULT_START_TIME, DEFAULT_WEEKDAYS,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_rule(project_id, priority: str, sla_rule_repo):
@@ -58,6 +61,10 @@ def _local_time_at(resource, dt: datetime) -> datetime:
         try:
             return dt.astimezone(ZoneInfo(resource.timezone))
         except Exception:
+            logger.exception(
+                "No se pudo resolver timezone '%s' del recurso %s; se usa la hora sin convertir",
+                resource.timezone, resource.id,
+            )
             return dt
     return dt
 

@@ -3,12 +3,15 @@
 Función pura de dominio (Principio I) — sin imports de Flask/SQLAlchemy. El orden de evaluación
 es fijo (FR-013): ausencia aprobada vigente > día festivo > horario laboral.
 """
+import logging
 from datetime import date, datetime, time
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 from backend.domain.entities.calendar import Holiday, WorkScheduleSlot, AbsenceRequest, Availability
 from backend.domain.entities.resource import Resource
+
+logger = logging.getLogger(__name__)
 
 # Horario laboral por defecto cuando el recurso no tiene franjas propias configuradas
 # (research.md Decisión 3 / spec.md Assumptions): lunes a viernes, 08:00-17:00 local.
@@ -24,6 +27,10 @@ def _local_now(resource: Resource, now_utc: datetime) -> datetime:
         try:
             return now_utc.astimezone(ZoneInfo(resource.timezone))
         except Exception:
+            logger.exception(
+                "No se pudo resolver timezone '%s' del recurso %s; se usa UTC sin convertir",
+                resource.timezone, resource.id,
+            )
             return now_utc
     return now_utc
 

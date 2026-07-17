@@ -196,7 +196,15 @@ export default function CalendarPage() {
   }, [])
 
   const selectedClient = clients.find(c => c.id === selectedClientId)
-  const selectedResources = resources.filter(r => selectedResourceIds.includes(r.id))
+  // useMemo (no un filter() en el cuerpo del render): sin esto, `selectedResources` es un array
+  // nuevo en cada render y los useEffect de TeamOverlayCalendar/WorkloadPanel (que dependen de
+  // `[resources]`) se disparan de nuevo en cada navegación de fecha del calendario (datesSet
+  // dispara onViewChange -> setView -> re-render), repitiendo listHolidays/getWorkload sin que
+  // la selección de recursos haya cambiado.
+  const selectedResources = useMemo(
+    () => resources.filter(r => selectedResourceIds.includes(r.id)),
+    [resources, selectedResourceIds],
+  )
   const allSelected = resources.length > 0 && selectedResourceIds.length === resources.length
 
   const tabs = [
