@@ -2,13 +2,20 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Sugerencias de Carga y Disponibilidad en la Reasignación — el selector de nuevo resolutor en "Reasignar" (spec 023) muestra la misma carga de trabajo, orden por menor carga y etiqueta de no disponibilidad (fuera de horario/festivo/ausencia) que ya tiene la asignación inicial (Triage Push)
+**Active feature**: Actualización Integral del Manual de Usuario (v3.2, alcance ampliado a toda la app) — `docs/Manual_de_Usuario.md` y `docs/Manual_de_Usuario.docx` con resumen arquitectónico, 3 diagramas Mermaid (ciclo de vida del Ticket, aprobación de vacaciones/permisos, pausa/reanudación de SLA) y guía paso a paso de las 12 áreas de pantallas (Tickets, Kanban, Mis Tareas, Panel de Asignación, Detalle de Ticket, Vista Usuario/cliente, RRHH, Registro/Reporte de Tiempos, los 8 Maestros, Mi Perfil, Login/Reset), verificada navegando la app real en Docker. Todas las capturas son reales, generadas con `scripts/manual-screenshots/capture.js` (Puppeteer), incluida la Vista Usuario/cliente (cuenta de demostración `contacto.demo` dada de alta por el propio script). Sesión 100% documentación, sin tocar backend/frontend ni ejecutar pruebas.
+**Spec**: specs/025-manual-usuario-integral/spec.md
+**Plan**: specs/025-manual-usuario-integral/plan.md
+**Research**: specs/025-manual-usuario-integral/research.md
+**Data model**: specs/025-manual-usuario-integral/data-model.md
+**Quickstart**: specs/025-manual-usuario-integral/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada)**: Sugerencias de Carga y Disponibilidad en la Reasignación — el selector de nuevo resolutor en "Reasignar" (spec 023) muestra la misma carga de trabajo, orden por menor carga y etiqueta de no disponibilidad (fuera de horario/festivo/ausencia) que ya tiene la asignación inicial (Triage Push)
 **Spec**: specs/024-reasignacion-sugerencias-carga/spec.md
 **Plan**: specs/024-reasignacion-sugerencias-carga/plan.md
 **Research**: specs/024-reasignacion-sugerencias-carga/research.md
 **Data model**: specs/024-reasignacion-sugerencias-carga/data-model.md
 **Quickstart**: specs/024-reasignacion-sugerencias-carga/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada)**: Ajuste Visual en Historial de Estados (SLA) y Reasignación de Resolutores — tiempo transcurrido e indicador de cumplimiento SLA (✅/⚠️/❌) por cada cambio de estado, y reasignación de Ticket/Tarea a otro resolutor con registro visible "resolutor anterior ➡️ nuevo resolutor"
 **Spec**: specs/023-historial-sla-reasignacion/spec.md
