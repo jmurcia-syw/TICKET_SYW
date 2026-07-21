@@ -125,3 +125,18 @@ class AssignmentModel(Base):
     resulting_status = Column(Text, nullable=False)
     context = Column(JSONB, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+
+class ReassignmentModel(Base):
+    """Reasignación de resolutor (spec 023) — tabla append-only separada de `ticket_assignments`
+    para no mezclar la corrección/escalamiento con el Gold Standard Dataset de la asignación
+    inicial (research.md Decisión 4)."""
+    __tablename__ = "ticket_reassignments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    ticket_id = Column(UUID(as_uuid=True), ForeignKey("tickets.id"), nullable=False)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    previous_assignee_id = Column(UUID(as_uuid=True), ForeignKey("resources.id"), nullable=True)
+    new_assignee_id = Column(UUID(as_uuid=True), ForeignKey("resources.id"), nullable=False)
+    reason = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())

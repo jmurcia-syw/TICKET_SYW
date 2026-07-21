@@ -2,6 +2,7 @@ import apiClient from './apiClient'
 import type { PaginatedResponse } from '../types/api'
 import type {
   TicketListItem, TicketDetail, TicketFormData, TicketFilters, PanelData, CommentType, TicketStatus,
+  TicketReassignment,
 } from '../types/ticket'
 
 function buildParams(filters: TicketFilters): URLSearchParams {
@@ -49,6 +50,12 @@ export const ticketService = {
   assign: (id: string, assignee_id: string, mode: 'resolver' | 'pre_analysis') =>
     apiClient.post<{ ticket: TicketDetail; assignment: { id: string } }>(
       `/api/tickets/${id}/assign`, { assignee_id, mode }).then(r => r.data),
+
+  /** Reasignación de resolutor (spec 023) — corrige errores de asignación o escala por
+   * complejidad, sin cambiar el estado del ticket. */
+  reassign: (id: string, assignee_id: string, reason?: string) =>
+    apiClient.post<{ ticket: TicketDetail; reassignment: TicketReassignment; missing_skills: string[] }>(
+      `/api/tickets/${id}/reassign`, { assignee_id, reason }).then(r => r.data),
 
   addComment: (id: string, comment_type: CommentType, body: string, files: File[] = [], inlineImages: File[] = []) => {
     if (files.length === 0 && inlineImages.length === 0) {

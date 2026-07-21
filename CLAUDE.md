@@ -2,13 +2,27 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: RRHH — Franjas Horarias globales por país (herencia + modo Personalizado), Calendario de Equipo Superpuesto (Mes/Semana/Día, ausencias parciales por horas) y Motor de SLA Dinámico basado en disponibilidad real
+**Active feature**: Sugerencias de Carga y Disponibilidad en la Reasignación — el selector de nuevo resolutor en "Reasignar" (spec 023) muestra la misma carga de trabajo, orden por menor carga y etiqueta de no disponibilidad (fuera de horario/festivo/ausencia) que ya tiene la asignación inicial (Triage Push)
+**Spec**: specs/024-reasignacion-sugerencias-carga/spec.md
+**Plan**: specs/024-reasignacion-sugerencias-carga/plan.md
+**Research**: specs/024-reasignacion-sugerencias-carga/research.md
+**Data model**: specs/024-reasignacion-sugerencias-carga/data-model.md
+**Quickstart**: specs/024-reasignacion-sugerencias-carga/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada)**: Ajuste Visual en Historial de Estados (SLA) y Reasignación de Resolutores — tiempo transcurrido e indicador de cumplimiento SLA (✅/⚠️/❌) por cada cambio de estado, y reasignación de Ticket/Tarea a otro resolutor con registro visible "resolutor anterior ➡️ nuevo resolutor"
+**Spec**: specs/023-historial-sla-reasignacion/spec.md
+**Plan**: specs/023-historial-sla-reasignacion/plan.md
+**Research**: specs/023-historial-sla-reasignacion/research.md
+**Data model**: specs/023-historial-sla-reasignacion/data-model.md
+**Quickstart**: specs/023-historial-sla-reasignacion/quickstart.md
+
+**Previous feature (completada)**: RRHH — Franjas Horarias globales por país (herencia + modo Personalizado), Calendario de Equipo Superpuesto (Mes/Semana/Día, ausencias parciales por horas) y Motor de SLA Dinámico basado en disponibilidad real
 **Spec**: specs/022-rrhh-calendario-sla-dinamico/spec.md
 **Plan**: specs/022-rrhh-calendario-sla-dinamico/plan.md
 **Research**: specs/022-rrhh-calendario-sla-dinamico/research.md
 **Data model**: specs/022-rrhh-calendario-sla-dinamico/data-model.md
 **Quickstart**: specs/022-rrhh-calendario-sla-dinamico/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada)**: Festivos sincronizados por API pública, categorización visual (Oficial vs. Regional/Religioso) y cumpleaños de Recursos en el Calendario
 **Spec**: specs/021-festivos-api-cumpleanos/spec.md

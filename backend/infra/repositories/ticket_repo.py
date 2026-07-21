@@ -5,8 +5,10 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from backend.domain.entities.ticket import Ticket
-from backend.infra.models.ticket_model import TicketModel, StatusTransitionModel, AssignmentModel, ticket_skills_table
-from backend.infra.models.resource_model import SkillModel
+from backend.infra.models.ticket_model import (
+    TicketModel, StatusTransitionModel, AssignmentModel, ReassignmentModel, ticket_skills_table,
+)
+from backend.infra.models.resource_model import SkillModel, ResourceModel
 
 # OBS-0028: `priority` es texto (critical/high/medium/low) que NO debe ordenarse
 # alfabéticamente — un `CASE` mapea cada valor a su urgencia real (0 = más urgente).
@@ -238,6 +240,40 @@ class TicketRepository:
             self._db.commit()
             self._db.refresh(model)
         return model.id
+
+    def add_reassignment(self, ticket_id: uuid.UUID, actor_id: uuid.UUID,
+                         previous_assignee_id: uuid.UUID | None, new_assignee_id: uuid.UUID,
+                         reason: str | None, commit: bool = True) -> uuid.UUID:
+        """Reasignación de resolutor (spec 023) — tabla separada de `ticket_assignments`
+        (research.md Decisión 4), no toca el FSM."""
+        model = ReassignmentModel(
+            ticket_id=ticket_id, actor_id=actor_id, previous_assignee_id=previous_assignee_id,
+            new_assignee_id=new_assignee_id, reason=reason,
+        )
+        self._db.add(model)
+        if commit:
+            self._db.commit()
+            self._db.refresh(model)
+        return model.id
+
+    def list_reassignments(self, ticket_id: uuid.UUID) -> list[dict]:
+        rows = (self._db.query(ReassignmentModel)
+                .filter(ReassignmentModel.ticket_id == ticket_id)
+                .order_by(ReassignmentModel.created_at).all())
+        resource_ids = {r.new_assignee_id for r in rows} | {r.previous_assignee_id for r in rows if r.previous_assignee_id}
+        names = {}
+        if resource_ids:
+            names = {r.id: r.full_name for r in
+                     self._db.query(ResourceModel).filter(ResourceModel.id.in_(resource_ids)).all()}
+        return [{
+            "id": str(r.id), "actor_id": str(r.actor_id),
+            "previous_assignee_id": str(r.previous_assignee_id) if r.previous_assignee_id else None,
+            "previous_assignee_name": names.get(r.previous_assignee_id) if r.previous_assignee_id else None,
+            "new_assignee_id": str(r.new_assignee_id),
+            "new_assignee_name": names.get(r.new_assignee_id),
+            "reason": r.reason,
+            "created_at": r.created_at.isoformat(),
+        } for r in rows]
 
     def list_assignments(self, ticket_id: uuid.UUID) -> list[dict]:
         rows = (self._db.query(AssignmentModel)

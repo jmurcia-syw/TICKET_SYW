@@ -77,6 +77,17 @@ export function formatMinutes(minutes: number | null): string {
   return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`
 }
 
+/** Duración legible a partir de segundos (Historial de estados, spec 023). */
+export function formatDuration(seconds: number): string {
+  const totalMinutes = Math.round(seconds / 60)
+  const d = Math.floor(totalMinutes / (60 * 24))
+  const h = Math.floor((totalMinutes % (60 * 24)) / 60)
+  const m = totalMinutes % 60
+  if (d > 0) return `${d}d ${h}h`
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`
+  return `${m}m`
+}
+
 export type CommentType =
   | 'asignado' | 'pre_analisis' | 'confirmacion_atencion' | 'solicitud_informacion'
   | 'termina_analisis' | 'solicitud_cierre' | 'respuesta_usuario'
@@ -107,6 +118,24 @@ export interface TicketTransition {
   to_status: string
   actor_id: string
   comment_id: string | null
+  created_at: string
+  /** Tiempo disponible transcurrido en el estado anterior (spec 023); `null` en la primera
+   * transición del ticket. */
+  elapsed_seconds: number | null
+  /** Fase de SLA que esta transición cierra, o `null` si es una transición interna de una fase. */
+  sla_phase_closed: 'contacto' | 'ejecucion' | null
+  /** `true` = ✅ cumplió el SLA de esa fase, `false` = ⚠️/❌ lo incumplió, `null` = sin SLA aplicable. */
+  sla_met: boolean | null
+}
+
+export interface TicketReassignment {
+  id: string
+  actor_id: string
+  previous_assignee_id: string | null
+  previous_assignee_name: string | null
+  new_assignee_id: string
+  new_assignee_name: string
+  reason: string | null
   created_at: string
 }
 
@@ -171,6 +200,8 @@ export interface TicketDetail extends TicketListItem {
   comments: TicketComment[]
   transitions: TicketTransition[]
   assignments: TicketAssignment[]
+  /** Reasignaciones de resolutor (spec 023) — "resolutor anterior ➡️ nuevo resolutor". */
+  reassignments: TicketReassignment[]
   /** Subtareas (Nivel 5) de esta Tarea — vacío para Ticket y para Subtarea (spec 009). */
   subtasks: TicketListItem[]
   /** Skills requeridas para resolverlo, opcional y editable en cualquier estado (spec 011). */
