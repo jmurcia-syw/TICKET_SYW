@@ -183,7 +183,7 @@ export default function TicketDetailPage() {
         <span style={{ fontSize: 12, fontWeight: 700, color: vivid.blue.text, letterSpacing: 0.4 }}>
           {ticket.ticket_number}
         </span>
-        <h2 style={{ margin: 0 }}>{ticket.title}</h2>
+        <Typography.Title level={3} style={{ margin: 0 }}>{ticket.title}</Typography.Title>
         <TicketStatusTag status={ticket.status} />
         <span style={{
           fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 999,

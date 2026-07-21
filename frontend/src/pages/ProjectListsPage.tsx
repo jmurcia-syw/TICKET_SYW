@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Empty, Input, Modal, Spin, message } from 'antd'
+import { Button, Empty, Input, Modal, Spin, Typography, message } from 'antd'
 import { PlusOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { projectService } from '../services/projectService'
@@ -90,7 +90,7 @@ export default function ProjectListsPage() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>{project.name}</h2>
+        <Typography.Title level={3} style={{ margin: 0 }}>{project.name}</Typography.Title>
         <span style={{ color: palette.slate500, fontSize: 13 }}>› Listas</span>
       </div>
 

@@ -7,7 +7,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import { calendarService } from '../services/calendarService'
 import { clientService } from '../services/clientService'
 import { resourceService } from '../services/resourceService'
-import { avatarColor, CALENDAR_CATEGORY_COLORS } from '../theme'
+import { avatarColor, palette, CALENDAR_CATEGORY_COLORS } from '../theme'
 import type { ClientListItem } from '../types/client'
 import type { Resource } from '../types/resource'
 import type { Holiday, Workload } from '../types/calendar'
@@ -59,7 +59,7 @@ function HolidayCalendar({ country, title, birthDate }: { country: string | null
   const showEmpty = !country && !birthDate
 
   return (
-    <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12 }}>
+    <div style={{ border: `1px solid ${palette.slate200}`, borderRadius: 8, padding: 12 }}>
       <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>{title}</Typography.Text>
       {showEmpty
         ? <Empty description="Sin país configurado — no hay festivos que mostrar" style={{ margin: '24px 0' }} />

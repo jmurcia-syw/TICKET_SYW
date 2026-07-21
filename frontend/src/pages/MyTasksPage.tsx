@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Pagination, Table, Tag, Tooltip, message } from 'antd'
+import { Button, Pagination, Table, Tag, Tooltip, Typography, message } from 'antd'
 import { EyeOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
@@ -108,7 +108,7 @@ export default function MyTasksPage() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <UnorderedListOutlined style={{ color: palette.brandOrange600, fontSize: 18 }} />
-        <h2 style={{ margin: 0 }}>Mis Tareas</h2>
+        <Typography.Title level={3} style={{ margin: 0 }}>Mis Tareas</Typography.Title>
       </div>
       <p style={{ color: palette.slate500, fontSize: 12, marginTop: 4, marginBottom: 16 }}>
         Tus Tickets y Tareas asignados, agrupados por Lista — las Tareas sin lista y los Tickets
@@ -123,9 +123,9 @@ export default function MyTasksPage() {
 
       {groupNames.map(name => (
         <div key={name} style={{ marginBottom: 20 }}>
-          <h4 style={{ margin: '0 0 8px', color: name === SIN_LISTA ? palette.slate500 : palette.slate800 }}>
+          <Typography.Title level={5} style={{ margin: '0 0 8px', color: name === SIN_LISTA ? palette.slate500 : palette.slate800 }}>
             {name} <span style={{ fontWeight: 400, color: palette.slate400 }}>({groups[name].length})</span>
-          </h4>
+          </Typography.Title>
           <Table
             rowKey="id" columns={columns} dataSource={groups[name]} loading={loading || !criteria}
             pagination={false} size="small"

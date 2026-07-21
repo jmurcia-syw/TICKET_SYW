@@ -49,7 +49,7 @@ export default function CommentThread({ ticketId, comments }: CommentThreadProps
                 {c.is_automatic && (
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 8px', borderRadius: 999,
-                    fontSize: 11, background: '#F5F5F5', color: '#595959',
+                    fontSize: 11, background: vivid.gray.bg, color: vivid.gray.text,
                   }}>
                     <RobotOutlined /> automático
                   </span>

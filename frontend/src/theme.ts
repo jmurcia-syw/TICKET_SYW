@@ -5,8 +5,8 @@ import type { ThemeConfig } from 'antd'
 // `brandRed*`/`brandCharcoal` (extraídos de docs/iconoSW.jpg: S roja #EB3037,
 // W carbón #353336) se mantienen intactos — siguen usándose en
 // ROLE_COLOR_PALETTE y quedan disponibles para acentos puntuales cerca del
-// logo. El acento teal queda como respaldo (algunos componentes de tickets
-// aún lo referencian).
+// logo. El acento teal queda como respaldo, hoy solo usado por
+// CALENDAR_CATEGORY_COLORS.oficial (spec 021).
 export const palette = {
   slate50: '#F8FAFC',
   slate100: '#F1F5F9',

@@ -93,7 +93,7 @@ export default function DashboardPage() {
           <Menu
             mode="inline"
             selectedKeys={[location.pathname]}
-            defaultOpenKeys={[MAESTROS_GROUP_KEY]}
+            defaultOpenKeys={[MAESTROS_GROUP_KEY, RRHH_GROUP_KEY]}
             style={{ height: '100%', borderRight: 0, background: 'transparent' }}
             items={menuItems}
             onClick={({ key }) => navigate(key)}
