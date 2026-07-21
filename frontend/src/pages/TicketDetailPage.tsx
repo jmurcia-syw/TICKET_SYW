@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Card, Col, Descriptions, Divider, InputNumber, Row, Select, Space, Spin, Tooltip, Typography, message } from 'antd'
 import {
-  UserSwitchOutlined, SaveOutlined, ClockCircleOutlined,
+  UserSwitchOutlined, SaveOutlined, ClockCircleOutlined, SwapOutlined,
   FieldTimeOutlined, PlayCircleOutlined, HistoryOutlined, UnorderedListOutlined, PaperClipOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -10,7 +10,7 @@ import { catalogService } from '../services/catalogService'
 import { clientContactService } from '../services/clientContactService'
 import { taskListService } from '../services/taskListService'
 import type { TicketDetail, TicketListItem, Priority, Severity } from '../types/ticket'
-import { PRIORITY_LABELS, SEVERITY_LABELS, TICKET_TYPE_LABELS, formatMinutes } from '../types/ticket'
+import { PRIORITY_LABELS, SEVERITY_LABELS, TICKET_TYPE_LABELS, formatMinutes, formatDuration } from '../types/ticket'
 import type { ConsumptionLevel } from '../types/workSession'
 import type { CatalogItem } from '../types/catalog'
 import type { ClientContact } from '../types/clientContact'
@@ -23,6 +23,7 @@ import TaskStatusChanger from '../components/tickets/TaskStatusChanger'
 import SubtaskList from '../components/tickets/SubtaskList'
 import SlaCounter from '../components/tickets/SlaCounter'
 import AssignModal from '../components/tickets/AssignModal'
+import ReassignModal from '../components/tickets/ReassignModal'
 import TicketSkillsSelector from '../components/tickets/TicketSkillsSelector'
 import TicketWorkSessions from '../components/worksessions/TicketWorkSessions'
 import TicketTimerWidget from '../components/worksessions/TicketTimerWidget'
@@ -59,6 +60,7 @@ export default function TicketDetailPage() {
   const [resolutionTypes, setResolutionTypes] = useState<CatalogItem[]>([])
   const [recordTypes, setRecordTypes] = useState<CatalogItem[]>([])
   const [assignOpen, setAssignOpen] = useState(false)
+  const [reassignOpen, setReassignOpen] = useState(false)
   const [estimateHours, setEstimateHours] = useState<number | null>(null)
   const [priority, setPriority] = useState<Priority>()
   const [severity, setSeverity] = useState<Severity>()
@@ -183,7 +185,7 @@ export default function TicketDetailPage() {
         <span style={{ fontSize: 12, fontWeight: 700, color: vivid.blue.text, letterSpacing: 0.4 }}>
           {ticket.ticket_number}
         </span>
-        <h2 style={{ margin: 0 }}>{ticket.title}</h2>
+        <Typography.Title level={3} style={{ margin: 0 }}>{ticket.title}</Typography.Title>
         <TicketStatusTag status={ticket.status} />
         <span style={{
           fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 999,
@@ -266,9 +268,36 @@ export default function TicketDetailPage() {
                   <span style={{ color: palette.slate400 }}>→</span>
                   <TicketStatusTag status={t.to_status as TicketDetail['status']} />
                   <span style={{ color: palette.slate400, marginLeft: 4 }}>{new Date(t.created_at).toLocaleString('es-CO')}</span>
+                  {t.elapsed_seconds != null && (
+                    <span style={{ color: palette.slate400 }}>· {formatDuration(t.elapsed_seconds)} en el estado anterior</span>
+                  )}
+                  {t.sla_met === true && (
+                    <Tooltip title="Cumplió el SLA de esta fase">
+                      <span>✅</span>
+                    </Tooltip>
+                  )}
+                  {t.sla_met === false && (
+                    <Tooltip title="Incumplió el SLA de esta fase">
+                      <span>⚠️</span>
+                    </Tooltip>
+                  )}
                 </div>
               ))}
           </Card>
+
+          {ticket.reassignments.length > 0 && (
+            <Card title="Reasignaciones" size="small" style={{ marginTop: 16 }}>
+              {ticket.reassignments.map(r => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <span>{r.previous_assignee_name ?? 'Sin resolutor previo'}</span>
+                  <span style={{ color: palette.slate400 }}>➡️</span>
+                  <span>{r.new_assignee_name}</span>
+                  <span style={{ color: palette.slate400, marginLeft: 4 }}>{new Date(r.created_at).toLocaleString('es-CO')}</span>
+                  {r.reason && <span style={{ color: palette.slate400 }}>· {r.reason}</span>}
+                </div>
+              ))}
+            </Card>
+          )}
         </Col>
 
         {/* ── Sidebar: SLA / Focus Room / Subtareas + clasificación ── */}
@@ -370,7 +399,17 @@ export default function TicketDetailPage() {
               )}
               <Descriptions.Item label="Tipo">{TICKET_TYPE_LABELS[ticket.ticket_type]}</Descriptions.Item>
               <Descriptions.Item label="Nivel de escalamiento">{ticket.escalation_level.toUpperCase()}</Descriptions.Item>
-              <Descriptions.Item label="Asignado">{ticket.assignee?.full_name ?? 'Sin asignar'}</Descriptions.Item>
+              <Descriptions.Item label="Asignado">
+                <Space size={8}>
+                  {ticket.assignee?.full_name ?? 'Sin asignar'}
+                  {canAssign && !isTask && ticket.assignee
+                    && ticket.status !== 'cerrado' && ticket.status !== 'cancelado' && (
+                    <Tooltip title="Reasignar a otro resolutor">
+                      <Button size="small" icon={<SwapOutlined />} onClick={() => setReassignOpen(true)} />
+                    </Tooltip>
+                  )}
+                </Space>
+              </Descriptions.Item>
               <Descriptions.Item label="Prioridad">
                 {canEdit && !locked.has('priority')
                   ? <Select size="small" value={priority} onChange={setPriority} style={{ width: 120 }}
@@ -443,6 +482,9 @@ export default function TicketDetailPage() {
 
       <AssignModal ticketId={assignOpen ? ticket.id : null}
         onClose={() => setAssignOpen(false)} onAssigned={load} />
+      <ReassignModal ticketId={reassignOpen ? ticket.id : null}
+        currentAssigneeId={ticket.assignee?.id ?? null}
+        onClose={() => setReassignOpen(false)} onReassigned={load} />
     </div>
   )
 }

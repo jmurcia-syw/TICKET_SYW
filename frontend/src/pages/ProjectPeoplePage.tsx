@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Empty, Input, Modal, Select, Space, Spin, Table, Tabs, Tag, Tooltip, message } from 'antd'
+import { Button, Empty, Input, Modal, Select, Space, Spin, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd'
 import { DeleteOutlined, EditOutlined, PlusOutlined, TeamOutlined, UserAddOutlined } from '@ant-design/icons'
 import { useParams } from 'react-router-dom'
 import { projectService } from '../services/projectService'
@@ -279,7 +279,7 @@ export default function ProjectPeoplePage() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>{project.name}</h2>
+        <Typography.Title level={3} style={{ margin: 0 }}>{project.name}</Typography.Title>
         <span style={{ color: palette.slate500, fontSize: 13 }}>› Personal</span>
       </div>
 

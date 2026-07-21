@@ -20,6 +20,7 @@ from backend.domain.errors import DomainError
 from backend.domain.fsm import ticket_fsm
 from backend.domain.services import sla_service
 from backend.domain.services.assignment_service import AssignmentService
+from backend.domain.services.reassignment_service import ReassignmentService
 from backend.domain.services.comment_service import CommentService
 from backend.domain.services.notification_service import NotificationService
 from backend.domain.services.rich_content_service import resolve_pending_images, sanitize_html, strip_html
@@ -49,6 +50,7 @@ ns = Namespace("tickets", description="Gestión de tickets y su ciclo de vida", 
 
 _svc = TicketService()
 _assign_svc = AssignmentService()
+_reassign_svc = ReassignmentService()
 _comment_svc = CommentService()
 _notif_svc = NotificationService()
 
@@ -89,6 +91,11 @@ _ticket_input = ns.model("TicketInput", {
 _assign_input = ns.model("TicketAssignInput", {
     "assignee_id": fields.String(required=True, description="UUID del recurso"),
     "mode": fields.String(required=True, description="resolver | pre_analysis"),
+})
+
+_reassign_input = ns.model("TicketReassignInput", {
+    "assignee_id": fields.String(required=True, description="UUID del nuevo resolutor"),
+    "reason": fields.String(description="Motivo de la reasignación (opcional)"),
 })
 
 _comment_input = ns.model("TicketCommentInput", {
@@ -196,6 +203,12 @@ _transition_out = ns.model("TicketStatusTransition", {
     "actor_id": fields.String(description="UUID de quien ejecutó la acción"),
     "comment_id": fields.String(allow_null=True, description="Comentario que disparó la transición"),
     "created_at": fields.String(),
+    "elapsed_seconds": fields.Integer(allow_null=True,
+        description="Tiempo disponible transcurrido en el estado anterior (spec 023, null en la primera transición)"),
+    "sla_phase_closed": fields.String(allow_null=True,
+        description="Fase de SLA que cierra esta transición: 'contacto' | 'ejecucion' | null"),
+    "sla_met": fields.Boolean(allow_null=True,
+        description="true=✅ cumplió el SLA de esa fase, false=⚠️/❌ lo incumplió, null=sin SLA aplicable"),
 })
 
 _assignment_context_out = ns.model("AssignmentContext", {
@@ -211,6 +224,17 @@ _assignment_out = ns.model("TicketAssignment", {
     "assignee_id": fields.String(description="UUID del recurso asignado"),
     "resulting_status": fields.String(),
     "context": fields.Nested(_assignment_context_out, description="Gold Standard Dataset (FR-019)"),
+    "created_at": fields.String(),
+})
+
+_reassignment_out = ns.model("TicketReassignment", {
+    "id": fields.String(),
+    "actor_id": fields.String(description="UUID de quien ejecutó la reasignación"),
+    "previous_assignee_id": fields.String(allow_null=True),
+    "previous_assignee_name": fields.String(allow_null=True),
+    "new_assignee_id": fields.String(),
+    "new_assignee_name": fields.String(),
+    "reason": fields.String(allow_null=True),
     "created_at": fields.String(),
 })
 
@@ -288,6 +312,9 @@ _ticket_detail_out = ns.inherit("TicketDetail", _ticket_out, {
     "comments": fields.List(fields.Nested(_comment_out)),
     "transitions": fields.List(fields.Nested(_transition_out)),
     "assignments": fields.List(fields.Nested(_assignment_out)),
+    "reassignments": fields.List(fields.Nested(_reassignment_out),
+                                 description="Reasignaciones de resolutor (spec 023): "
+                                             "resolutor anterior ➡️ nuevo resolutor"),
     "skills": fields.List(fields.Nested(_ticket_skill_ref),
                           description="Skills requeridas para resolverlo, opcional (spec 011)"),
     "sla": fields.Nested(_sla_out, description="Estado de SLA (Fase 4, spec 014) — solo "
@@ -303,6 +330,14 @@ _assignment_result_ref = ns.model("AssignmentResult", {
 _assign_result_out = ns.model("TicketAssignResult", {
     "ticket": fields.Nested(_ticket_detail_out),
     "assignment": fields.Nested(_assignment_result_ref),
+})
+
+_reassign_result_out = ns.model("TicketReassignResult", {
+    "ticket": fields.Nested(_ticket_detail_out),
+    "reassignment": fields.Nested(_reassignment_out),
+    "missing_skills": fields.List(fields.String(),
+                                  description="Skills requeridas que el nuevo resolutor no tiene "
+                                              "(FR-011, advertencia no bloqueante)"),
 })
 
 _ticket_after_comment_ref = ns.model("TicketAfterComment", {
@@ -470,12 +505,29 @@ def _ticket_detail(ticket: Ticket, db) -> dict:
         "valid_actions": [s for s in STATUSES if s != ticket.status] if is_task
                           else ticket_fsm.valid_triggers(ticket.status),
         "comments": [_comment_to_dict(c) for c in CommentRepository(db).list_for_ticket(ticket.id)],
-        "transitions": TicketRepository(db).list_transitions(ticket.id),
+        "transitions": _transitions_with_sla(db, ticket),
         "assignments": TicketRepository(db).list_assignments(ticket.id),
+        "reassignments": TicketRepository(db).list_reassignments(ticket.id),
         "skills": [{"id": str(s.id), "code": s.code, "label": s.label} for s in (ticket.skills or [])],
         "sla": sla_service.compute_state(ticket, datetime.now(timezone.utc), **_resolve_sla_context(db, ticket)),
     })
     return d
+
+
+def _transitions_with_sla(db, ticket: Ticket) -> list[dict]:
+    """Historial de Estados enriquecido con tiempo/SLA por transición (spec 023, FR-001/FR-002).
+
+    Reutiliza `_resolve_sla_context` pero amplía el rango de ausencias a todo el ciclo de vida
+    del ticket (desde su creación, no solo desde `sla_last_resume_at`) — `compute_state` solo
+    necesita el tramo vigente, pero aquí se recorren todas las transiciones pasadas.
+    """
+    transitions = TicketRepository(db).list_transitions(ticket.id)
+    ctx = _resolve_sla_context(db, ticket)
+    resource = ctx.get("resource")
+    if resource:
+        ctx["absences"] = AbsenceRequestRepository(db).list_approved_between(
+            resource.id, ticket.created_at.date(), datetime.now(timezone.utc).date())
+    return sla_service.compute_transition_compliance(ticket, transitions, **ctx)
 
 
 # ── Helpers de autoría (FR-028) ───────────────────────────────────────────────
@@ -990,6 +1042,53 @@ class TicketAssign(Resource):
             updated = ticket_repo.get_by_id(ticket.id)
             return {"ticket": _ticket_detail(updated, db),
                     "assignment": {"id": str(assignment_id), "context": context}}, 200
+        except DomainError as e:
+            return {"error": e.code, "message": e.message, **e.extra}, e.status_code
+        except Exception:
+            return server_error()
+
+
+@ns.route("/<string:ticket_id>/reassign")
+@ns.param("ticket_id", "UUID del ticket")
+class TicketReassign(Resource):
+    @ns.doc("reassign_ticket")
+    @ns.expect(_reassign_input, validate=False)
+    @ns.response(200, "Reasignación registrada", _reassign_result_out)
+    @ns.response(400, "assignee_id faltante o igual al resolutor actual", _error)
+    @ns.response(401, "No autenticado", _error)
+    @ns.response(403, "Sin permiso tickets:assign", _error)
+    @ns.response(404, "Ticket o recurso no encontrado", _error)
+    @ns.response(409, "Ticket en estado terminal (cerrado/cancelado)", _error)
+    @ns.response(500, "Error interno del servidor", _error)
+    @require_permission("tickets", "assign")
+    def post(self, ticket_id: str):
+        """Reasignación de resolutor (spec 023): corrige un error de asignación o escala por
+        complejidad, sin invocar el FSM — endpoint independiente de `/assign` (research.md
+        Decisión 3, gobernanza constitucional de endpoints de acción crítica)."""
+        data = request.get_json(silent=True) or {}
+        new_assignee_id = parse_uuid(str(data.get("assignee_id", "")))
+        reason = data.get("reason") or None
+        if not new_assignee_id:
+            return {"error": "validation_error", "message": "assignee_id es requerido"}, 400
+        try:
+            db = get_db()
+            ticket, err = _get_ticket_or_404(db, ticket_id)
+            if err:
+                return err
+            new_assignee = ResourceRepository(db).get_by_id(new_assignee_id)
+            missing_skills = _reassign_svc.validate(ticket, new_assignee)
+
+            ticket_repo = TicketRepository(db)
+            previous_assignee_id = ticket.assignee_id
+            ticket_repo.update_fields(ticket.id, assignee_id=new_assignee_id)
+            reassignment_id = ticket_repo.add_reassignment(
+                ticket.id, g.current_user.id, previous_assignee_id, new_assignee_id, reason)
+
+            updated = ticket_repo.get_by_id(ticket.id)
+            reassignment = next(
+                r for r in ticket_repo.list_reassignments(ticket.id) if r["id"] == str(reassignment_id))
+            return {"ticket": _ticket_detail(updated, db),
+                    "reassignment": reassignment, "missing_skills": missing_skills}, 200
         except DomainError as e:
             return {"error": e.code, "message": e.message, **e.extra}, e.status_code
         except Exception:

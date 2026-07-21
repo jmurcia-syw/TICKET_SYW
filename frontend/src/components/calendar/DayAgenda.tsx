@@ -5,6 +5,7 @@ import { ticketService } from '../../services/ticketService'
 import type { TicketListItem, TicketStatus } from '../../types/ticket'
 import { SEVERITY_LABELS } from '../../types/ticket'
 import PriorityBadge from '../tickets/PriorityBadge'
+import { palette, vivid } from '../../theme'
 
 // Spec 022 (Historia 4, FR-015/FR-016): la vista de Día lista la agenda vigente del recurso
 // (tickets abiertos actualmente asignados, sin filtro por una fecha propia del ticket — Ticket
@@ -42,7 +43,7 @@ export default function DayAgenda({ resourceId }: { resourceId: string }) {
   })
 
   return (
-    <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, width: '100%' }}>
+    <div style={{ border: `1px solid ${palette.slate200}`, borderRadius: 8, padding: 12, width: '100%' }}>
       <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
         Agenda del día — tickets abiertos por criticidad
       </Typography.Text>
@@ -54,7 +55,7 @@ export default function DayAgenda({ resourceId }: { resourceId: string }) {
         renderItem={t => (
           <List.Item
             onClick={() => navigate(`/tickets/${t.id}`)}
-            style={{ cursor: 'pointer', background: isHighCriticality(t) ? '#FFF1F0' : undefined, paddingLeft: 8, paddingRight: 8 }}
+            style={{ cursor: 'pointer', background: isHighCriticality(t) ? vivid.red.bg : undefined, paddingLeft: 8, paddingRight: 8 }}
           >
             <List.Item.Meta
               title={<span>

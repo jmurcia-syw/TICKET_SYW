@@ -1,12 +1,10 @@
 import { useState } from 'react'
-import { Button, Card, Divider, Form, Input, Modal, Space, Typography, message } from 'antd'
+import { Button, Divider, Form, Input, Modal, message } from 'antd'
 import { GoogleOutlined, LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { authService } from '../services/authService'
-import logo from '../assets/logo-sywork.jpg'
-
-const { Title, Text } = Typography
+import AuthLayout from '../components/common/AuthLayout'
 
 interface LoginFormValues {
   username_or_email: string
@@ -60,50 +58,40 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f0f2f5' }}>
-      <Card style={{ width: 380 }}>
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <div style={{ textAlign: 'center' }}>
-            <img src={logo} alt="SyWork" style={{ height: 64, marginBottom: 16 }} />
-            <Title level={3} style={{ margin: 0 }}>SyWork Desk</Title>
-            <Text type="secondary">Inicia sesión con tu cuenta @sywork.net</Text>
-          </div>
-
-          <Form layout="vertical" onFinish={handleSubmit} requiredMark={false}>
-            <Form.Item
-              name="username_or_email"
-              label="Correo o usuario"
-              rules={[{ required: true, message: 'El correo o usuario es requerido' }]}
-            >
-              <Input prefix={<UserOutlined />} placeholder="usuario o correo@sywork.net" autoFocus />
-            </Form.Item>
-            <Form.Item
-              name="password"
-              label="Contraseña"
-              rules={[{ required: true, message: 'La contraseña es requerida' }]}
-            >
-              <Input.Password prefix={<LockOutlined />} placeholder="Contraseña" />
-            </Form.Item>
-            <Form.Item style={{ marginBottom: 0 }}>
-              <Button type="primary" htmlType="submit" block loading={loading}>
-                Iniciar sesión
-              </Button>
-            </Form.Item>
-          </Form>
-
-          <div style={{ textAlign: 'center' }}>
-            <Button type="link" size="small" onClick={() => setForgotOpen(true)}>
-              ¿Olvidaste tu contraseña?
-            </Button>
-          </div>
-
-          <Divider style={{ margin: 0 }}>o</Divider>
-
-          <Button icon={<GoogleOutlined />} block onClick={handleGoogleLogin}>
-            Continuar con Google
+    <AuthLayout title="Iniciar sesión" subtitle="Usa tu cuenta @sywork.net">
+      <Form layout="vertical" onFinish={handleSubmit} requiredMark={false}>
+        <Form.Item
+          name="username_or_email"
+          label="Correo o usuario"
+          rules={[{ required: true, message: 'El correo o usuario es requerido' }]}
+        >
+          <Input prefix={<UserOutlined />} placeholder="usuario o correo@sywork.net" autoFocus />
+        </Form.Item>
+        <Form.Item
+          name="password"
+          label="Contraseña"
+          rules={[{ required: true, message: 'La contraseña es requerida' }]}
+        >
+          <Input.Password prefix={<LockOutlined />} placeholder="Contraseña" />
+        </Form.Item>
+        <Form.Item style={{ marginBottom: 0 }}>
+          <Button type="primary" htmlType="submit" block loading={loading}>
+            Iniciar sesión
           </Button>
-        </Space>
-      </Card>
+        </Form.Item>
+      </Form>
+
+      <div style={{ textAlign: 'center', marginTop: 20 }}>
+        <Button type="link" size="small" onClick={() => setForgotOpen(true)}>
+          ¿Olvidaste tu contraseña?
+        </Button>
+      </div>
+
+      <Divider style={{ margin: '20px 0' }}>o</Divider>
+
+      <Button icon={<GoogleOutlined />} block onClick={handleGoogleLogin}>
+        Continuar con Google
+      </Button>
 
       <Modal
         title="Recuperar contraseña"
@@ -123,6 +111,6 @@ export default function LoginPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </AuthLayout>
   )
 }

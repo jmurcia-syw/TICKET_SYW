@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Descriptions, Form, Input, Select, Space, Spin, Table, Tabs, Tag, message } from 'antd'
+import { Alert, Button, Descriptions, Form, Input, Select, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd'
 import { ClockCircleOutlined, EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
@@ -123,7 +123,7 @@ export default function MyProfilePage() {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <h2 style={{ margin: 0 }}>{resource.full_name}</h2>
+            <Typography.Title level={3} style={{ margin: 0 }}>{resource.full_name}</Typography.Title>
             <Tag color={roleColor(role?.name)}>{role?.name ?? '—'}</Tag>
             <StatusTag active={resource.active} />
           </div>

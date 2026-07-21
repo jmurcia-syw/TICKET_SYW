@@ -214,3 +214,84 @@ def test_recalc_noop_when_no_active_phase():
     updates = sla_service.recalc_rule_for_project_or_priority_change(
         ticket, uuid.uuid4(), "high", NOW, _FakeSlaRuleRepo({}))
     assert updates is None
+
+
+# ── compute_transition_compliance (spec 023, Historial de estados) ──────────
+
+def _transition(from_status: str, to_status: str, created_at: datetime) -> dict:
+    return {
+        "id": str(uuid.uuid4()), "from_status": from_status, "to_status": to_status,
+        "actor_id": str(uuid.uuid4()), "comment_id": None, "created_at": created_at.isoformat(),
+    }
+
+
+def test_transition_compliance_first_row_has_no_elapsed_or_sla():
+    ticket = _ticket(sla_rule_id=uuid.uuid4())
+    result = sla_service.compute_transition_compliance(
+        ticket, [_transition("nuevo", "pre_analisis", NOW)])
+    assert result[0]["elapsed_seconds"] is None
+    assert result[0]["sla_phase_closed"] is None
+    assert result[0]["sla_met"] is None
+
+
+def test_transition_compliance_closes_contacto_cumplido():
+    ticket = _ticket(sla_rule_id=uuid.uuid4(), sla_contact_result="cumplido")
+    transitions = [
+        _transition("nuevo", "pre_analisis", NOW),
+        _transition("pre_analisis", "contacto", NOW + timedelta(minutes=10)),
+    ]
+    result = sla_service.compute_transition_compliance(ticket, transitions)
+    closing = result[1]
+    assert closing["sla_phase_closed"] == "contacto"
+    assert closing["sla_met"] is True
+    assert closing["elapsed_seconds"] == 600
+
+
+def test_transition_compliance_closes_contacto_vencido():
+    ticket = _ticket(sla_rule_id=uuid.uuid4(), sla_contact_result="vencido")
+    transitions = [
+        _transition("nuevo", "pre_analisis", NOW),
+        _transition("pre_analisis", "contacto", NOW + timedelta(minutes=20)),
+    ]
+    result = sla_service.compute_transition_compliance(ticket, transitions)
+    assert result[1]["sla_met"] is False
+
+
+def test_transition_compliance_internal_transition_is_neutral():
+    ticket = _ticket(sla_rule_id=uuid.uuid4(), sla_contact_result="cumplido")
+    transitions = [
+        _transition("nuevo", "pre_analisis", NOW),
+        _transition("pre_analisis", "contacto", NOW + timedelta(minutes=10)),
+        _transition("contacto", "en_analisis", NOW + timedelta(minutes=20)),
+    ]
+    result = sla_service.compute_transition_compliance(ticket, transitions)
+    internal = result[2]
+    assert internal["sla_phase_closed"] is None
+    assert internal["sla_met"] is None
+    assert internal["elapsed_seconds"] == 600
+
+
+def test_transition_compliance_closes_ejecucion_on_last_transition_when_stopped():
+    ticket = _ticket(
+        sla_rule_id=uuid.uuid4(), sla_contact_result="cumplido",
+        sla_phase="cerrado", sla_phase_limit_minutes=480,
+        sla_consumed_seconds=100, sla_status="detenido",
+    )
+    transitions = [
+        _transition("contacto", "en_ejecucion", NOW),
+        _transition("en_ejecucion", "resuelto", NOW + timedelta(minutes=5)),
+    ]
+    result = sla_service.compute_transition_compliance(ticket, transitions)
+    closing = result[1]
+    assert closing["sla_phase_closed"] == "ejecucion"
+    assert closing["sla_met"] is True  # 100s consumidos < 480min de límite
+
+
+def test_transition_compliance_without_sla_rule_is_all_neutral():
+    ticket = _ticket(sla_rule_id=None)
+    transitions = [
+        _transition("nuevo", "pre_analisis", NOW),
+        _transition("pre_analisis", "contacto", NOW + timedelta(minutes=10)),
+    ]
+    result = sla_service.compute_transition_compliance(ticket, transitions)
+    assert all(r["sla_phase_closed"] is None and r["sla_met"] is None for r in result)

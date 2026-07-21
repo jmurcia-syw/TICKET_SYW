@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd'
-import { Empty, Modal, Select, Spin, Tooltip, message } from 'antd'
+import { Empty, Modal, Select, Spin, Tooltip, Typography, message } from 'antd'
 import { FieldTimeOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { ticketService } from '../services/ticketService'
@@ -217,7 +217,7 @@ export default function KanbanPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ margin: 0 }}>Tablero Kanban</h2>
+          <Typography.Title level={3} style={{ margin: 0 }}>Tablero Kanban</Typography.Title>
           <span style={{ fontSize: 12, color: palette.slate500 }}>
             Arrastra una tarjeta a otra columna para avanzarla; solo se permiten los movimientos válidos del flujo.
           </span>

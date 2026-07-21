@@ -285,6 +285,53 @@ def apply_transition(ticket, new_status: str, now: datetime, sla_rule_repo) -> O
     return None
 
 
+def compute_transition_compliance(ticket, transitions: list[dict], resource=None,
+                                  holidays: list | None = None, schedule_slots: list | None = None,
+                                  absences: list | None = None) -> list[dict]:
+    """Enriquece el Historial de Estados (spec 023, FR-001/FR-002/FR-003) con, por transición:
+    `elapsed_seconds` (tiempo disponible transcurrido desde la transición anterior — mismo motor
+    que `compute_available_seconds`, spec 022), `sla_phase_closed` (fase de SLA que esa
+    transición cierra, o `None`) y `sla_met` (cumplimiento de esa fase, o `None` si la transición
+    no cierra una fase o no hay datos confiables para evaluarla).
+
+    Solo se anota `sla_met` en las dos transiciones que efectivamente cierran una fase de SLA
+    (entrar a `contacto` cierra Contacto; entrar a `resuelto`/`cerrado`/`cancelado` cierra
+    Ejecución — ver `ticket_fsm.SLA_PHASE_FOR_STATE` y research.md spec 023 Decisión 1), y solo
+    cuando el dato ya persistido es confiable: `sla_contact_result` para Contacto, y el snapshot
+    final `sla_consumed_seconds`/`sla_phase_limit_minutes` para Ejecución (solo en la última
+    transición, con el ticket ya detenido — ciclos de reapertura no se re-evalúan, ayuda de UI,
+    no auditoría). No muta `transitions`; devuelve una lista nueva. Puro (Capa 1): sin DB.
+    """
+    if not transitions:
+        return []
+    last_index = len(transitions) - 1
+    enriched: list[dict] = []
+    previous_dt: Optional[datetime] = None
+    for i, t in enumerate(transitions):
+        created_at = datetime.fromisoformat(t["created_at"])
+        elapsed_seconds = None
+        if previous_dt is not None:
+            elapsed_seconds = compute_available_seconds(
+                resource, previous_dt, created_at, holidays or [], schedule_slots or [], absences or [])
+
+        sla_phase_closed = None
+        sla_met = None
+        if ticket.sla_rule_id is not None:
+            if t["to_status"] == "contacto":
+                sla_phase_closed = "contacto"
+                if ticket.sla_contact_result in ("cumplido", "vencido"):
+                    sla_met = ticket.sla_contact_result == "cumplido"
+            elif (t["to_status"] in ("resuelto", "cerrado", "cancelado") and i == last_index
+                  and ticket.sla_status == "detenido" and ticket.sla_phase_limit_minutes):
+                sla_phase_closed = "ejecucion"
+                sla_met = ticket.sla_consumed_seconds < ticket.sla_phase_limit_minutes * 60
+
+        enriched.append({**t, "elapsed_seconds": elapsed_seconds,
+                         "sla_phase_closed": sla_phase_closed, "sla_met": sla_met})
+        previous_dt = created_at
+    return enriched
+
+
 def is_breach(ticket, now: datetime, resource=None, holidays: list | None = None,
              schedule_slots: list | None = None, absences: list | None = None) -> bool:
     """True si la fase de SLA vigente ya superó su tiempo límite en tiempo real, pero el
