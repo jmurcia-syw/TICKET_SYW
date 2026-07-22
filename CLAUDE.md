@@ -2,13 +2,21 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active feature**: Script de Datos Semilla (Seeders/Fixtures) — Clientes Aris y Vaxthera — un único script `backend/scripts/seed_clients_aris_vaxthera.py` (patrón de `seed_tickets.py`, sin migración de Alembic) que crea de forma idempotente los clientes Aris (Colombia, `America/Bogota`) y Vaxthera (Ecuador, `America/Guayaquil`), sus proyectos (Aris: Evolutivo/Preventa sin SLA y Soporte con matriz de SLA de 4 niveles; Vaxthera: Soporte explícitamente sin SLA), los 3 usuarios "Usuario/cliente" (`Eliseon@aris.ming.com`, `paulaBlanco@aris.ming.com`, `pablo@vaxthera.com`) y las Listas de Tareas de cada proyecto Soporte (8 para Aris, 5 para Vaxthera).
+**Active feature**: Configuración de Entornos Aislados (Test y Producción) en Docker Compose — arquitectura de despliegue en el servidor Ubuntu para correr Test y Producción de forma simultánea e independiente sobre la misma máquina: un único `docker-compose.yml` parametrizado (puertos, `container_name` y `VITE_API_URL` por variable, no dos archivos duplicados; secretos sin default como `JWT_SECRET`/`POSTGRES_PASSWORD` con `${VAR:?...}` para fallar explícito si faltan) + namespacing nativo de Compose por nombre de proyecto (`-p sywork_test`/`-p sywork_prod`) para aislar red/volumen; puertos diferenciados (Test `8080` app / `3001` API / `5433` BD / `6380` Redis; Producción `80` app / `3000` API / `5432` BD / `6379` Redis, todos con default = valores actuales de desarrollo); archivos `.env.test`/`.env.prod` (+ plantillas `.env.test.example`/`.env.prod.example` trackeadas) agregados a `.gitignore`; guía de arranque/parada/logs por ambiente en el README. La terminación TLS/HTTPS de Producción y los Dockerfiles de grado producción (gunicorn/build estático) quedan fuera de alcance (pendientes, ver `docs/GUIA_DESPLIEGUE_SYWORK_TICKETS.txt` y el `TODO(HOSTING)` de la Constitución). Implementada — tasks 17/17 (T001-T017); validado en vivo contra Docker real: Test (`sywork_*_test`) levantado, `VITE_API_URL`/`TZ` conectados correctamente, aislamiento de nombres/red/volumen confirmado frente al stack de dev sin tocarlo, fallo explícito verificado para archivo `.env.*` faltante y para variable obligatoria faltante (`JWT_SECRET`). Producción solo se validó por `docker compose config` (sin `up` real, para no chocar con el stack de dev de esta máquina que reutiliza los mismos puertos `5432`/`6379`) — **pendiente**: repetir el `up` real de `sywork_prod` en el servidor Ubuntu de destino antes de aceptar como Delivery.
+**Spec**: specs/027-docker-entornos-aislados/spec.md
+**Plan**: specs/027-docker-entornos-aislados/plan.md
+**Tasks**: specs/027-docker-entornos-aislados/tasks.md
+**Research**: specs/027-docker-entornos-aislados/research.md
+**Data model**: specs/027-docker-entornos-aislados/data-model.md
+**Quickstart**: specs/027-docker-entornos-aislados/quickstart.md
+**Constitution**: .specify/memory/constitution.md
+
+**Previous feature (completada)**: Script de Datos Semilla (Seeders/Fixtures) — Clientes Aris y Vaxthera — un único script `backend/scripts/seed_clients_aris_vaxthera.py` (patrón de `seed_tickets.py`, sin migración de Alembic) que crea de forma idempotente los clientes Aris (Colombia, `America/Bogota`) y Vaxthera (Ecuador, `America/Guayaquil`), sus proyectos (Aris: Evolutivo/Preventa sin SLA y Soporte con matriz de SLA de 4 niveles; Vaxthera: Soporte explícitamente sin SLA), los 3 usuarios "Usuario/cliente" (`Eliseon@aris.ming.com`, `paulaBlanco@aris.ming.com`, `pablo@vaxthera.com`) y las Listas de Tareas de cada proyecto Soporte (8 para Aris, 5 para Vaxthera).
 **Spec**: specs/026-seed-clientes-proyectos/spec.md
 **Plan**: specs/026-seed-clientes-proyectos/plan.md
 **Research**: specs/026-seed-clientes-proyectos/research.md
 **Data model**: specs/026-seed-clientes-proyectos/data-model.md
 **Quickstart**: specs/026-seed-clientes-proyectos/quickstart.md
-**Constitution**: .specify/memory/constitution.md
 
 **Previous feature (completada)**: Actualización Integral del Manual de Usuario (v3.2, alcance ampliado a toda la app) — `docs/Manual_de_Usuario.md` y `docs/Manual_de_Usuario.docx` con resumen arquitectónico, 3 diagramas Mermaid (ciclo de vida del Ticket, aprobación de vacaciones/permisos, pausa/reanudación de SLA) y guía paso a paso de las 12 áreas de pantallas (Tickets, Kanban, Mis Tareas, Panel de Asignación, Detalle de Ticket, Vista Usuario/cliente, RRHH, Registro/Reporte de Tiempos, los 8 Maestros, Mi Perfil, Login/Reset), verificada navegando la app real en Docker
 **Spec**: specs/025-manual-usuario-integral/spec.md

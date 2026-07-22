@@ -22,8 +22,12 @@ docker exec sywork_backend python -m pytest tests/ -q
 2. Confirmar que `admin` / `coordinador` / `qm` / `resolutor` inician sesión con la misma
    contraseña en ambos entornos (la documentada en `docs/credenciales_dev.txt`, decodificando el
    base64).
-3. Repetir con `FLASK_ENV=production` → la contraseña impresa en el log del backend debe ser
-   distinta en cada corrida (aleatoria), nunca la fija de Desarrollo.
+3. Repetir con `-p sywork_test --env-file .env.test` y con `-p sywork_prod --env-file .env.prod`
+   (spec 027) → misma contraseña fija de `docs/credenciales_dev.txt` en los tres ambientes.
+   Nota (actualizada en spec 027): desde que existen ambientes Test/Prod aislados en la misma
+   máquina de desarrollo, la migración 009 usa siempre la contraseña fija — ya no genera una
+   aleatoria distinta por `FLASK_ENV=production`. Esa contraseña fija DEBE rotarse manualmente
+   antes de operar la Producción real en el servidor Ubuntu con datos de clientes reales.
 
 ## Escenario 2 — Reseteo de contraseña por Admin (US1)
 

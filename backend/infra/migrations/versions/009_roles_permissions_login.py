@@ -4,8 +4,6 @@ Revision ID: 009
 Revises: 008
 Create Date: 2026-07-01
 """
-import os
-import secrets
 import uuid
 
 from alembic import op
@@ -18,9 +16,9 @@ down_revision = "008"
 branch_labels = None
 depends_on = None
 
-# Contraseña fija para los 4 usuarios semilla en Desarrollo (nunca en producción — ver
-# docs/credenciales_dev.txt). Evita que cada instalación nueva quede con una contraseña
-# aleatoria irrecuperable si se pierde el log del contenedor backend.
+# Contraseña fija para los 4 usuarios semilla en Dev/Test/Prod Docker Compose locales — ver
+# docs/credenciales_dev.txt. DEBE rotarse manualmente (endpoint reset-password) antes de operar
+# la Producción real en el servidor Ubuntu con datos de clientes reales (TODO(HOSTING)).
 SEED_PASSWORD_DEV = "SyWork_Dev2026!"
 
 MODULES = ["clients", "projects", "resources", "skills", "users", "roles"]
@@ -130,11 +128,8 @@ def upgrade() -> None:
             {"role_id": str(role_ids[new_role_name]), "username": username, "id": str(row.id)},
         )
 
-    # ── seed the 4 provisional-login users (one shared provisional password) ──
-    provisional_password = (
-        SEED_PASSWORD_DEV if os.environ.get("FLASK_ENV") != "production" else secrets.token_urlsafe(9)
-    )
-    password_hash = generate_password_hash(provisional_password)
+    # ── seed the 4 login users (una sola contraseña fija, ver SEED_PASSWORD_DEV arriba) ──
+    password_hash = generate_password_hash(SEED_PASSWORD_DEV)
     for email, username, role_name in SEED_USERS:
         bind.execute(
             sa.text(
@@ -149,9 +144,9 @@ def upgrade() -> None:
         )
 
     print("=" * 70)
-    print("PROVISIONAL LOGIN PASSWORD (shared by admin/coordinador/qm/resolutor):")
-    print(f"    {provisional_password}")
-    print("Guarda esta contraseña ahora - no se vuelve a mostrar ni se guarda en el repo.")
+    print("Usuarios semilla creados (admin/coordinador/qm/resolutor).")
+    print("Contraseña fija documentada en docs/credenciales_dev.txt — rotarla antes de")
+    print("operar la Producción real con datos de clientes reales.")
     print("=" * 70)
 
     # ── finalize users schema ──────────────────────────────────────────

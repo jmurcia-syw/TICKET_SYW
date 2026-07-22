@@ -429,6 +429,85 @@ de servicios cloud gestionados:
    backend incluya esa carpeta en el host.
 6. Backups: `pg_dump` periódico del volumen `postgres_data` + copia de `uploads/`.
 
+### Entornos Test y Producción (aislados, mismo servidor)
+
+Spec [`027`](specs/027-docker-entornos-aislados/spec.md): el mismo `docker-compose.yml` corre dos
+veces en paralelo en el mismo host Ubuntu — una vez como ambiente de **Test** y otra como
+**Producción** — diferenciados por puertos, nombre de proyecto Compose y archivo de variables,
+sin tocar el flujo de desarrollo local (`docker compose up` sin flags sigue funcionando igual que
+siempre, con los defaults de puerto `5173`/`5000`/`5432`/`6379`).
+
+#### Ambiente de Test
+
+```bash
+cp .env.test.example .env.test
+nano .env.test    # completar POSTGRES_PASSWORD, JWT_SECRET, etc. (nunca commitear este archivo)
+
+docker compose -p sywork_test --env-file .env.test up --build -d
+docker compose -p sywork_test --env-file .env.test ps
+```
+
+- **App**: http://localhost:8080
+- **API**: http://localhost:3001 (`/swagger`, `/health/`)
+- **Postgres**: `localhost:5433`
+
+#### Ambiente de Producción
+
+```bash
+cp .env.prod.example .env.prod
+nano .env.prod    # completar con secretos reales de producción (nunca commitear este archivo)
+
+docker compose -p sywork_prod --env-file .env.prod up --build -d
+docker compose -p sywork_prod --env-file .env.prod ps
+```
+
+- **App**: http://localhost:80
+- **API**: http://localhost:3000 (`/swagger`, `/health/`)
+- **Postgres**: `localhost:5432`
+
+> Los puertos `80`/`3000` publicados por Docker Compose son el mapeo **interno**, no la
+> exposición final HTTPS al usuario — la terminación TLS/proxy inverso sigue pendiente
+> (`TODO(HOSTING)` en la Constitución, ver también sección "Despliegue en servidor" arriba).
+
+Test y Producción pueden estar `Up` al mismo tiempo: cada uno usa su propio nombre de proyecto
+Compose (`-p`), lo que namespacea automáticamente su red y su volumen de datos (`postgres_data`
+queda completamente separado entre ambientes), y sus propios nombres de contenedor
+(`sywork_db_test` / `sywork_db_prod`, etc.).
+
+#### Logs y parada por ambiente
+
+**Siempre nombrar el ambiente explícitamente** (`-p` + `--env-file`) al operar sobre Test o
+Producción — omitirlos puede apuntar al stack equivocado y detener/afectar el ambiente incorrecto:
+
+```bash
+# Logs de un ambiente puntual (no se mezclan con el otro)
+docker compose -p sywork_test --env-file .env.test logs -f backend
+docker compose -p sywork_prod --env-file .env.prod logs -f backend
+
+# Detener solo un ambiente (el otro sigue corriendo sin interrupción)
+docker compose -p sywork_test --env-file .env.test down
+docker compose -p sywork_prod --env-file .env.prod down
+```
+
+`down` (sin `-v`) conserva los datos de ese ambiente; agregar `-v` solo si se quiere descartar el
+volumen de datos de ese ambiente en particular:
+
+```bash
+# Reinicio completo de un ambiente (borra su volumen de Postgres, uno a la vez)
+# Test:
+docker compose -p sywork_test --env-file .env.test down -v
+docker compose -p sywork_test --env-file .env.test up --build -d
+
+# Producción:
+docker compose -p sywork_prod --env-file .env.prod down -v
+docker compose -p sywork_prod --env-file .env.prod up --build -d
+```
+
+No afecta al stack de Desarrollo (`sywork_db`, sin `-p`) ni a su volumen `postgres_data` — son
+proyectos Compose distintos. Detalle completo de variables, puertos y decisiones de diseño:
+[`specs/027-docker-entornos-aislados/research.md`](specs/027-docker-entornos-aislados/research.md)
+y [`quickstart.md`](specs/027-docker-entornos-aislados/quickstart.md).
+
 ### Desarrollo sin Docker (opcional)
 
 Si prefieres correr el backend o frontend directamente en el host (requiere Postgres

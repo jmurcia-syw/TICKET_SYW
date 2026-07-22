@@ -2,19 +2,20 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: sywork_db
+    container_name: sywork_db${CONTAINER_SUFFIX:-}
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      TZ: ${TZ:-America/Bogota}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER is required} -d ${POSTGRES_DB:?POSTGRES_DB is required}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,17 +24,18 @@ services:
     build:
       context: .          # repo root — needed so /repo structure is available
       dockerfile: backend/Dockerfile
-    container_name: sywork_backend
+    container_name: sywork_backend${CONTAINER_SUFFIX:-}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-not-set}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-not-set}
       FLASK_ENV: ${FLASK_ENV:-development}
+      APP_ENV: ${APP_ENV:-development}
       DEV_SKIP_AUTH: ${DEV_SKIP_AUTH:-false}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -41,39 +43,41 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-no-reply@sywork.net}
+      TZ: ${TZ:-America/Bogota}
     ports:
-      - "5000:5000"
+      - "${BACKEND_PORT:-5000}:5000"
     volumes:
       - .:/repo                      # mount entire repo so "from backend.x" resolves
       - /repo/backend/__pycache__    # exclude pycache from bind mount
 
   frontend:
     build: ./frontend
-    container_name: sywork_frontend
+    container_name: sywork_frontend${CONTAINER_SUFFIX:-}
     restart: unless-stopped
     depends_on:
       - backend
     environment:
-      VITE_API_URL: http://localhost:5000
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:5000}
+      VITE_APP_ENV: ${VITE_APP_ENV:-development}
       CI: "true"
     ports:
-      - "5173:5173"
+      - "${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
 
   redis:
     image: redis:7-alpine
-    container_name: sywork_redis
+    container_name: sywork_redis${CONTAINER_SUFFIX:-}
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
 
   worker:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: sywork_worker
+    container_name: sywork_worker${CONTAINER_SUFFIX:-}
     restart: unless-stopped
     command: celery -A backend.workers.celery_app worker --loglevel=info --beat
     depends_on:
@@ -82,10 +86,11 @@ services:
       redis:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
       REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       FLASK_ENV: ${FLASK_ENV:-development}
+      TZ: ${TZ:-America/Bogota}
     volumes:
       - .:/repo
       - /repo/backend/__pycache__
