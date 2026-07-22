@@ -1,0 +1,12 @@
+{
+  "name": "manual-screenshots",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Herramienta de documentacion: captura pantallazos reales de SyWork Tickets (entorno de desarrollo) para docs/Manual_de_Usuario. No es parte de la app (backend/frontend).",
+  "scripts": {
+    "capture": "node capture.js"
+  },
+  "dependencies": {
+    "puppeteer": "^23.0.0"
+  }
+}

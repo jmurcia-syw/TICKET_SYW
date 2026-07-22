@@ -21,3 +21,5 @@ SyWork_Dev2026!
 SyWork_Dev2026!
 docker exec sywork_backend alembic upgrade head
 docker exec sywork_backend python -m pytest tests/ -q
+
+contacto.demo / contacto.demo@clienteexterno.com | Usuario/cliente | b2ZXeDMzTzJjSDZk
