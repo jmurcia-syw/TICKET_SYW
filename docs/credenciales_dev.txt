@@ -1,9 +1,16 @@
-CREDENCIALES DE USUARIOS SEMILLA — SOLO DESARROLLO
-====================================================
+CREDENCIALES DE USUARIOS SEMILLA — DEV, TEST Y PRODUCCIÓN (DOCKER COMPOSE LOCAL)
+==================================================================================
 
-Estas credenciales aplican ÚNICAMENTE a instalaciones de Desarrollo (FLASK_ENV distinto de
-"production"). En instalaciones de producción, la migración 009 genera una contraseña
-aleatoria e impredecible por instalación — NUNCA la contraseña fija de este archivo.
+Desde spec 027, la migración 009 usa la MISMA contraseña fija para los 4 usuarios semilla
+en los tres ambientes Docker Compose (Dev sin -p, Test -p sywork_test, Prod -p sywork_prod),
+sin distinguir por FLASK_ENV. Facilita validar Test/Prod en local sin depender de una
+contraseña aleatoria que solo se imprime una vez en el log del contenedor backend.
+
+⚠️ ADVERTENCIA: antes de operar la Producción real en el servidor Ubuntu de destino con datos
+de clientes reales, ESTA CONTRASEÑA DEBE ROTARSE manualmente (acción "Resetear contraseña"
+como Admin, o endpoint PATCH /api/users/{id}/reset-password — ver specs/003-reseteo-contrasenas)
+para los 4 usuarios semilla. Nunca dejar la contraseña de este archivo activa en un ambiente
+con datos reales.
 
 La contraseña está codificada en base64 (NO es cifrado, es solo ofuscación visual).
 Para decodificarla: echo "<valor>" | base64 -d   (o cualquier decodificador base64 estándar)

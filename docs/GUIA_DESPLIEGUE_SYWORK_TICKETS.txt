@@ -7,9 +7,19 @@ No se modifico ningun archivo del repositorio para producirlo.
 Estado actual del repo (importante antes de empezar):
   - backend/Dockerfile   -> corre "flask run --reload" (servidor de DESARROLLO)
   - frontend/Dockerfile  -> corre "vite dev" (servidor de DESARROLLO)
-  - docker-compose.yml   -> pensado para desarrollo local (bind mounts, hot reload)
-  Ninguno de los tres esta listo para produccion tal cual. Se explica abajo
-  que hay que cambiar (sin hacerlo yo, solo para que lo tengas mapeado).
+  - docker-compose.yml   -> parametrizado por puertos/nombre de contenedor/VITE_API_URL
+    desde la spec 027 (Entornos Test y Produccion), sigue corriendo los mismos
+    Dockerfiles de DESARROLLO listados arriba en ambos ambientes -- eso NO cambio.
+  Ninguno de los tres esta listo para produccion "de grado produccion" tal cual
+  (gunicorn, build estatico de frontend). Se explica abajo que hay que cambiar
+  (sin hacerlo yo, solo para que lo tengas mapeado).
+
+  Lo que SI ya existe en el repo (spec 027, ver README.md > "Entornos Test y
+  Produccion" y specs/027-docker-entornos-aislados/): correr dos copias del
+  mismo docker-compose.yml en paralelo en el mismo servidor (Test en puertos
+  alternos, Produccion en los puertos principales referenciados abajo en las
+  secciones 8 y 10), con archivos .env.test/.env.prod separados y sin colision
+  de nombre de contenedor/red/volumen. Complementa, no reemplaza, esta guia.
 
 ================================================================================
 1. SI NECESITAS UN "DEMONIO"

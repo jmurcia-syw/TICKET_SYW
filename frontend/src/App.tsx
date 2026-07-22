@@ -28,6 +28,7 @@ import MyProfilePage from './pages/MyProfilePage'
 import WorkSessionsPage from './pages/WorkSessionsPage'
 import TimeReportPage from './pages/TimeReportPage'
 import ProtectedRoute from './components/common/ProtectedRoute'
+import EnvironmentBanner, { BANNER_WIDTH } from './components/common/EnvironmentBanner'
 import { theme } from './theme'
 
 function AppRoutes() {
@@ -88,9 +89,12 @@ export default function App() {
     <ConfigProvider locale={esES} theme={theme}>
       <AntApp>
         <MessageApiBinder />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <EnvironmentBanner />
+        <div style={{ paddingRight: BANNER_WIDTH }}>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </div>
       </AntApp>
     </ConfigProvider>
   )

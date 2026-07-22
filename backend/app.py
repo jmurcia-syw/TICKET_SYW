@@ -11,8 +11,13 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+APP_ENV_LABELS = {"development": "DESARROLLO", "test": "TEST", "production": "PRODUCCIÓN"}
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
+    app_env = os.environ.get("APP_ENV", "development")
+    app_env_label = APP_ENV_LABELS.get(app_env, app_env.upper())
     app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET", "change-me-in-production")
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 3600 * 8
 
@@ -32,7 +37,7 @@ def create_app() -> Flask:
     api = Api(
         app,
         version="1.0",
-        title="SyWork Desk API",
+        title=f"SyWork Desk API — Ambiente: {app_env_label}",
         description=(
             "API para el sistema de tickets de soporte SYWork.\n\n"
             "**Seguridad (Fase 1)**: TODAS las rutas exigen JWT Bearer + permiso módulo/acción "
