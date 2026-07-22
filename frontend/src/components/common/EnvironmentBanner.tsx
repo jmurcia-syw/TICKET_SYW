@@ -4,7 +4,7 @@ const BANNER_WIDTH = 28
 
 const ENV_CONFIG: Record<string, { label: string; color: string }> = {
   development: { label: 'DESARROLLO', color: palette.slate500 },
-  test: { label: 'TEST', color: palette.amber600 },
+  test: { label: 'TEST', color: palette.amber700 },
   production: { label: 'PRODUCCIÓN', color: palette.red600 },
 }
 
@@ -14,35 +14,8 @@ export default function EnvironmentBanner() {
   const config = ENV_CONFIG[env] ?? ENV_CONFIG.development
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: BANNER_WIDTH,
-        background: config.color,
-        zIndex: 2000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        boxShadow: '-1px 0 4px rgba(0,0,0,0.15)',
-        pointerEvents: 'none',
-      }}
-    >
-      <span
-        style={{
-          writingMode: 'vertical-rl',
-          transform: 'rotate(180deg)',
-          color: '#fff',
-          fontWeight: 700,
-          fontSize: 13,
-          letterSpacing: 2,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {config.label}
-      </span>
+    <div className="sywork-env-banner" style={{ background: config.color }}>
+      <span className="sywork-env-banner-label">{config.label}</span>
     </div>
   )
 }
