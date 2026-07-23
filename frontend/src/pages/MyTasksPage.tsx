@@ -128,7 +128,7 @@ export default function MyTasksPage() {
           </Typography.Title>
           <Table
             rowKey="id" columns={columns} dataSource={groups[name]} loading={loading || !criteria}
-            pagination={false} size="small"
+            pagination={false} size="small" scroll={{ x: 900 }}
           />
         </div>
       ))}

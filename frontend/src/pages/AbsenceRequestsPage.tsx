@@ -137,19 +137,19 @@ export default function AbsenceRequestsPage() {
     {
       key: 'own',
       label: 'Mis solicitudes',
-      children: <Table rowKey="id" columns={statusColumns} dataSource={own} loading={loading}
+      children: <Table rowKey="id" columns={statusColumns} dataSource={own} loading={loading} scroll={{ x: 'max-content' }}
         locale={{ emptyText: 'Todavía no has enviado solicitudes.' }} />,
     },
     ...(showManagerTab ? [{
       key: 'manager',
       label: 'Aprobaciones — Jefe directo',
-      children: <Table rowKey="id" columns={decisionColumns('manager')} dataSource={managerQueue}
+      children: <Table rowKey="id" columns={decisionColumns('manager')} dataSource={managerQueue} scroll={{ x: 'max-content' }}
         locale={{ emptyText: 'No hay solicitudes de tu equipo.' }} />,
     }] : []),
     ...(isHr ? [{
       key: 'hr',
       label: 'Aprobaciones — RRHH',
-      children: <Table rowKey="id" columns={decisionColumns('hr')} dataSource={hrQueue}
+      children: <Table rowKey="id" columns={decisionColumns('hr')} dataSource={hrQueue} scroll={{ x: 'max-content' }}
         locale={{ emptyText: 'No hay solicitudes pendientes.' }} />,
     }] : []),
   ]

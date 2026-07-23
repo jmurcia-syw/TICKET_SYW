@@ -390,7 +390,7 @@ export default function TicketsPage() {
       />
 
       <div style={{ marginBottom: 8 }}><SortIndicator /></div>
-      <Table rowKey="id" columns={columns} dataSource={tickets} loading={loading}
+      <Table rowKey="id" columns={columns} dataSource={tickets} loading={loading} scroll={{ x: 1300 }}
         pagination={{ current: page, total, pageSize: 20 }} onChange={handleTableChange} />
 
       <Modal title="Nuevo ticket" open={formOpen} onCancel={() => setFormOpen(false)}

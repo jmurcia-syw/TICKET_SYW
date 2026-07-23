@@ -556,7 +556,7 @@ export default function TeamPage() {
         )}
       />
 
-      <Table rowKey="key" columns={columns} dataSource={rows} loading={loading} />
+      <Table rowKey="key" columns={columns} dataSource={rows} loading={loading} scroll={{ x: 'max-content' }} />
 
       {/* ── Alta de integrante ── */}
       <Modal title="Nuevo integrante del equipo" open={createOpen} onCancel={() => setCreateOpen(false)}

@@ -221,7 +221,7 @@ export default function MyProfilePage() {
             key: 'tickets',
             label: `Tickets asignados${tickets.length ? ` (${tickets.length})` : ''}`,
             children: <Table rowKey="id" size="small" columns={ticketColumns} dataSource={tickets}
-              loading={ticketsLoading} pagination={{ pageSize: 10 }}
+              loading={ticketsLoading} pagination={{ pageSize: 10 }} scroll={{ x: 700 }}
               locale={{ emptyText: 'No tienes tickets asignados actualmente' }} />,
           },
         ]}
