@@ -5,6 +5,47 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Reserva el ancho del scrollbar siempre (haya o no contenido scrolleable), para que los
+   elementos `position: fixed; right: 0` (ej. EnvironmentBanner) queden pegados al borde real
+   de la ventana en vez de dejar un hueco donde aparecería el scrollbar nativo. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* EnvironmentBanner (spec 027) — franja angosta en pantallas chicas para no restar espacio
+   de más al contenido real (el color de fondo se define inline, es dinámico por ambiente). */
+.sywork-env-banner {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: -1px 0 4px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+.sywork-env-banner-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .sywork-env-banner {
+    width: 20px;
+  }
+  .sywork-env-banner-label {
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
