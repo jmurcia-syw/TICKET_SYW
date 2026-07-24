@@ -30,6 +30,16 @@ Producción no está corriendo aún) esto no falla por conflicto de puertos/nomb
 Test tiene `VITE_API_URL` apuntando a **su propio** backend (`:3001`), no al puerto `5000` fijo
 (ver `research.md`, Decisión 7).
 
+> **Acceso remoto (navegador en otra máquina que el servidor Docker)**: `VITE_API_URL` se sirve al
+> navegador y se ejecuta ahí, no dentro del contenedor — si el valor es `http://localhost:3001` y
+> el usuario abre la app desde `http://<IP-del-servidor>:8080` en otra PC, "localhost" resuelve a
+> su propia máquina y el login falla con `ERR_CONNECTION_REFUSED` (aunque Swagger, probado
+> directo contra el servidor, funcione). En `.env.test`/`.env.prod` del servidor real, `VITE_API_URL`
+> debe apuntar a la IP/host públicamente alcanzable del servidor (ej. `http://16.0.0.159:3001`), no
+> a `localhost`. Como el frontend corre `pnpm run dev --host` (Vite dev server, ver
+> `frontend/Dockerfile`), basta con corregir la variable y recrear el contenedor — no requiere
+> `--build`: `docker compose -p sywork_test --env-file .env.test up -d --force-recreate frontend`.
+
 ## Escenario 2 — Levantar Producción en paralelo (US2)
 
 ```bash

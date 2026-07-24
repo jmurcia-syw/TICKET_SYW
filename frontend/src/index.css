@@ -30,7 +30,6 @@ html {
 .sywork-env-banner-label {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  color: #fff;
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 2px;

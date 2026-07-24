@@ -23,9 +23,12 @@ export const palette = {
   teal600: '#0D9488',
   teal700: '#0F766E',
   green600: '#16A34A',
+  amber100: '#FEF3C7',
   amber600: '#D97706',
-  amber700: '#B45309',
+  amber800: '#92400E',
   red600: '#DC2626',
+  blue200: '#BFDBFE',
+  blue900: '#1E3A8A',
   // Marca SyWork (docs/iconoSW.jpg) — logo y ROLE_COLOR_PALETTE
   brandRed50: '#FDECEC',
   brandRed500: '#EB3037',

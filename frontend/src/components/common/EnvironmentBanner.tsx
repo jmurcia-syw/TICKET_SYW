@@ -2,10 +2,10 @@ import { palette } from '../../theme'
 
 const BANNER_WIDTH = 28
 
-const ENV_CONFIG: Record<string, { label: string; color: string }> = {
-  development: { label: 'DESARROLLO', color: palette.slate500 },
-  test: { label: 'TEST', color: palette.amber700 },
-  production: { label: 'PRODUCCIÓN', color: palette.red600 },
+const ENV_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+  development: { label: 'DESARROLLO', bg: palette.slate200, text: palette.slate700 },
+  test: { label: 'TEST', bg: palette.amber100, text: palette.amber800 },
+  production: { label: 'PRODUCCIÓN', bg: palette.blue200, text: palette.blue900 },
 }
 
 /** Identifica visualmente el ambiente (Desarrollo/Test/Producción) en toda la app — spec 027. */
@@ -14,8 +14,10 @@ export default function EnvironmentBanner() {
   const config = ENV_CONFIG[env] ?? ENV_CONFIG.development
 
   return (
-    <div className="sywork-env-banner" style={{ background: config.color }}>
-      <span className="sywork-env-banner-label">{config.label}</span>
+    <div className="sywork-env-banner" style={{ background: config.bg }}>
+      <span className="sywork-env-banner-label" style={{ color: config.text }}>
+        {config.label}
+      </span>
     </div>
   )
 }
