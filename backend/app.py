@@ -37,9 +37,9 @@ def create_app() -> Flask:
     api = Api(
         app,
         version="1.0",
-        title=f"SyWork Desk API — Ambiente: {app_env_label}",
+        title=f"SYTIX API — Ambiente: {app_env_label}",
         description=(
-            "API para el sistema de tickets de soporte SYWork.\n\n"
+            "API para el sistema de tickets de soporte SYTIX.\n\n"
             "**Seguridad (Fase 1)**: TODAS las rutas exigen JWT Bearer + permiso módulo/acción "
             "del rol del usuario. Rutas públicas: `/api/auth/login`, `/api/auth/google` y `/health/`."
         ),
