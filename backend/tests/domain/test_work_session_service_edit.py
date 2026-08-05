@@ -80,6 +80,37 @@ def test_update_recalculates_daily_limit_with_new_value(svc):
     assert exc.value.code == "daily_limit_exceeded"
 
 
+# ── Descripción obligatoria al editarla (spec 038 US4, FR-020) ──────────────
+
+def test_update_without_touching_note_does_not_require_one(svc):
+    """`note=None` (omitido del payload) significa "no tocar el campo" — una edición parcial de
+    otro campo (ej. duración) no debe exigir describir de nuevo un registro ya válido."""
+    existing = FakeWorkSession(work_date=date.today())
+    repo = FakeWorkSessionsRepo()
+    result = svc.update(existing=existing, actor_id=uuid.uuid4(), work_sessions_repo=repo,
+                        duration_minutes=90)
+    assert result == "updated-result"
+
+
+@pytest.mark.parametrize("note", ["", "   "])
+def test_update_rejects_blank_note_when_explicitly_set(svc, note):
+    from backend.domain.services.work_session_service import WorkSessionValidationError as _WSVE
+    existing = FakeWorkSession(work_date=date.today())
+    with pytest.raises(_WSVE) as exc:
+        svc.update(existing=existing, actor_id=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
+                  note=note)
+    assert exc.value.code == "note_required"
+
+
+def test_update_accepts_new_non_blank_note(svc):
+    existing = FakeWorkSession(work_date=date.today())
+    repo = FakeWorkSessionsRepo()
+    result = svc.update(existing=existing, actor_id=uuid.uuid4(), work_sessions_repo=repo,
+                        note="Nota actualizada")
+    assert result == "updated-result"
+    assert repo.updated[3] == "Nota actualizada"
+
+
 def test_delete_within_window_ok(svc):
     existing = FakeWorkSession(work_date=date.today())
     repo = FakeWorkSessionsRepo()

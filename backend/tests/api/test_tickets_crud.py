@@ -34,6 +34,47 @@ def test_create_rejects_invalid_enum(client, ticket_client, ticket_project):
     assert "ticket_type" in response.get_json()["message"]
 
 
+def test_create_ticket_without_client_contact_fails_when_project_has_contacts(
+        client, unique_name, ticket_client, ticket_project):
+    """spec 038 US4 (FR-018): Ticket obligatorio si el proyecto ya tiene personal Usuario/
+    cliente disponible para elegir (contrapartida: test_create_ticket_without_client_contact_
+    still_works, en test_tickets_client_contact.py, cubre el proyecto sin ninguno)."""
+    contact = client.post("/api/client-contacts", json={
+        "email": f"reqcontact.{unique_name}@clienteexterno.com",
+        "username": f"reqcontact_{unique_name}", "client_id": ticket_client["id"],
+    }).get_json()
+    link = client.post(f"/api/projects/{ticket_project['id']}/members", json={"user_id": contact["user_id"]})
+    assert link.status_code == 201, link.get_json()
+
+    response = client.post("/api/tickets", json={
+        "title": "Ticket sin solicitante", "description": "Descripción",
+        "ticket_type": "incident", "priority": "high", "severity": "s2",
+        "client_id": ticket_client["id"], "project_id": ticket_project["id"],
+    })
+    assert response.status_code == 400
+    assert "client_contact_id" in response.get_json()["message"]
+
+
+def test_create_task_without_client_contact_succeeds_even_with_contacts_available(
+        client, unique_name, ticket_client, ticket_project):
+    """FR-019: una Tarea nunca exige Usuario/cliente solicitante, a diferencia de un Ticket."""
+    contact = client.post("/api/client-contacts", json={
+        "email": f"taskcontact.{unique_name}@clienteexterno.com",
+        "username": f"taskcontact_{unique_name}", "client_id": ticket_client["id"],
+    }).get_json()
+    client.post(f"/api/projects/{ticket_project['id']}/members", json={"user_id": contact["user_id"]})
+
+    record_types = client.get("/api/catalogs/record-types").get_json()["items"]
+    task_type = next(rt for rt in record_types if rt["name"] == "Tarea")
+    response = client.post("/api/tickets", json={
+        "title": "Tarea sin solicitante", "description": "Descripción",
+        "client_id": ticket_client["id"], "project_id": ticket_project["id"],
+        "record_type_id": task_type["id"],
+    })
+    assert response.status_code == 201, response.get_json()
+    assert response.get_json()["client_contact_id"] is None
+
+
 def test_create_rejects_project_of_other_client(client, make_ticket, unique_name):
     other = client.post("/api/clients", json={"name": f"Otro Cliente {unique_name}"}).get_json()
     project = client.post("/api/projects", json={
@@ -106,7 +147,10 @@ def test_detail_includes_locked_fields_and_histories(client, make_ticket):
     detail = client.get(f"/api/tickets/{ticket['id']}").get_json()
     assert "status" in detail["locked_fields"]
     assert detail["comments"] == []
-    assert detail["transitions"] == []
+    # spec 038 US2 (FR-014): toda Ticket/Tarea nace con 1 transición de auditoría inicial
+    # (from_status sentinel "creado"), en vez de un historial vacío.
+    assert len(detail["transitions"]) == 1
+    assert detail["transitions"][0]["is_creation"] is True
     assert detail["close_eligible"] is False
 
 

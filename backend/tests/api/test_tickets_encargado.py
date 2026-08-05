@@ -63,14 +63,18 @@ def test_encargado_detail_of_own_ticket_returns_200_with_requester(client, encar
     assert body["requester"]["is_encargado"] is True
 
 
-def test_admin_still_sees_all_tickets_including_encargado_ones(client, encargado_auth, make_ticket):
+def test_admin_still_sees_all_tickets_including_encargado_ones(client, encargado_auth, make_ticket, ticket_client):
     other_ticket = make_ticket()
     own = client.post("/api/tickets", json={
         "title": "Ticket de encargado visible para admin", "description": "Descripción",
     }, headers=encargado_auth)
     own_id = own.get_json()["id"]
 
-    listing = client.get("/api/tickets")  # `client` fixture = Admin token
+    # Filtra por el Cliente único de este test para no depender del volumen acumulado de
+    # tickets de otras pruebas al paginar sin filtro (spec 038, mismo ajuste que
+    # test_tickets_view_assigned.py — la paginación por defecto puede dejar tickets recientes
+    # fuera de la página 1 según `sort=urgency` a medida que crece la base de datos de prueba).
+    listing = client.get(f"/api/tickets?client_id={ticket_client['id']}")  # `client` fixture = Admin
     ids = {item["id"] for item in listing.get_json()["items"]}
     assert other_ticket["id"] in ids
     assert own_id in ids

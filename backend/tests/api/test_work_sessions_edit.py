@@ -7,13 +7,12 @@ def _assign(client, ticket_id, resource_id):
                        json={"assignee_id": resource_id, "mode": "resolver"})
 
 
-def _create_ws(client, ticket_id, auth, duration_minutes=60, work_date=None, note=None):
+def _create_ws(client, ticket_id, auth, duration_minutes=60, work_date=None, note="Nota de prueba"):
+    # spec 038 US4 (FR-020): note pasó a ser obligatoria — default no vacío.
     payload = {
         "ticket_id": ticket_id, "work_date": (work_date or date.today()).isoformat(),
-        "duration_minutes": duration_minutes,
+        "duration_minutes": duration_minutes, "note": note,
     }
-    if note is not None:
-        payload["note"] = note
     return client.post("/api/work-sessions", json=payload, headers=auth)
 
 

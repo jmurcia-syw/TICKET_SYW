@@ -321,9 +321,10 @@ def apply_transition(ticket, new_status: str, now: datetime, sla_rule_repo, reso
         # Pausa (FR-005): mantiene la fase vigente, deja de correr.
         return {"sla_consumed_seconds": consumed, "sla_last_resume_at": None, "sla_status": "pausado"}
 
-    if new_status in ("resuelto", "cerrado", "cancelado"):
-        # Detiene definitivamente el cómputo (FR-006). `resuelto` puede reabrirse
-        # (reject_resolution) — ver rama de reanudación más abajo.
+    if new_status in ("cerrado", "cancelado"):
+        # Detiene definitivamente el cómputo (FR-006; acotado spec 038 US2 FR-011/FR-012 — ya no
+        # incluye `resuelto`, donde el SLA de Resolución debe seguir corriendo hasta `cerrado`).
+        # `resuelto` reanuda su conteo sin reiniciar vía la rama `STATE_COUNTS_FOR_SLA` más abajo.
         updates = {"sla_consumed_seconds": consumed, "sla_last_resume_at": None,
                    "sla_phase": "cerrado", "sla_status": "detenido"}
         if previous_phase == "ejecucion":

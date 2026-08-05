@@ -28,6 +28,15 @@ class WorkSessionService:
             raise WorkSessionValidationError(
                 "invalid_duration", "La duración debe ser mayor a 0 minutos")
 
+    def validate_note(self, note: Optional[str]) -> None:
+        # spec 038 US4 (FR-020, "Descripción obligatoria en Registro de tiempo") — aplica a
+        # ambos puntos de entrada que comparten create()/update() (carga manual y "Terminar" del
+        # cronómetro, `TicketTimerService.finish()`, research.md Decisión equivalente a la de
+        # client_contact_id): sin nota, o solo espacios, se rechaza.
+        if not note or not note.strip():
+            raise WorkSessionValidationError(
+                "note_required", "La descripción es requerida")
+
     def validate_not_future(self, work_date: date, resource=None) -> None:
         # OBS-0055: antes comparaba siempre contra `date.today()` (fecha LOCAL DEL SERVIDOR,
         # `TZ=America/Bogota`), mientras `work_date` se calcula con la hora local del RECURSO
@@ -114,6 +123,7 @@ class WorkSessionService:
         resolved_duration = self.resolve_duration(
             started_at=started_at, ended_at=ended_at, duration_minutes=duration_minutes)
         self.validate_duration(resolved_duration)
+        self.validate_note(note)
         self.validate_not_future(work_date, resource=resource)
         self.assert_ticket_ownership(resource_id, ticket, tickets_repo, allow_any,
                                      is_task=is_task, resources_repo=resources_repo)
@@ -136,6 +146,11 @@ class WorkSessionService:
               started_at: Optional[datetime] = None, ended_at: Optional[datetime] = None,
               allow_any: bool = False) -> WorkSession:
         self.assert_within_edit_window(existing.work_date, allow_any)
+        # `note=None` aquí significa "no tocar el campo" (repositorio, `_TRACKED_FIELDS`) — solo
+        # se valida cuando el caller sí intenta fijar un valor, para no romper una edición parcial
+        # de otro campo (p. ej. duración) que no incluye `note` en el payload.
+        if note is not None:
+            self.validate_note(note)
         if started_at is not None or ended_at is not None:
             new_started = started_at if started_at is not None else existing.started_at
             new_ended = ended_at if ended_at is not None else existing.ended_at

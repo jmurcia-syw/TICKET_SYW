@@ -126,6 +126,9 @@ export interface TicketTransition {
   sla_phase_closed: 'contacto' | 'ejecucion' | null
   /** `true` = ✅ cumplió el SLA de esa fase, `false` = ⚠️/❌ lo incumplió, `null` = sin SLA aplicable. */
   sla_met: boolean | null
+  /** `true` en la entrada de auditoría inicial (`from_status` sentinel `"creado"`, spec 038
+   * FR-014) — se renderiza como creación, no como cambio de estado. */
+  is_creation: boolean
 }
 
 export interface TicketReassignment {

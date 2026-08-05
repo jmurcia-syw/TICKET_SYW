@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Col, Divider, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Tabs, Tooltip, Upload, message } from 'antd'
 import { PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined, EyeInvisibleOutlined, EyeOutlined, DeleteOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { ColumnsType, TableProps } from 'antd/es/table'
@@ -32,6 +32,7 @@ function AccessTypeBadge({ type }: { type: AccessTypeCatalogItem }) {
   )
 }
 import ConfirmationModal from '../components/common/ConfirmationModal'
+import AccessCredentialForm from '../components/clients/AccessCredentialForm'
 import { mapApiErrorToFormFields, type FieldErrorRule } from '../services/formErrorMapper'
 
 // OBS-0018: asocia códigos de error de la API a los campos del formulario de Cliente.
@@ -65,8 +66,10 @@ export default function ClientsPage() {
   const [selectedDetail, setSelectedDetail] = useState<ClientDetail | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState<{ id: string; impact: string } | null>(null)
   const [systems, setSystems] = useState<ClientSystem[]>([])
+  const [loadingSystems, setLoadingSystems] = useState(false)
   const [accessTypes, setAccessTypes] = useState<AccessTypeCatalogItem[]>([])
   const [accessList, setAccessList] = useState<ClientAccess[]>([])
+  const [loadingAccess, setLoadingAccess] = useState(false)
   const [accessAttachments, setAccessAttachments] = useState<ClientAccessAttachment[]>([])
   const [editingAccessId, setEditingAccessId] = useState<string | null>(null)
   const [credentialsByAccess, setCredentialsByAccess] = useState<Record<string, ClientAccessCredential[]>>({})
@@ -75,7 +78,6 @@ export default function ClientsPage() {
   const [form] = Form.useForm<ClientFormData>()
   const [systemForm] = Form.useForm<ClientSystemFormData>()
   const [accessForm] = Form.useForm<ClientAccessFormData>()
-  const [credentialForm] = Form.useForm<ClientAccessCredentialFormData>()
 
   useEffect(() => { catalogService.list('access-types').then(res => setAccessTypes(res.items as AccessTypeCatalogItem[])) }, [])
 
@@ -106,6 +108,13 @@ export default function ClientsPage() {
     setFormOpen(true)
   }
 
+  // spec 038 US6 (T039/T040): perfilado en DevTools/Network confirmó 4 peticiones secuenciales
+  // (get + systems + access + access-attachments) disparadas al abrir el detalle, aunque solo
+  // "Datos generales" (que no necesita ninguna de las otras 3) se ve por defecto — "Accesos y
+  // conexiones" y "Portafolio de software" ahora se cargan recién al seleccionarlas
+  // (`loadedTabsRef`, evita recargar si el usuario vuelve a una pestaña ya visitada).
+  const loadedTabsRef = useRef<Set<string>>(new Set())
+
   const openDetail = async (id: string) => {
     // Se resetea el estado de inmediato (antes de esperar la respuesta) para no mostrar
     // residualmente los datos del cliente anterior mientras carga (UAT OBS-0008).
@@ -118,13 +127,42 @@ export default function ClientsPage() {
     setEditingAccessId(null)
     setEditingCredential(null)
     accessForm.resetFields()
-    credentialForm.resetFields()
+    loadedTabsRef.current = new Set()
     const detail = await clientService.get(id)
     setSelectedDetail(detail)
-    setSystems(await clientService.listSystems(id))
-    setAccessList(await clientService.listAccess(id))
-    setAccessAttachments(await clientService.listAccessAttachments(id))
     setDetailOpen(true)
+  }
+
+  const loadAccessTab = async (id: string) => {
+    if (loadedTabsRef.current.has('access')) return
+    loadedTabsRef.current.add('access')
+    setLoadingAccess(true)
+    try {
+      const [access, attachments] = await Promise.all([
+        clientService.listAccess(id), clientService.listAccessAttachments(id),
+      ])
+      setAccessList(access)
+      setAccessAttachments(attachments)
+    } finally {
+      setLoadingAccess(false)
+    }
+  }
+
+  const loadSystemsTab = async (id: string) => {
+    if (loadedTabsRef.current.has('systems')) return
+    loadedTabsRef.current.add('systems')
+    setLoadingSystems(true)
+    try {
+      setSystems(await clientService.listSystems(id))
+    } finally {
+      setLoadingSystems(false)
+    }
+  }
+
+  const handleDetailTabChange = (key: string) => {
+    if (!selectedDetail) return
+    if (key === 'access') loadAccessTab(selectedDetail.id)
+    if (key === 'systems') loadSystemsTab(selectedDetail.id)
   }
 
   const handleAccessSubmit = async (values: ClientAccessFormData) => {
@@ -177,7 +215,6 @@ export default function ClientsPage() {
         await clientService.addCredential(selectedDetail.id, accessId, values)
         message.success('Credencial agregada')
       }
-      credentialForm.resetFields()
       setEditingCredential(null)
       await loadCredentials(accessId)
     } catch (err: unknown) {
@@ -188,10 +225,6 @@ export default function ClientsPage() {
 
   const openEditCredential = (accessId: string, credential: ClientAccessCredential) => {
     setEditingCredential({ accessId, credentialId: credential.id })
-    credentialForm.setFieldsValue({
-      label: credential.label ?? undefined, username: credential.username ?? undefined,
-      password: credential.password ?? undefined, notes: credential.notes ?? undefined,
-    })
   }
 
   const handleDeleteCredential = async (accessId: string, credentialId: string) => {
@@ -383,6 +416,7 @@ export default function ClientsPage() {
         width={selectedDetail ? '90vw' : 520} style={{ maxWidth: selectedDetail ? 1400 : undefined }}>
         {selectedDetail && (
           <Tabs
+            onChange={handleDetailTabChange}
             items={[
               {
                 key: 'general', label: 'Datos generales',
@@ -414,6 +448,7 @@ export default function ClientsPage() {
                       rowKey="id"
                       size="small"
                       dataSource={accessList}
+                      loading={loadingAccess}
                       pagination={false}
                       locale={{ emptyText: 'Sin accesos registrados' }}
                       expandable={{
@@ -455,21 +490,15 @@ export default function ClientsPage() {
                                 ]}
                               />
                               {canManage && (
-                                <Form form={credentialForm} layout="inline"
-                                  onFinish={values => handleCredentialSubmit(row.id, values)} style={{ rowGap: 8 }}>
-                                  <Form.Item name="label"><Input placeholder="Etiqueta" style={{ width: 140 }} /></Form.Item>
-                                  <Form.Item name="username"><Input placeholder="Usuario" style={{ width: 120 }} /></Form.Item>
-                                  <Form.Item name="password"><Input.Password placeholder="Contraseña" style={{ width: 140 }} /></Form.Item>
-                                  <Form.Item name="notes"><Input placeholder="Notas" style={{ width: 140 }} /></Form.Item>
-                                  <Form.Item>
-                                    <Space>
-                                      <Button htmlType="submit" icon={<PlusOutlined />}>{isEditingHere ? 'Guardar' : 'Agregar'}</Button>
-                                      {isEditingHere && (
-                                        <Button onClick={() => { setEditingCredential(null); credentialForm.resetFields() }}>Cancelar</Button>
-                                      )}
-                                    </Space>
-                                  </Form.Item>
-                                </Form>
+                                <AccessCredentialForm
+                                  key={row.id}
+                                  accessId={row.id}
+                                  editingCredential={isEditingHere
+                                    ? credentials.find(c => c.id === editingCredential?.credentialId) ?? null
+                                    : null}
+                                  onSubmit={handleCredentialSubmit}
+                                  onCancelEdit={() => setEditingCredential(null)}
+                                />
                               )}
                               <strong>Adjuntos de este acceso</strong>
                               <Table
@@ -578,6 +607,7 @@ export default function ClientsPage() {
                       rowKey="id"
                       size="small"
                       dataSource={systems}
+                      loading={loadingSystems}
                       pagination={false}
                       locale={{ emptyText: 'Sin sistemas registrados' }}
                       columns={[

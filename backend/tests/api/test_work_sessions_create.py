@@ -7,14 +7,15 @@ def _assign(client, ticket_id, resource_id):
                        json={"assignee_id": resource_id, "mode": "resolver"})
 
 
-def _create_ws(client, ticket_id, duration_minutes=90, work_date=None, note=None, auth=None):
+def _create_ws(client, ticket_id, duration_minutes=90, work_date=None, note="Nota de prueba", auth=None):
+    # spec 038 US4 (FR-020): note pasó a ser obligatoria — default no vacío para no romper los
+    # tests de este archivo que no ejercitan esa validación en particular.
     payload = {
         "ticket_id": ticket_id,
         "work_date": (work_date or date.today()).isoformat(),
         "duration_minutes": duration_minutes,
+        "note": note,
     }
-    if note is not None:
-        payload["note"] = note
     return client.post("/api/work-sessions", json=payload, headers=auth)
 
 
@@ -94,6 +95,6 @@ def test_admin_manage_all_bypasses_closed_ticket(client, make_ticket, ticket_res
 
     response = client.post("/api/work-sessions", json={
         "ticket_id": ticket["id"], "work_date": date.today().isoformat(),
-        "duration_minutes": 30, "resource_id": ticket_resource["id"],
+        "duration_minutes": 30, "resource_id": ticket_resource["id"], "note": "Nota de prueba",
     })  # client por defecto = Admin (work_sessions:manage_all)
     assert response.status_code == 201, response.get_json()

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { Badge, Button, Dropdown, Empty, List, Typography } from 'antd'
 import { BellOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -7,8 +7,10 @@ import type { AppNotification } from '../../types/notification'
 
 const POLL_MS = 60_000
 
-/** Campana de notificaciones internas con polling (Decisión 7 de research.md). */
-export default function NotificationBell() {
+/** Campana de notificaciones internas con polling (Decisión 7 de research.md). `memo` (spec 038
+ * US3, T023): sin props, así queda inmune a cualquier re-render de `DashboardPage`/`Header` que
+ * no le corresponda — su ciclo de polling de 60s ya vive aislado en su propio `useEffect`. */
+function NotificationBell() {
   const [items, setItems] = useState<AppNotification[]>([])
   const [unread, setUnread] = useState(0)
   const navigate = useNavigate()
@@ -71,3 +73,5 @@ export default function NotificationBell() {
     </Dropdown>
   )
 }
+
+export default memo(NotificationBell)

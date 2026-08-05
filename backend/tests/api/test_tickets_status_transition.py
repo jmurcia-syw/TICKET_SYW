@@ -27,6 +27,7 @@ def _register_time(client, ticket_id, headers=None, minutes=30):
     """OBS-0026: cerrar una Tarea (transición a 'cerrado') ahora exige tiempo registrado."""
     resp = client.post("/api/work-sessions", json={
         "ticket_id": ticket_id, "work_date": date.today().isoformat(), "duration_minutes": minutes,
+        "note": "Nota de prueba",
     }, headers=headers)
     assert resp.status_code == 201, resp.get_json()
 

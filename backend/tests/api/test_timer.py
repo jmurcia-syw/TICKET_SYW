@@ -146,7 +146,7 @@ def test_finish_blocks_on_closed_ticket(client, make_ticket, ticket_resource, re
     from backend.infra.repositories.ticket_repo import TicketRepository
     TicketRepository(get_db()).update_fields(ticket["id"], status="cerrado")
 
-    response = client.post("/api/timer/finish", headers=resolver_auth)
+    response = client.post("/api/timer/finish", json={"note": "Nota de prueba"}, headers=resolver_auth)
     assert response.status_code == 409
     assert response.get_json()["error"] == "ticket_closed"
 
@@ -297,8 +297,8 @@ def test_two_resources_run_independent_timers(client, make_ticket, ticket_resour
     _rewind_started_at(second_ticket_resource["id"], minutes=2)
     finished_a = client.post("/api/timer/resume", headers=resolver_auth)
     assert finished_a.status_code == 200
-    finished_a = client.post("/api/timer/finish", headers=resolver_auth)
-    finished_b = client.post("/api/timer/finish", headers=second_resolver_auth)
+    finished_a = client.post("/api/timer/finish", json={"note": "Nota de prueba A"}, headers=resolver_auth)
+    finished_b = client.post("/api/timer/finish", json={"note": "Nota de prueba B"}, headers=second_resolver_auth)
     assert finished_a.status_code == 201
     assert finished_b.status_code == 201
     assert finished_a.get_json()["id"] != finished_b.get_json()["id"]

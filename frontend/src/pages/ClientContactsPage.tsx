@@ -73,9 +73,16 @@ export default function ClientContactsPage() {
     }
   }
 
-  const handleCopyPassword = () => {
-    if (provisionalPassword) navigator.clipboard.writeText(provisionalPassword)
-    message.success('Contraseña copiada')
+  const handleCopyPassword = async () => {
+    if (!provisionalPassword) return
+    // spec 038 US5 (T033): mismo bug/fix que TeamPage.tsx — antes no manejaba el rechazo de la
+    // promesa (contexto no seguro o permiso de portapapeles denegado) y mostraba éxito igual.
+    try {
+      await navigator.clipboard.writeText(provisionalPassword)
+      message.success('Contraseña copiada')
+    } catch {
+      message.error('No se pudo copiar la contraseña — copiala manualmente')
+    }
   }
 
   const handleAddProject = async () => {

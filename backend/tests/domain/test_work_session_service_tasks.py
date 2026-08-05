@@ -64,7 +64,7 @@ def test_creator_of_task_can_register_time_even_if_not_assignee(svc):
         resource_id=creator_resource_id, ticket=ticket, work_date=date.today(),
         duration_minutes=30, created_by=creator_user_id,
         work_sessions_repo=FakeWorkSessionsRepo(), tickets_repo=FakeTicketsRepo(),
-        is_task=True, resources_repo=resources_repo,
+        is_task=True, resources_repo=resources_repo, note="ok",
     )
     assert ws.duration_minutes == 30
 
@@ -79,7 +79,7 @@ def test_unrelated_resource_rejected_even_for_task(svc):
             resource_id=uuid.uuid4(), ticket=ticket, work_date=date.today(),
             duration_minutes=30, created_by=creator_user_id,
             work_sessions_repo=FakeWorkSessionsRepo(), tickets_repo=FakeTicketsRepo(),
-            is_task=True, resources_repo=resources_repo,
+            is_task=True, resources_repo=resources_repo, note="ok",
         )
     assert exc.value.code == "not_assigned"
 
@@ -97,5 +97,5 @@ def test_creator_check_ignored_for_regular_ticket(svc):
             resource_id=creator_resource_id, ticket=ticket, work_date=date.today(),
             duration_minutes=30, created_by=creator_user_id,
             work_sessions_repo=FakeWorkSessionsRepo(), tickets_repo=FakeTicketsRepo(),
-            is_task=False, resources_repo=resources_repo,
+            is_task=False, resources_repo=resources_repo, note="ok",
         )

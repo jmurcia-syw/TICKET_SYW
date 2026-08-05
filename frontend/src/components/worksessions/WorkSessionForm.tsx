@@ -164,7 +164,8 @@ export default function WorkSessionForm({ open, onClose, onSaved, tickets, editi
         </Space>
       </Form.Item>
 
-      <Form.Item name="note" label="Nota (opcional)">
+      <Form.Item name="note" label="Descripción"
+        rules={[{ required: true, whitespace: true, message: 'La descripción es requerida' }]}>
         <Input.TextArea rows={2} maxLength={500} />
       </Form.Item>
     </Form>

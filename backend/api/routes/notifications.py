@@ -28,11 +28,13 @@ class NotificationList(Resource):
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
     @ns.response(403, "Sin el permiso requerido", _error)
     # Toda cuenta autenticada ve SUS notificaciones; alcanza con tener algún permiso sobre
-    # tickets (view para los roles internos, view_own para Usuario/cliente, Fase 2.1).
+    # tickets (view para los roles internos, view_own para Usuario/cliente, view_assigned para
+    # Resolutor desde spec 038, Fase 2.1).
     @require_authenticated()
     def get(self):
         """Notificaciones del usuario autenticado (propias, nunca de otros)"""
-        if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")):
+        if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")
+                or current_user_has("tickets", "view_assigned")):
             return {"error": "forbidden", "message": "Acceso denegado"}, 403
         try:
             page = max(1, int(request.args.get("page", 1)))
@@ -70,7 +72,8 @@ class NotificationsRead(Resource):
     @require_authenticated()
     def patch(self):
         """Marcar notificaciones propias como leídas ({ids: [...]} o {all: true})"""
-        if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")):
+        if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")
+                or current_user_has("tickets", "view_assigned")):
             return {"error": "forbidden", "message": "Acceso denegado"}, 403
         data = request.get_json(silent=True) or {}
         mark_all = bool(data.get("all"))

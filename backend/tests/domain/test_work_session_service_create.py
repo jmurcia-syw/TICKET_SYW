@@ -63,7 +63,7 @@ def test_create_rejects_ticket_not_assigned_to_resource(svc):
         svc.create(
             resource_id=uuid.uuid4(), ticket=ticket, work_date=date.today(), duration_minutes=60,
             created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
-            tickets_repo=FakeTicketsRepo(),
+            tickets_repo=FakeTicketsRepo(), note="ok",
         )
     assert exc.value.code == "not_assigned"
     assert exc.value.status_code == 403
@@ -76,7 +76,7 @@ def test_create_allows_historic_assignment(svc):
     ws = svc.create(
         resource_id=resource_id, ticket=ticket, work_date=date.today(), duration_minutes=30,
         created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
-        tickets_repo=FakeTicketsRepo(assignments=assignments),
+        tickets_repo=FakeTicketsRepo(assignments=assignments), note="ok",
     )
     assert ws.duration_minutes == 30
 
@@ -86,7 +86,7 @@ def test_create_allow_any_bypasses_ownership_and_closed_ticket(svc):
     ws = svc.create(
         resource_id=uuid.uuid4(), ticket=ticket, work_date=date.today(), duration_minutes=15,
         created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
-        tickets_repo=FakeTicketsRepo(), allow_any=True,
+        tickets_repo=FakeTicketsRepo(), allow_any=True, note="ok",
     )
     assert ws.duration_minutes == 15
 
@@ -98,7 +98,7 @@ def test_create_rejects_closed_ticket_without_allow_any(svc):
         svc.create(
             resource_id=resource_id, ticket=ticket, work_date=date.today(), duration_minutes=15,
             created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
-            tickets_repo=FakeTicketsRepo(),
+            tickets_repo=FakeTicketsRepo(), note="ok",
         )
     assert exc.value.code == "ticket_closed"
     assert exc.value.status_code == 409
@@ -111,9 +111,36 @@ def test_create_rejects_future_date(svc):
         svc.create(
             resource_id=resource_id, ticket=ticket, work_date=date.today() + timedelta(days=1),
             duration_minutes=30, created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
-            tickets_repo=FakeTicketsRepo(),
+            tickets_repo=FakeTicketsRepo(), note="ok",
         )
     assert exc.value.code == "future_date"
+
+
+# ── Descripción obligatoria (spec 038 US4, FR-020) ──────────────────────────
+
+@pytest.mark.parametrize("note", [None, "", "   "])
+def test_create_rejects_missing_or_blank_note(svc, note):
+    resource_id = uuid.uuid4()
+    ticket = FakeTicket(assignee_id=resource_id)
+    with pytest.raises(WorkSessionValidationError) as exc:
+        svc.create(
+            resource_id=resource_id, ticket=ticket, work_date=date.today(), duration_minutes=30,
+            created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
+            tickets_repo=FakeTicketsRepo(), note=note,
+        )
+    assert exc.value.code == "note_required"
+    assert exc.value.status_code == 400
+
+
+def test_create_accepts_note_with_surrounding_whitespace(svc):
+    resource_id = uuid.uuid4()
+    ticket = FakeTicket(assignee_id=resource_id)
+    ws = svc.create(
+        resource_id=resource_id, ticket=ticket, work_date=date.today(), duration_minutes=30,
+        created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
+        tickets_repo=FakeTicketsRepo(), note="  Diagnóstico inicial  ",
+    )
+    assert ws.duration_minutes == 30
 
 
 @pytest.mark.parametrize("duration", [0, -10])
@@ -136,7 +163,7 @@ def test_create_rejects_when_daily_limit_exceeded(svc):
     with pytest.raises(WorkSessionValidationError) as exc:
         svc.create(
             resource_id=resource_id, ticket=ticket, work_date=date.today(), duration_minutes=100,
-            created_by=uuid.uuid4(), work_sessions_repo=repo, tickets_repo=FakeTicketsRepo(),
+            created_by=uuid.uuid4(), work_sessions_repo=repo, tickets_repo=FakeTicketsRepo(), note="ok",
         )
     assert exc.value.code == "daily_limit_exceeded"
     assert exc.value.status_code == 400
@@ -174,7 +201,7 @@ def test_create_marks_off_hours_true_when_full_day_unavailable(svc):
         resource_id=resource_id, ticket=ticket, work_date=date(2026, 7, 18), duration_minutes=30,
         created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
         tickets_repo=FakeTicketsRepo(), resource=_resource(id=resource_id),
-        schedule_slots=_SLOTS, holidays=[], absences=[],
+        schedule_slots=_SLOTS, holidays=[], absences=[], note="ok",
     )
     assert ws.off_hours is True
 
@@ -188,6 +215,6 @@ def test_create_marks_off_hours_false_when_within_schedule(svc):
         resource_id=resource_id, ticket=ticket, work_date=date(2026, 7, 20), duration_minutes=30,
         created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
         tickets_repo=FakeTicketsRepo(), resource=_resource(id=resource_id),
-        schedule_slots=_SLOTS, holidays=[], absences=[],
+        schedule_slots=_SLOTS, holidays=[], absences=[], note="ok",
     )
     assert ws.off_hours is False

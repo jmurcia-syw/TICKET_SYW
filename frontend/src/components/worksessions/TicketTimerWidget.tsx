@@ -45,6 +45,7 @@ export default function TicketTimerWidget({ ticketId, ticketStatus, onFinished }
   const [busy, setBusy] = useState(false)
   const [finishOpen, setFinishOpen] = useState(false)
   const [note, setNote] = useState('')
+  const [noteError, setNoteError] = useState<string | undefined>()
   const [displaySeconds, setDisplaySeconds] = useState(0)
   const [noResourceProfile, setNoResourceProfile] = useState(false)
   const fetchedAtRef = useRef<number>(Date.now())
@@ -101,12 +102,20 @@ export default function TicketTimerWidget({ ticketId, ticketStatus, onFinished }
   }
 
   const handleFinish = async () => {
+    // spec 038 US4 (FR-020): "Terminar" genera un Registro de tiempo igual que la carga manual
+    // (`TicketTimerService.finish()` reutiliza `WorkSessionService.create()` tal cual) — la
+    // descripción pasa a ser obligatoria ahí también, ya no "Nota opcional".
+    if (!note.trim()) {
+      setNoteError('La descripción es requerida')
+      return
+    }
     setBusy(true)
     try {
-      await timerService.finish(note.trim() || undefined)
+      await timerService.finish(note.trim())
       message.success('Registro de tiempo creado a partir del cronómetro')
       setFinishOpen(false)
       setNote('')
+      setNoteError(undefined)
       await load()
       onFinished?.()
     } catch (err) {
@@ -181,7 +190,7 @@ export default function TicketTimerWidget({ ticketId, ticketStatus, onFinished }
       <Modal
         title="Terminar cronómetro"
         open={finishOpen}
-        onCancel={() => setFinishOpen(false)}
+        onCancel={() => { setFinishOpen(false); setNoteError(undefined) }}
         onOk={handleFinish}
         confirmLoading={busy}
         okText="Terminar y registrar tiempo"
@@ -189,11 +198,13 @@ export default function TicketTimerWidget({ ticketId, ticketStatus, onFinished }
       >
         <p>Se creará un Registro de tiempo de <strong>{formatHMS(displaySeconds)}</strong> en este ticket.</p>
         <Input.TextArea
-          placeholder="Nota opcional"
+          placeholder="Descripción"
           value={note}
-          onChange={e => setNote(e.target.value)}
+          onChange={e => { setNote(e.target.value); if (noteError) setNoteError(undefined) }}
           rows={2}
+          status={noteError ? 'error' : undefined}
         />
+        {noteError && <div style={{ color: palette.red600, fontSize: 12, marginTop: 4 }}>{noteError}</div>}
       </Modal>
     </div>
   )

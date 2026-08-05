@@ -777,18 +777,25 @@ class ResourceWorkSchedule(Resource):
     @ns.response(200, "Horario laboral del recurso (default si no tiene franjas propias)", _work_schedule_out)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(401, "No autenticado (token ausente o invalido)", _error)
-    @ns.response(403, "Sin permiso para ver este recurso", _error)
+    @ns.response(403, "Sin resources:edit y el recurso consultado no es el propio", _error)
     @ns.response(404, "Recurso no encontrado", _error)
     @ns.response(500, "Error interno del servidor", _error)
     def get(self, resource_id: str):
-        """Franjas semanales del recurso; `is_default=true` cuando no tiene filas propias (FR-006)."""
+        """Franjas semanales del recurso; `is_default=true` cuando no tiene filas propias
+        (FR-006). Sin `resources:edit` (permiso de administración sobre recursos), un actor solo
+        puede consultar la franja de SU PROPIO recurso — acota el Calendario de Equipo a Admin/
+        Coordinador/QM; Resolutor (solo `resources:view`) queda limitado a su propio calendario
+        (spec 038, US1)."""
         rid = parse_uuid(resource_id)
         if not rid:
             return {"error": "validation_error", "message": "ID inválido"}, 400
         try:
             db = get_db()
-            if not ResourceRepository(db).get_by_id(rid):
+            target = ResourceRepository(db).get_by_id(rid)
+            if not target:
                 return {"error": "not_found", "message": "Recurso no encontrado"}, 404
+            if not current_user_has("resources", "edit") and target.user_id != g.current_user.id:
+                return {"error": "forbidden", "message": "Acceso denegado"}, 403
             slots = WorkScheduleRepository(db).list_by_resource(rid)
             return _work_schedule_to_dict(slots), 200
         except Exception:

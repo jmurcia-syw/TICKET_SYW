@@ -1,3 +1,5 @@
+import logging
+import os
 import secrets
 import uuid
 
@@ -5,6 +7,7 @@ from flask_restx import Namespace, Resource, fields
 from backend.infra.repositories.user_repo import UserRepository
 from backend.infra.repositories.role_repo import RoleRepository
 from backend.infra.database import get_db
+from backend.infra.email.mailer import send_welcome_email
 from backend.domain.entities.user import User
 from backend.domain.services.role_service import RoleService, RoleBusinessError
 from backend.domain.services.auth_service import AuthService
@@ -13,6 +16,7 @@ from backend.api.routes._shared import parse_uuid, error_model, server_error
 ns = Namespace("users", description="Gestión de usuarios y roles del sistema", path="/api/users")
 _svc = RoleService()
 _auth_svc = AuthService()
+_logger = logging.getLogger(__name__)
 
 ALLOWED_EMAIL_DOMAIN = "sywork.net"
 
@@ -53,11 +57,19 @@ _user_create_input = ns.model("UserCreateInput", {
     "email": fields.String(required=True, description="Email corporativo (@sywork.net)", example="nombre.apellido@sywork.net"),
     "username": fields.String(required=True, description="Nombre de usuario", example="nombre.apellido"),
     "role_id": fields.String(required=True, description="UUID del rol a asignar"),
+    "notify": fields.Boolean(
+        description="spec 038 US5: si es true, envía un correo de bienvenida HTML con la "
+                    "contraseña temporal y un enlace de cambio válido 30 min (mismo token que "
+                    "'¿Olvidaste tu contraseña?', spec 003). Default false.",
+        default=False),
 })
 
 _user_create_out = ns.model("UserCreateResult", {
     "user": fields.Nested(_user_out),
     "provisional_password": fields.String(description="Contraseña provisional en texto plano — se muestra una única vez"),
+    "notification_sent": fields.Boolean(
+        description="spec 038 US5: true si notify=true y el correo de bienvenida se envió sin "
+                    "error. Un fallo de envío nunca revierte la creación del usuario."),
 })
 
 _reset_password_out = ns.model("UserResetPasswordResult", {
@@ -160,8 +172,25 @@ class UserList(Resource):
                 password_hash=_auth_svc.hash_password(provisional_password),
             )
             created = repo.create(new_user)
+
+            notification_sent = False
+            if bool(data.get("notify")):
+                # spec 038 US5: reutiliza el mismo token de un solo uso + expiración de 30 min
+                # que "¿Olvidaste tu contraseña?" (spec 003) — un fallo de envío nunca revierte
+                # la creación del usuario, solo se refleja en `notification_sent`.
+                try:
+                    token, expires_at = _auth_svc.generate_reset_token()
+                    repo.set_reset_token(created.id, token, expires_at)
+                    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+                    reset_link = f"{frontend_url}/reset-password?token={token}"
+                    send_welcome_email(created.email, created.username, provisional_password, reset_link)
+                    notification_sent = True
+                except Exception:
+                    _logger.exception("Fallo al enviar el correo de bienvenida a %s", created.email)
+
             return (
-                {"user": _user_to_dict(created), "provisional_password": provisional_password},
+                {"user": _user_to_dict(created), "provisional_password": provisional_password,
+                 "notification_sent": notification_sent},
                 201,
                 {"Location": f"/api/users/{created.id}"},
             )

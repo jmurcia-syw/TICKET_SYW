@@ -7,6 +7,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import { calendarService } from '../services/calendarService'
 import { clientService } from '../services/clientService'
 import { resourceService } from '../services/resourceService'
+import { useAuthStore } from '../store/authStore'
 import { avatarColor, palette, CALENDAR_CATEGORY_COLORS } from '../theme'
 import type { ClientListItem } from '../types/client'
 import type { Resource } from '../types/resource'
@@ -263,6 +264,11 @@ function WorkloadPanel({ resources }: { resources: Resource[] }) {
 }
 
 export default function CalendarPage() {
+  // US1 (spec 038): sin `resources:edit` (permiso de administración sobre recursos, Admin/
+  // Coordinador/QM), el Calendario de Equipo se acota al propio recurso del actor — mismo
+  // gate ya reforzado server-side en `GET /resources/{id}/work-schedule` (calendar.py).
+  const { hasPermission } = useAuthStore()
+  const canViewTeamCalendars = hasPermission('resources', 'edit')
   const [clients, setClients] = useState<ClientListItem[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string>()
   const [resources, setResources] = useState<Resource[]>([])
@@ -273,8 +279,16 @@ export default function CalendarPage() {
   useEffect(() => {
     clientService.list({ active: true, page_size: 200 }).then(r => setClients(r.items))
       .catch(() => message.error('No se pudo cargar la lista de clientes'))
-    resourceService.list({ active: true, page_size: 200 }).then(r => setResources(r.items))
-      .catch(() => message.error('No se pudo cargar la lista de recursos'))
+    if (canViewTeamCalendars) {
+      resourceService.list({ active: true, page_size: 200 }).then(r => setResources(r.items))
+        .catch(() => message.error('No se pudo cargar la lista de recursos'))
+    } else {
+      resourceService.me().then(own => {
+        setResources([own])
+        setSelectedResourceIds([own.id])
+      }).catch(() => undefined)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const selectedClient = clients.find(c => c.id === selectedClientId)
@@ -315,16 +329,18 @@ export default function CalendarPage() {
       children: (
         <Space direction="vertical" style={{ width: '100%' }} size={16}>
           <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Space wrap>
-              <Select
-                mode="multiple" placeholder="Selecciona miembros del equipo" showSearch optionFilterProp="label"
-                style={{ minWidth: 360 }} value={selectedResourceIds} onChange={setSelectedResourceIds}
-                options={resources.map(r => ({ value: r.id, label: r.full_name }))}
-              />
-              <Button onClick={() => setSelectedResourceIds(allSelected ? [] : resources.map(r => r.id))}>
-                {allSelected ? 'Quitar selección' : 'Seleccionar todo'}
-              </Button>
-            </Space>
+            {canViewTeamCalendars
+              ? <Space wrap>
+                  <Select
+                    mode="multiple" placeholder="Selecciona miembros del equipo" showSearch optionFilterProp="label"
+                    style={{ minWidth: 360 }} value={selectedResourceIds} onChange={setSelectedResourceIds}
+                    options={resources.map(r => ({ value: r.id, label: r.full_name }))}
+                  />
+                  <Button onClick={() => setSelectedResourceIds(allSelected ? [] : resources.map(r => r.id))}>
+                    {allSelected ? 'Quitar selección' : 'Seleccionar todo'}
+                  </Button>
+                </Space>
+              : <Typography.Text type="secondary">Tu calendario personal.</Typography.Text>}
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setAbsenceModalOpen(true)}>
               Solicitar permiso
             </Button>

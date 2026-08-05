@@ -11,6 +11,7 @@ import type { Resource } from '../types/resource'
 import { getKanbanTransition, reachableFrom } from '../config/kanbanTransitions'
 import PriorityBadge from '../components/tickets/PriorityBadge'
 import AssignModal from '../components/tickets/AssignModal'
+import CreateTicketModal from '../components/tickets/CreateTicketModal'
 import SavedFiltersBar from '../components/tickets/SavedFiltersBar'
 import { avatarColor, initials, palette, vivid, TICKET_STATUS_CHIP } from '../theme'
 import { useAuthStore } from '../store/authStore'
@@ -86,8 +87,20 @@ export default function KanbanPage() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => {
+    // spec 038 US1 (FR-006): sin tickets:view (Resolutor, solo view_assigned) el backend ya
+    // fuerza assignee_id al propio recurso — el filtro "Asignado" no puede filtrar por nadie
+    // más, así que no tiene sentido descargar el catálogo completo de Equipo para poblarlo.
+    if (!hasPermission('tickets', 'view')) return
     resourceService.list({ active: true, page_size: 100 }).then(r => setResources(r.items))
       .catch(() => message.error('No se pudo cargar la lista de recursos'))
+  }, [hasPermission])
+  // US1 (spec 038): sin `tickets:view` (Resolutor, con solo `tickets:view_assigned`), el
+  // backend ya fuerza `assignee_id` al propio recurso — este default solo refleja ese
+  // scoping en el filtro visible, editable después por el usuario como hoy.
+  useEffect(() => {
+    if (hasPermission('tickets', 'view')) return
+    resourceService.me().then(own => setAssigneeFilter(prev => prev ?? own.id)).catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleDragEnd = (result: DropResult) => {
@@ -225,9 +238,11 @@ export default function KanbanPage() {
           <Select mode="multiple" placeholder="Estados" allowClear style={{ minWidth: 170 }}
             value={statusFilter} onChange={setStatusFilter} maxTagCount={2}
             options={BOARD_STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] }))} />
-          <Select placeholder="Asignado" allowClear showSearch optionFilterProp="label" style={{ width: 160 }}
-            value={assigneeFilter} onChange={setAssigneeFilter}
-            options={resources.map(r => ({ value: r.id, label: r.full_name }))} />
+          {hasPermission('tickets', 'view') && (
+            <Select placeholder="Asignado" allowClear showSearch optionFilterProp="label" style={{ width: 160 }}
+              value={assigneeFilter} onChange={setAssigneeFilter}
+              options={resources.map(r => ({ value: r.id, label: r.full_name }))} />
+          )}
           <Select placeholder="Prioridad" allowClear style={{ width: 120 }}
             value={priorityFilter} onChange={setPriorityFilter} options={priorityOptions} />
           <Select placeholder="Nivel" allowClear style={{ width: 90 }}
@@ -238,6 +253,9 @@ export default function KanbanPage() {
 
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <SavedFiltersBar currentCriteria={currentCriteria} onApply={applySavedFilter} />
+        {/* spec 038 US1: un Resolutor (solo tickets:view_assigned) ya no llega a /tickets — este
+           es su único punto de entrada para crear un Ticket/Tarea nuevo. */}
+        <CreateTicketModal onCreated={load} />
       </div>
 
       {loading && !columns ? (
