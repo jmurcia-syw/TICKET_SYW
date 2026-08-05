@@ -446,9 +446,18 @@ export default function TicketDetailPage() {
               ? <em>Sin transiciones todavía</em>
               : ticket.transitions.map(t => (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 6 }}>
-                  <TicketStatusTag status={t.from_status as TicketDetail['status']} />
-                  <span style={{ color: palette.slate400 }}>→</span>
-                  <TicketStatusTag status={t.to_status as TicketDetail['status']} />
+                  {t.is_creation ? (
+                    <>
+                      <span>Ticket creado en estado</span>
+                      <TicketStatusTag status={t.to_status as TicketDetail['status']} />
+                    </>
+                  ) : (
+                    <>
+                      <TicketStatusTag status={t.from_status as TicketDetail['status']} />
+                      <span style={{ color: palette.slate400 }}>→</span>
+                      <TicketStatusTag status={t.to_status as TicketDetail['status']} />
+                    </>
+                  )}
                   <span style={{ color: palette.slate400, marginLeft: 4 }}>{new Date(t.created_at).toLocaleString('es-CO')}</span>
                   {t.elapsed_seconds != null && (
                     <span style={{ color: palette.slate400 }}>· {formatDuration(t.elapsed_seconds)} en el estado anterior</span>

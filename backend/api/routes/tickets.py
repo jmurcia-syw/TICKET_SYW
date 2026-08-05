@@ -220,6 +220,9 @@ _transition_out = ns.model("TicketStatusTransition", {
         description="Fase de SLA que cierra esta transición: 'contacto' | 'ejecucion' | null"),
     "sla_met": fields.Boolean(allow_null=True,
         description="true=✅ cumplió el SLA de esa fase, false=⚠️/❌ lo incumplió, null=sin SLA aplicable"),
+    "is_creation": fields.Boolean(
+        description="true en la entrada de auditoría inicial (from_status sentinel 'creado', "
+                    "spec 038 FR-014) — el frontend la renderiza como creación, no como cambio de estado"),
 })
 
 _assignment_context_out = ns.model("AssignmentContext", {
@@ -602,7 +605,13 @@ def _transitions_with_sla(db, ticket: Ticket) -> list[dict]:
     if resource:
         ctx["absences"] = AbsenceRequestRepository(db).list_approved_between(
             resource.id, ticket.created_at.date(), datetime.now(timezone.utc).date())
-    return sla_service.compute_transition_compliance(ticket, transitions, **ctx)
+    enriched = sla_service.compute_transition_compliance(ticket, transitions, **ctx)
+    # spec 038 US2 (FR-014): distingue la entrada de auditoría inicial (`from_status == "creado"`,
+    # sentinel — no es una transición real del FSM) para que el frontend la renderice como
+    # "Ticket creado en estado {to_status}" en vez del formato habitual "cambio de X a Y".
+    for t in enriched:
+        t["is_creation"] = t["from_status"] == "creado"
+    return enriched
 
 
 # ── Helpers de autoría (FR-028) ───────────────────────────────────────────────
@@ -707,20 +716,28 @@ class TicketList(Resource):
     @ns.response(200, "Listado de tickets", _ticket_list_out)
     @ns.response(400, "Parámetros inválidos", _error)
     @ns.response(401, "No autenticado", _error)
-    @ns.response(403, "Sin permiso tickets:view ni tickets:view_own", _error)
+    @ns.response(403, "Sin permiso tickets:view, tickets:view_own ni tickets:view_assigned", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_authenticated()
     def get(self):
         """Listado paginado con filtros combinables. Con solo `tickets:view_own`
-        (Usuario/cliente) se ignora cualquier filtro y se fuerza `created_by = usuario actual`."""
-        if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")):
+        (Usuario/cliente) se ignora cualquier filtro y se fuerza `created_by = usuario actual`.
+        Con solo `tickets:view_assigned` (Resolutor, spec 038 US1) se preservan los demás
+        filtros recibidos pero se fuerza `assignee_id = resource_id del actor`, ignorando
+        cualquier `assignee_id` enviado en la query — sin recurso propio, devuelve una página
+        vacía en vez de error."""
+        has_view = current_user_has("tickets", "view")
+        has_view_own = current_user_has("tickets", "view_own")
+        has_view_assigned = current_user_has("tickets", "view_assigned")
+        if not (has_view or has_view_own or has_view_assigned):
             return {"error": "forbidden", "message": "Acceso denegado"}, 403
         try:
             page = max(1, int(request.args.get("page", 1)))
             page_size = min(max(1, int(request.args.get("page_size", 20))), 100)
         except ValueError:
             return {"error": "validation_error", "message": "page y page_size deben ser enteros"}, 400
-        own_only = not current_user_has("tickets", "view")
+        own_only = has_view_own and not has_view
+        assigned_only = has_view_assigned and not has_view and not has_view_own
         statuses = None if own_only else (request.args.getlist("status") or None)
         sla_expiring_within_hours = None
         if not own_only and request.args.get("sla_expiring_within_hours") is not None:
@@ -731,6 +748,12 @@ class TicketList(Resource):
                         "message": "sla_expiring_within_hours debe ser un entero"}, 400
         try:
             db = get_db()
+            forced_assignee_id = None
+            if assigned_only:
+                actor_resource = ResourceRepository(db).get_by_user_id(g.current_user.id)
+                if not actor_resource:
+                    return {"items": [], "total": 0, "page": page, "page_size": page_size}, 200
+                forced_assignee_id = actor_resource.id
             items, total = TicketRepository(db).list_paginated(
                 page=page, page_size=page_size,
                 search=None if own_only else (request.args.get("search", "").strip() or None),
@@ -740,7 +763,8 @@ class TicketList(Resource):
                 priority=None if own_only else (request.args.get("priority") or None),
                 severity=None if own_only else (request.args.get("severity") or None),
                 ticket_type=None if own_only else (request.args.get("ticket_type") or None),
-                assignee_id=None if own_only else (parse_uuid(request.args.get("assignee_id") or "") or None),
+                assignee_id=forced_assignee_id if assigned_only else (
+                    None if own_only else (parse_uuid(request.args.get("assignee_id") or "") or None)),
                 escalation_level=None if own_only else (request.args.get("escalation_level") or None),
                 sort=request.args.get("sort", "urgency"),
                 created_by=g.current_user.id if own_only else None,
@@ -840,11 +864,12 @@ class TicketList(Resource):
             if parent_task_id and not is_task:
                 return {"error": "validation_error",
                         "message": "Solo una Tarea puede tener parent_task_id (Subtarea)"}, 400
-            # OBS-0045: Proyecto y Usuario/cliente pasan a ser obligatorios al crear un Ticket
-            # (no Tarea) desde perfil interno — el autoservicio (is_encargado) y las Tareas
-            # conservan el comportamiento previo (ambos opcionales). Un proyecto sin ningún
-            # contacto cargado no bloquea la creación (no dejar al usuario sin salida) — solo se
-            # exige `client_contact_id` cuando el proyecto sí tiene contactos disponibles.
+            # OBS-0045 (spec 033) + spec 038 US4 (FR-018): Proyecto y Usuario/cliente son
+            # obligatorios al crear un Ticket (no Tarea) desde perfil interno — el autoservicio
+            # (is_encargado) y las Tareas conservan el comportamiento previo (ambos opcionales).
+            # Un proyecto sin ningún contacto cargado no bloquea la creación (no dejar al usuario
+            # sin salida, research.md-equivalente de spec 033) — solo se exige `client_contact_id`
+            # cuando el proyecto sí tiene contactos disponibles para elegir.
             if not is_encargado and not is_task:
                 if not project_id:
                     return {"error": "validation_error",
@@ -966,6 +991,14 @@ class TicketList(Resource):
                 **sla_fields,
             )
             created = TicketRepository(db).create(ticket)
+            # spec 038 US2 (FR-014): entrada de auditoría inicial del Historial de Estados —
+            # `from_status="creado"` es un valor sentinel (no un estado real del FSM), reconocido
+            # por `_transitions_with_sla()` para renderizar "Ticket creado en estado {to_status}"
+            # en vez del formato habitual de transición (research.md Decisión 5).
+            TicketRepository(db).add_transition(
+                ticket_id=created.id, from_status="creado", to_status=created.status,
+                actor_id=g.current_user.id, comment_id=None,
+            )
             # spec 036, US1 (FR-003): copia el set de Skills requeridas de la Tarea padre cuando
             # el alta de la Subtarea no trae `skill_ids` propios (las Skills no viajan en este
             # POST — spec 011 — se aplican vía el mismo mecanismo que `PATCH /skills`).
@@ -1000,23 +1033,34 @@ class TicketDetail(Resource):
     @ns.response(200, "Detalle del ticket (campos, locked_fields, close_eligible, historiales)", _ticket_detail_out)
     @ns.response(400, "UUID inválido", _error)
     @ns.response(401, "No autenticado", _error)
-    @ns.response(403, "Sin permiso tickets:view ni tickets:view_own", _error)
-    @ns.response(404, "Ticket no encontrado (o, con solo tickets:view_own, ticket ajeno)", _error)
+    @ns.response(403, "Sin permiso tickets:view, tickets:view_own ni tickets:view_assigned", _error)
+    @ns.response(404, "Ticket no encontrado (o, con solo tickets:view_own/view_assigned, ticket "
+                      "ajeno/no asignado al actor)", _error)
     @ns.response(500, "Error interno del servidor", _error)
     @require_authenticated()
     def get(self, ticket_id: str):
         """Detalle completo: campos, locked_fields, close_eligible, historiales. Con solo
         `tickets:view_own` (Usuario/cliente), un ticket ajeno responde 404 (no 403 — no confirma
-        su existencia)."""
-        if not (current_user_has("tickets", "view") or current_user_has("tickets", "view_own")):
+        su existencia). Con solo `tickets:view_assigned` (Resolutor, spec 038 US1), un ticket no
+        asignado al actor responde igual 404."""
+        has_view = current_user_has("tickets", "view")
+        has_view_own = current_user_has("tickets", "view_own")
+        has_view_assigned = current_user_has("tickets", "view_assigned")
+        if not (has_view or has_view_own or has_view_assigned):
             return {"error": "forbidden", "message": "Acceso denegado"}, 403
         try:
             db = get_db()
             ticket, err = _get_ticket_or_404(db, ticket_id)
             if err:
                 return err
-            if not current_user_has("tickets", "view") and ticket.created_by != g.current_user.id:
-                return {"error": "not_found", "message": "Ticket no encontrado"}, 404
+            if not has_view:
+                if has_view_own:
+                    if ticket.created_by != g.current_user.id:
+                        return {"error": "not_found", "message": "Ticket no encontrado"}, 404
+                else:
+                    actor_resource = ResourceRepository(db).get_by_user_id(g.current_user.id)
+                    if not actor_resource or ticket.assignee_id != actor_resource.id:
+                        return {"error": "not_found", "message": "Ticket no encontrado"}, 404
             return _ticket_detail(ticket, db), 200
         except Exception:
             return server_error()
@@ -1696,17 +1740,27 @@ class TicketAttachment(Resource):
     @ns.response(200, "Archivo (stream binario con el content-type original)")
     @ns.response(400, "UUID inválido", _error)
     @ns.response(401, "No autenticado", _error)
-    @ns.response(403, "Sin permiso tickets:view", _error)
+    @ns.response(403, "Sin permiso tickets:view (ni tickets:view_assigned sobre este ticket)", _error)
     @ns.response(404, "Adjunto no encontrado o ruta inválida", _error)
     @ns.response(500, "Error interno del servidor", _error)
-    @require_permission("tickets", "view")
+    @require_authenticated()
     def get(self, ticket_id: str, attachment_id: str):
-        """Descarga autenticada de un adjunto"""
+        """Descarga autenticada de un adjunto. Con solo `tickets:view_assigned` (Resolutor,
+        spec 038 US1), solo se permite si el adjunto pertenece a un ticket asignado al actor."""
+        tid = parse_uuid(ticket_id)
         aid = parse_uuid(attachment_id)
-        if not aid:
-            return {"error": "validation_error", "message": "ID de adjunto inválido"}, 400
+        if not tid or not aid:
+            return {"error": "validation_error", "message": "ID de ticket o adjunto inválido"}, 400
+        db = get_db()
+        has_view = current_user_has("tickets", "view")
+        if not has_view:
+            if not current_user_has("tickets", "view_assigned"):
+                return {"error": "forbidden", "message": "Acceso denegado"}, 403
+            ticket = TicketRepository(db).get_by_id(tid)
+            actor_resource = ResourceRepository(db).get_by_user_id(g.current_user.id) if ticket else None
+            if not ticket or not actor_resource or ticket.assignee_id != actor_resource.id:
+                return {"error": "not_found", "message": "Adjunto no encontrado"}, 404
         try:
-            db = get_db()
             attachment = CommentRepository(db).get_attachment(aid)
             if not attachment:
                 return {"error": "not_found", "message": "Adjunto no encontrado"}, 404

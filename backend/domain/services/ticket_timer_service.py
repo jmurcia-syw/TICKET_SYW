@@ -142,9 +142,14 @@ class TicketTimerService:
         if current.total_seconds(now) < MIN_FINISH_SECONDS:
             timer_repo.save(TicketTimer(resource_id=ticket.assignee_id))
             return None
+        # spec 038 US4 (FR-020): `note` pasó a ser obligatoria en `WorkSessionService.create()` —
+        # este efecto lateral automático no tiene un texto de usuario que ofrecer, así que usa
+        # una descripción fija en su lugar (no puede pedirle nota a nadie: se dispara al cerrar
+        # el ticket, no al detener el cronómetro manualmente).
         return self.finish(
             resource_id=ticket.assignee_id, created_by=created_by, timer_repo=timer_repo,
             tickets_repo=tickets_repo, work_sessions_repo=work_sessions_repo,
+            note="Tiempo registrado automáticamente al cerrar el ticket con el cronómetro activo",
             is_task=is_task, resources_repo=resources_repo, now=now,
             calendar_context=calendar_context,
         )

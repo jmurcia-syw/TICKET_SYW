@@ -39,27 +39,31 @@ TRANSITIONS: list[dict] = [
 
 # Etiquetas en español de las acciones, para mensajes de error útiles (FR-008)
 
-# ── SLA (Fase 4, spec 014) — diccionarios de solo lectura, no alteran TRANSITIONS ──────────
+# ── SLA (Fase 4, spec 014; corregido spec 038 US2 FR-009/FR-012) — diccionarios de solo
+# lectura, no alteran TRANSITIONS ──────────────────────────────────────────────────────────
 #
 # 2 fases de SLA (data-model.md, revisado 2026-07-14 según docs/SLAv1.xlsx): "Contacto" y
-# "Diagnóstico, Análisis y Ejecución". OJO: el estado FSM `contacto` mapea a la fase de SLA
-# `ejecucion`, NO a la fase de SLA `contacto` — es una colisión de nombres intencional (al
-# ENTRAR al estado `contacto` es cuando la fase de Contacto se da por completada/congelada y
-# arranca a medirse la fase de Ejecución). No copiar `SLA_PHASE_FOR_STATE[s] = s` a ciegas.
+# "Diagnóstico, Análisis y Ejecución". El estado FSM `contacto` (alcanzado al asignar resolutor)
+# mapea a la fase de SLA `contacto` — el reloj de Contacto sigue corriendo mientras el ticket
+# está asignado pero aún no analizado, y se congela recién al entrar a `en_analisis` (spec 038
+# FR-009/FR-010; research.md Decisión 3 — reemplaza el congelamiento en el momento de asignación
+# de spec 014, que medía la fase de Ejecución bajo el nombre `ejecucion` desde ese instante).
 SLA_PHASE_FOR_STATE: dict[str, str | None] = {
     "nuevo": "contacto",
     "pre_analisis": "contacto",
-    "contacto": "ejecucion",
+    "contacto": "contacto",
     "en_analisis": "ejecucion",
     "en_ejecucion": "ejecucion",
     "en_pruebas": "ejecucion",
     "pendiente_usuario": None,  # mantiene la fase vigente, no la cambia (solo pausa)
-    "resuelto": "cerrado",
+    "resuelto": "ejecucion",
     "cerrado": "cerrado",
     "cancelado": "cerrado",
 }
 
-# Estados cuyo tiempo transcurrido cuenta para el consumo de SLA (FR-004/FR-005).
+# Estados cuyo tiempo transcurrido cuenta para el consumo de SLA (FR-004/FR-005). `resuelto`
+# sigue contando (spec 038 FR-011) — el congelamiento del resultado de Resolución ocurre recién
+# al pasar a `cerrado`/`cancelado` (ver `sla_service.py`), no al entrar a `resuelto`.
 STATE_COUNTS_FOR_SLA: dict[str, bool] = {
     "nuevo": True,
     "pre_analisis": True,
@@ -68,7 +72,7 @@ STATE_COUNTS_FOR_SLA: dict[str, bool] = {
     "en_ejecucion": True,
     "en_pruebas": True,
     "pendiente_usuario": False,
-    "resuelto": False,
+    "resuelto": True,
     "cerrado": False,
     "cancelado": False,
 }

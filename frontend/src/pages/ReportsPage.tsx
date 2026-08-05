@@ -120,9 +120,16 @@ export default function ReportsPage() {
 
   useEffect(() => {
     clientService.list({ page_size: 200 }).then(r => setClients(r.items)).catch(() => message.error('No se pudo cargar la lista de clientes'))
-    projectService.list({ page_size: 200 }).then(r => setProjects(r.items)).catch(() => message.error('No se pudo cargar la lista de proyectos'))
     resourceService.list({ page_size: 200 }).then(r => setResources(r.items)).catch(() => message.error('No se pudo cargar la lista de recursos'))
   }, [])
+
+  // spec 038 US4 (FR-016/FR-017): el selector de Proyecto se acota al Cliente elegido — sin
+  // Cliente, sigue mostrando todos los proyectos (los Reportes no exigen Cliente primero, a
+  // diferencia del alta de Ticket/Tarea).
+  useEffect(() => {
+    projectService.list({ page_size: 200, client_id: clientId }).then(r => setProjects(r.items))
+      .catch(() => message.error('No se pudo cargar la lista de proyectos'))
+  }, [clientId, message])
 
   const filters: ReportFilters = {
     date_from: dateFrom || undefined,
@@ -232,9 +239,12 @@ export default function ReportsPage() {
           <Input type="date" value={dateTo} min={dateFrom || undefined}
             onChange={(e) => { setPage(1); setDateTo(e.target.value) }} style={{ width: 150 }} />
           <Select placeholder="Cliente" allowClear showSearch optionFilterProp="label" style={{ width: 180 }}
-            onChange={(v) => { setPage(1); setClientId(v) }}
+            value={clientId}
+            // spec 038 US4 (FR-017): cambiar de Cliente limpia el Proyecto ya elegido.
+            onChange={(v) => { setPage(1); setClientId(v); setProjectId(undefined) }}
             options={clients.map(c => ({ value: c.id, label: c.name }))} />
           <Select placeholder="Proyecto" allowClear showSearch optionFilterProp="label" style={{ width: 180 }}
+            value={projectId}
             onChange={(v) => { setPage(1); setProjectId(v) }}
             options={projects.map(p => ({ value: p.id, label: p.name }))} />
           <Select placeholder="Encargado" allowClear showSearch optionFilterProp="label" style={{ width: 200 }}

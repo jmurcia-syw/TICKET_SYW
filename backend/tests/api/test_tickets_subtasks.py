@@ -208,7 +208,7 @@ def test_changing_subtask_status_does_not_affect_parent(
     # OBS-0026: cerrar (transición a 'cerrado') ahora exige tiempo registrado.
     ws = client.post("/api/work-sessions", json={
         "ticket_id": subtask["id"], "resource_id": assignee["id"],
-        "work_date": date.today().isoformat(), "duration_minutes": 30,
+        "work_date": date.today().isoformat(), "duration_minutes": 30, "note": "Nota de prueba",
     })
     assert ws.status_code == 201, ws.get_json()
 
@@ -226,7 +226,10 @@ def test_simple_comment_on_task_has_no_transition(
     assert resp.status_code == 201, resp.get_json()
 
     detail = client.get(f"/api/tickets/{tarea['id']}").get_json()
-    assert len(detail["transitions"]) == 0
+    # spec 038 US2 (FR-014): toda Tarea nace con 1 transición de auditoría (from_status="creado")
+    # — un comentario simple (sin cambio de estado) no agrega ninguna transición adicional.
+    assert len(detail["transitions"]) == 1
+    assert detail["transitions"][0]["is_creation"] is True
     assert any(c["body"] == "Nota simple" for c in detail["comments"])
 
 

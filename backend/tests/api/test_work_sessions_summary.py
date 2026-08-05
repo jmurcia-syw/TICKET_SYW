@@ -8,9 +8,10 @@ def _assign(client, ticket_id, resource_id):
 
 
 def _create_ws(client, ticket_id, auth, duration_minutes, work_date):
+    # spec 038 US4 (FR-020): note pasó a ser obligatoria.
     return client.post("/api/work-sessions", json={
         "ticket_id": ticket_id, "work_date": work_date.isoformat(),
-        "duration_minutes": duration_minutes,
+        "duration_minutes": duration_minutes, "note": "Nota de prueba",
     }, headers=auth)
 
 

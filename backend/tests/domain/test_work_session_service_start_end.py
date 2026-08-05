@@ -56,7 +56,7 @@ def test_create_calculates_duration_from_start_end(svc):
     ws = svc.create(
         resource_id=resource_id, ticket=ticket, work_date=date(2026, 7, 8),
         created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
-        tickets_repo=FakeTicketsRepo(), started_at=_dt(14), ended_at=_dt(18),
+        tickets_repo=FakeTicketsRepo(), started_at=_dt(14), ended_at=_dt(18), note="ok",
     )
     assert ws.duration_minutes == 240
     assert ws.started_at == _dt(14)
@@ -69,7 +69,7 @@ def test_create_ignores_explicit_duration_when_range_given(svc):
     ws = svc.create(
         resource_id=resource_id, ticket=ticket, work_date=date(2026, 7, 8),
         duration_minutes=999, created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
-        tickets_repo=FakeTicketsRepo(), started_at=_dt(14), ended_at=_dt(18, 30),
+        tickets_repo=FakeTicketsRepo(), started_at=_dt(14), ended_at=_dt(18, 30), note="ok",
     )
     assert ws.duration_minutes == 270
 
@@ -80,7 +80,7 @@ def test_create_allows_manual_duration_without_range(svc):
     ws = svc.create(
         resource_id=resource_id, ticket=ticket, work_date=date(2026, 7, 8),
         duration_minutes=90, created_by=uuid.uuid4(), work_sessions_repo=FakeWorkSessionsRepo(),
-        tickets_repo=FakeTicketsRepo(),
+        tickets_repo=FakeTicketsRepo(), note="ok",
     )
     assert ws.duration_minutes == 90
     assert ws.started_at is None

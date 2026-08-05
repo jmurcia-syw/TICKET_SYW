@@ -27,11 +27,26 @@ export const maestrosNavItems: NavLeaf[] = [
   { key: '/catalogs', icon: <TagsOutlined />, label: 'Catálogos', module: 'catalogs' },
 ]
 
-/** Ítems de la Fase 1 — Tickets (van al nivel raíz del menú, antes de Maestros). */
+/** FR-006 (spec 038, US1): un Resolutor no debe descargar los catálogos administrativos
+ * completos (Clientes, Proyectos, Equipo, Skills, Catálogos — Herramientas/Procesos/Tipos de
+ * resolución/Tipos de acceso viven como pestañas dentro de este último) en su sesión — sigue
+ * teniendo el permiso `view` de cada módulo porque lo necesita para selects acotados puntuales
+ * (p. ej. Cliente/Proyecto al crear un ticket, `CreateTicketModal.tsx`), así que la restricción
+ * es de navegación (oculta el ítem + bloquea la ruta), no de RBAC. Admin/Coordinador/QM no se
+ * ven afectados — la restricción es explícitamente solo para Resolutor (FR-015: no fusionar
+ * implícitamente las capacidades de Resolutor y QM).
+ */
+const RESOLUTOR_HIDDEN_MAESTROS_KEYS = new Set(['/clients', '/projects', '/team', '/skills', '/catalogs'])
+
+/** Ítems de la Fase 1 — Tickets (van al nivel raíz del menú, antes de Maestros).
+ *
+ * `/tickets` (vista global) queda deliberadamente fuera de `view_assigned` — spec 038 US1
+ * restringe esa vista a Coordinador/Admin (`view`) y Usuario/cliente (`view_own`); Resolutor
+ * (solo `view_assigned`) conserva Kanban y Mis Tareas, ambos acotados a lo asignado a él. */
 export const ticketsNavItems: NavLeaf[] = [
   { key: '/tickets', icon: <FileTextOutlined />, label: 'Tickets', module: 'tickets', action: ['view', 'view_own'] },
-  { key: '/my-tasks', icon: <UnorderedListOutlined />, label: 'Mis Tareas', module: 'tickets', action: ['view', 'view_own'] },
-  { key: '/kanban', icon: <AppstoreOutlined />, label: 'Kanban', module: 'tickets' },
+  { key: '/my-tasks', icon: <UnorderedListOutlined />, label: 'Mis Tareas', module: 'tickets', action: ['view', 'view_own', 'view_assigned'] },
+  { key: '/kanban', icon: <AppstoreOutlined />, label: 'Kanban', module: 'tickets', action: ['view', 'view_assigned'] },
   { key: '/assignment-panel', icon: <DashboardOutlined />, label: 'Panel de Asignación', module: 'assignment_panel' },
 ]
 
@@ -56,9 +71,12 @@ function hasNavAccess(permissions: Permission[], item: NavLeaf): boolean {
 }
 
 /** Filtra los items de navegación por los permisos que tiene el usuario autenticado
- * (por defecto `view`; algunos ítems aceptan una lista de acciones alternativas). */
-export function getVisibleNavItems(permissions: Permission[]): NavLeaf[] {
-  return maestrosNavItems.filter(item => hasNavAccess(permissions, item))
+ * (por defecto `view`; algunos ítems aceptan una lista de acciones alternativas). `roleName`
+ * aplica además la restricción de FR-006 (spec 038) solo para Resolutor. */
+export function getVisibleNavItems(permissions: Permission[], roleName?: string): NavLeaf[] {
+  return maestrosNavItems
+    .filter(item => hasNavAccess(permissions, item))
+    .filter(item => roleName !== 'Resolutor' || !RESOLUTOR_HIDDEN_MAESTROS_KEYS.has(item.key))
 }
 
 export function getVisibleTicketNavItems(permissions: Permission[]): NavLeaf[] {

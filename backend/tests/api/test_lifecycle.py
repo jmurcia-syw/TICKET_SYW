@@ -60,6 +60,7 @@ def test_close_allowed_with_registered_time(client, assigned_ticket, resolver_au
     from datetime import date
     ws = client.post("/api/work-sessions", json={
         "ticket_id": tid, "work_date": date.today().isoformat(), "duration_minutes": 30,
+        "note": "Nota de prueba",
     }, headers=resolver_auth)
     assert ws.status_code == 201, ws.get_json()
     _advance_to_close_eligible(client, tid)

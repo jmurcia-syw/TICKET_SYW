@@ -3,11 +3,31 @@
 Sistema interno de ticketing y gestión de tareas para el equipo de consultoría Oracle ERP/CRM
 de SyWork. Construido con metodología **SDD (Spec-Driven Development)** sobre **GitHub Spec Kit**.
 
-> **Fase activa**: `Subtareas en Clasificación de la Tarea principal` (spec `037`) ✅ implementada
-> — la Card "Clasificación" del detalle de una Tarea gana un ítem "Subtareas" que lista cada
-> Subtarea ya creada como hipervínculo (o "Sin subtareas"), corrigiendo la impresión de que crear
-> una Subtarea "no tenía efecto" en la Tarea padre — la relación ya existía (tarjeta lateral
-> "Subtareas (N)") pero no se reflejaba ahí; sin cambios de backend. Precedida por la Herencia de
+> **Fase activa**: `Ajustes Globales — Seguridad/Permisos, Notificaciones, Motor de SLA, Bugs de
+> UI y Rendimiento` (spec `038`) ✅ implementada — paquete de 6 frentes independientes: (US1)
+> Resolutor ve por defecto solo lo asignado a él en Kanban/Listas/Mis Tareas (nuevo permiso RBAC
+> `tickets:view_assigned`, migración `052`), pierde la vista global de "Tickets" (reservada a
+> Coordinador/Admin) y los catálogos maestros administrativos (Clientes/Proyectos/Equipo/Skills/
+> Catálogos, navegación bloqueada — `resources:edit` sigue siendo la señal de "administración"),
+> su Calendario se acota a su propio recurso, y el menú lateral gana modo colapsado; (US2) el SLA
+> de Contacto corre hasta "En Análisis" (ya no se congela al asignar) y el de Resolución corre
+> hasta "Cerrado" (ya no se congela en "Resuelto", reemplaza specs `014`/`023`/`033`), y todo
+> Ticket/Tarea nuevo deja una entrada inicial "Ticket creado en estado…" en su Historial de
+> Estados (sentinel `from_status="creado"`, sin tabla nueva); (US3) diagnóstico dirigido (sin
+> reproducir churn de DOM bajo scroll/polling/timer) con memoización defensiva en el menú lateral,
+> y fix del bug de credenciales cruzadas entre pestañas de Accesos del Cliente (`AccessCredentialForm.tsx`,
+> una instancia de formulario por fila en vez de una compartida); (US4) cascada Cliente→Proyecto
+> extendida a Reportes, y Descripción obligatoria en Registro de Tiempo — incluido el cronómetro
+> del ticket, cuyo "Terminar" también genera un Registro de tiempo; (US5) fix de "Copiar
+> Contraseña" (TeamPage y ClientContactsPage) y correo de bienvenida HTML opcional ("Notificar al
+> Usuario" al crear cuenta, reutiliza el token de 30 min de spec `003`); (US6) "Ver detalle de
+> cliente" difiere la carga de Accesos y Portafolio de software a la selección real de cada
+> pestaña, en vez de dispararlas todas al abrir el modal. Precedida por las Subtareas en
+> Clasificación de la Tarea principal (spec `037`): la Card "Clasificación" del detalle de una
+> Tarea gana un ítem "Subtareas" que lista cada Subtarea ya creada como hipervínculo (o "Sin
+> subtareas"), corrigiendo la impresión de que crear una Subtarea "no tenía efecto" en la Tarea
+> padre — la relación ya existía (tarjeta lateral "Subtareas (N)") pero no se reflejaba ahí; sin
+> cambios de backend. Antes, la Herencia de
 > Subtareas, Vínculo Bidireccional y fix de Scroll (spec `036`): una Subtarea hereda de su Tarea
 > padre el Nivel de escalamiento, el Usuario/cliente solicitante y las Skills requeridas al
 > crearse; la Subtarea muestra "Tarea Padre" como hipervínculo; y se corrige un parpadeo del panel
@@ -73,16 +93,40 @@ Fuentes de verdad: `docs/SDD V3.docx` (roadmap y alcances) y
 > (spec `030`), `ITER-006` (spec `031`), `ITER-009` (spec `032`) e `ITER-008` (spec `033`); la
 > Deshabilitación de Usuarios/Cliente y el Módulo de Reportes Dinámicos (spec `034`); la
 > Cascada Cliente→Proyecto→Encargado, hipervínculos, edición de catálogos y layout de Cliente
-> (spec `035`); la herencia de Subtareas, vínculo bidireccional y fix de scroll (spec `036`); y
-> las Subtareas visibles en Clasificación de la Tarea principal (spec `037`, fase activa actual).
+> (spec `035`); la herencia de Subtareas, vínculo bidireccional y fix de scroll (spec `036`); las
+> Subtareas visibles en Clasificación de la Tarea principal (spec `037`); y el paquete de Ajustes
+> Globales — vistas acotadas por rol para Resolutor, motor de SLA corregido, auditoría inicial de
+> Historial de Estados, fixes de UI (parpadeo/credenciales cruzadas), cascada Cliente→Proyecto en
+> Reportes, Descripción obligatoria en Registro de Tiempo, fix de Copiar Contraseña, correo de
+> bienvenida opcional y rendimiento del Detalle del Cliente (spec `038`, fase activa actual).
 
 ---
 
-## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`) + Manejo global de errores (spec `013`) + SLAs (spec `014`, Fase 4) + Usuario/cliente multi-Proyecto (spec `015`/`016`) + Contenido enriquecido (spec `017`) + Accesos del Cliente (spec `018`/`031`) + Unidades de tiempo SLA (spec `019`) + Calendarios/Vacaciones/Disponibilidad/RRHH/SLA dinámico (specs `020`-`022`, Fase 5) + Historial SLA y reasignación (spec `023`/`024`) + Cierre de Backlog UAT ITER-004 a ITER-009 (specs `028`, `030`-`033`) + Usuarios inactivos y Reportes Dinámicos (spec `034`) + Cascada Cliente-Proyecto-Encargado, hipervínculos y catálogos editables (spec `035`) + Herencia de Subtareas y vínculo bidireccional (spec `036`) + Subtareas en Clasificación (spec `037`)
+## Estado actual — Fase 1 (Tickets) + Fase 2 (Tiempos) + Fase 3 (Tareas) + Personal/Skills (spec `010`) + Cronómetro (spec `012`) + Manejo global de errores (spec `013`) + SLAs (spec `014`, Fase 4) + Usuario/cliente multi-Proyecto (spec `015`/`016`) + Contenido enriquecido (spec `017`) + Accesos del Cliente (spec `018`/`031`) + Unidades de tiempo SLA (spec `019`) + Calendarios/Vacaciones/Disponibilidad/RRHH/SLA dinámico (specs `020`-`022`, Fase 5) + Historial SLA y reasignación (spec `023`/`024`) + Cierre de Backlog UAT ITER-004 a ITER-009 (specs `028`, `030`-`033`) + Usuarios inactivos y Reportes Dinámicos (spec `034`) + Cascada Cliente-Proyecto-Encargado, hipervínculos y catálogos editables (spec `035`) + Herencia de Subtareas y vínculo bidireccional (spec `036`) + Subtareas en Clasificación (spec `037`) + Ajustes Globales — Seguridad/SLA/UI/Rendimiento (spec `038`)
 
 ### Funcionalidad operativa
 
-- **Subtareas en Clasificación de la Tarea principal** (spec `037`, fase activa): la Card
+- **Ajustes Globales — Seguridad/Permisos, Notificaciones, Motor de SLA, Bugs de UI y
+  Rendimiento** (spec `038`, fase activa): paquete de 6 frentes independientes. Resolutor ve por
+  defecto solo lo asignado a él en Kanban/Listas/Mis Tareas (permiso RBAC nuevo
+  `tickets:view_assigned`), pierde la vista global de "Tickets" (Coordinador/Admin) y la
+  navegación a los catálogos maestros administrativos, su Calendario se acota a su propio recurso
+  (`GET /resources/{id}/work-schedule` ahora exige `resources:edit` o ser el propio recurso), y el
+  menú lateral gana modo colapsado. El SLA de Contacto corre hasta "En Análisis" y el de
+  Resolución hasta "Cerrado" (ya no se congelan al asignar / en "Resuelto", reemplaza specs
+  `014`/`023`/`033`); todo Ticket/Tarea nuevo deja una entrada inicial en su Historial de Estados
+  (sentinel `from_status="creado"`, sin tabla nueva). Fix del parpadeo del menú lateral
+  (memoización defensiva, sin causa raíz reproducible bajo scroll/polling/timer tras diagnóstico
+  dirigido) y de credenciales cruzadas entre pestañas de Accesos del Cliente (`AccessCredentialForm.tsx`,
+  una instancia de formulario por fila). Cascada Cliente→Proyecto extendida a Reportes; Usuario/
+  cliente solicitante obligatorio en Ticket (no en Tarea, cuando el proyecto ya tiene contactos
+  cargados); Descripción obligatoria en Registro de Tiempo, incluido el cronómetro del ticket. Fix
+  de "Copiar Contraseña" (TeamPage/ClientContactsPage) y correo de bienvenida HTML opcional
+  ("Notificar al Usuario" al crear cuenta, reutiliza el token de 30 min de spec `003`). "Ver
+  detalle de cliente" difiere la carga de Accesos y Portafolio de software a la selección real de
+  cada pestaña — perfilado en DevTools confirmó 4 peticiones secuenciales antes disparadas todas
+  al abrir el modal.
+- **Subtareas en Clasificación de la Tarea principal** (spec `037`): la Card
   "Clasificación" del detalle de una Tarea (sin Tarea padre propia) agrega el ítem "Subtareas",
   justo después de "Tarea Padre" (spec `036`), listando cada Subtarea como hipervínculo o
   mostrando "Sin subtareas"; aditivo, no reemplaza la tarjeta lateral "Subtareas (N)" que ya

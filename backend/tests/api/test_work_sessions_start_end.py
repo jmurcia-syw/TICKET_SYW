@@ -32,6 +32,7 @@ def test_create_ignores_explicit_duration_when_range_present(client, make_ticket
     response = client.post("/api/work-sessions", json={
         "ticket_id": ticket["id"], "work_date": today, "duration_minutes": 999,
         "started_at": f"{today}T09:00:00-05:00", "ended_at": f"{today}T09:30:00-05:00",
+        "note": "Nota de prueba",
     }, headers=resolver_auth)
     assert response.status_code == 201, response.get_json()
     assert response.get_json()["duration_minutes"] == 30
@@ -78,7 +79,7 @@ def test_manual_duration_without_range_still_works(client, make_ticket, ticket_r
     _assign(client, ticket["id"], ticket_resource["id"])
     response = client.post("/api/work-sessions", json={
         "ticket_id": ticket["id"], "work_date": date.today().isoformat(),
-        "duration_minutes": 90,
+        "duration_minutes": 90, "note": "Nota de prueba",
     }, headers=resolver_auth)
     assert response.status_code == 201, response.get_json()
     data = response.get_json()

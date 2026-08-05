@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Alert, Button, Collapse, Divider, Form, Input, InputNumber, Modal, Radio, Select, Space,
-  Table, Tag, Tooltip, Typography, message,
+  Alert, Button, Checkbox, Collapse, Divider, Form, Input, InputNumber, Modal, Radio, Select,
+  Space, Table, Tag, Tooltip, Typography, message,
 } from 'antd'
 import {
   PlusOutlined, EditOutlined, StopOutlined, PlayCircleOutlined, DollarOutlined,
@@ -158,14 +158,17 @@ export default function TeamPage() {
   // ── Alta de integrante ────────────────────────────────────────────────────
   const openCreate = () => { createForm.resetFields(); setCreateOpen(true) }
 
-  const handleCreate = async (values: ResourceFormData & { username?: string; role_id?: string }) => {
+  const handleCreate = async (values: ResourceFormData & { username?: string; role_id?: string; notify?: boolean }) => {
     let createdUserId: string | undefined
+    let notificationSent = false
     try {
       if (canCreateUser) {
-        const { user, provisional_password } = await userService.create({
+        const { user, provisional_password, notification_sent } = await userService.create({
           email: values.email, username: values.username!, role_id: values.role_id!,
+          notify: values.notify,
         })
         createdUserId = user.id
+        notificationSent = notification_sent
         setProvisionalPassword(provisional_password)
       }
     } catch (err: unknown) {
@@ -177,7 +180,10 @@ export default function TeamPage() {
     try {
       await resourceService.create({ ...values, user_id: createdUserId })
       setCreateOpen(false)
-      message.success(createdUserId ? 'Integrante creado con cuenta de acceso' : 'Recurso creado (sin cuenta de acceso)')
+      // spec 038 US5 (T037): informa si el correo de bienvenida efectivamente se envió, ya que
+      // un fallo de SMTP no revierte la creación del usuario (queda visible acá, no silencioso).
+      const notifySuffix = values.notify ? (notificationSent ? ' — correo de bienvenida enviado' : ' — no se pudo enviar el correo de bienvenida') : ''
+      message.success((createdUserId ? 'Integrante creado con cuenta de acceso' : 'Recurso creado (sin cuenta de acceso)') + notifySuffix)
       load()
     } catch (err: unknown) {
       if (!createdUserId && mapApiErrorToFormFields(err, createForm, RESOURCE_ERROR_RULES)) return
@@ -245,9 +251,18 @@ export default function TeamPage() {
     }
   }
 
-  const handleCopyPassword = () => {
-    if (provisionalPassword) navigator.clipboard.writeText(provisionalPassword)
-    message.success('Contraseña copiada')
+  const handleCopyPassword = async () => {
+    if (!provisionalPassword) return
+    // spec 038 US5 (T033): antes no esperaba la promesa ni manejaba su rechazo — en un contexto
+    // no seguro (HTTP sin TLS, típico al acceder por IP en vez de localhost) o con permiso de
+    // portapapeles denegado, `navigator.clipboard.writeText` se rechaza y el toast de éxito se
+    // mostraba de todas formas, sin que la contraseña se hubiera copiado realmente.
+    try {
+      await navigator.clipboard.writeText(provisionalPassword)
+      message.success('Contraseña copiada')
+    } catch {
+      message.error('No se pudo copiar la contraseña — copiala manualmente')
+    }
   }
 
   // ── Compensación ──────────────────────────────────────────────────────────
@@ -585,6 +600,9 @@ export default function TeamPage() {
                   <Select style={{ width: 180 }} options={roles.map(r => ({ value: r.id, label: r.name }))} placeholder="Seleccionar rol" />
                 </Form.Item>
               </Space>
+              <Form.Item name="notify" valuePropName="checked" initialValue={false}>
+                <Checkbox>Notificar al Usuario (correo de bienvenida con la contraseña temporal)</Checkbox>
+              </Form.Item>
             </>
           ) : (
             <Alert type="warning" showIcon style={{ marginBottom: 12 }}

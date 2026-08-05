@@ -69,9 +69,12 @@ def test_initial_state_with_rule_starts_contacto_running():
     assert state["sla_consumed_seconds"] == 0
 
 
-# ── apply_transition: fase Contacto -> Ejecución ─────────────────────────────
+# ── apply_transition: fase Contacto -> Ejecución (spec 038 US2: Contacto corre hasta
+# `en_analisis`, ya no se congela al asignar/entrar a `contacto` — research.md Decisión 3) ────
 
-def test_transition_contacto_to_ejecucion_freezes_contact_result_and_resets_consumed():
+def test_transition_to_contacto_keeps_contact_phase_running_not_frozen():
+    """El reloj de Contacto sigue corriendo al asignar (entrar al estado FSM `contacto`) — se
+    congela recién al pasar a `en_analisis` (spec 038 FR-009/FR-010), no en este punto."""
     project_id = uuid.uuid4()
     rule = _rule(project_id, "high", contact=15, execution=480)
     repo = _FakeSlaRuleRepo({(project_id, "high"): rule})
@@ -81,6 +84,22 @@ def test_transition_contacto_to_ejecucion_freezes_contact_result_and_resets_cons
         sla_consumed_seconds=0, sla_last_resume_at=NOW - timedelta(minutes=5), sla_status="corriendo",
     )
     updates = sla_service.apply_transition(ticket, "contacto", NOW, repo)
+    assert updates["sla_phase"] == "contacto"
+    assert updates["sla_status"] == "corriendo"
+    assert updates["sla_consumed_seconds"] == 300  # sigue sumando, no se reinicia ni congela
+    assert "sla_contact_result" not in updates
+
+
+def test_transition_contacto_to_en_analisis_freezes_contact_result_and_resets_consumed():
+    project_id = uuid.uuid4()
+    rule = _rule(project_id, "high", contact=15, execution=480)
+    repo = _FakeSlaRuleRepo({(project_id, "high"): rule})
+    ticket = _ticket(
+        project_id=project_id, priority="high", status="contacto",
+        sla_rule_id=rule.id, sla_phase="contacto", sla_phase_limit_minutes=15,
+        sla_consumed_seconds=0, sla_last_resume_at=NOW - timedelta(minutes=5), sla_status="corriendo",
+    )
+    updates = sla_service.apply_transition(ticket, "en_analisis", NOW, repo)
     assert updates["sla_phase"] == "ejecucion"
     assert updates["sla_contact_result"] == "cumplido"  # 5 min < 15 min límite
     assert updates["sla_contact_consumed_seconds"] == 300
@@ -89,16 +108,16 @@ def test_transition_contacto_to_ejecucion_freezes_contact_result_and_resets_cons
     assert updates["sla_status"] == "corriendo"
 
 
-def test_transition_contacto_to_ejecucion_marks_contact_vencido_if_over_limit():
+def test_transition_contacto_to_en_analisis_marks_contact_vencido_if_over_limit():
     project_id = uuid.uuid4()
     rule = _rule(project_id, "high", contact=15, execution=480)
     repo = _FakeSlaRuleRepo({(project_id, "high"): rule})
     ticket = _ticket(
-        project_id=project_id, priority="high", status="pre_analisis",
+        project_id=project_id, priority="high", status="contacto",
         sla_rule_id=rule.id, sla_phase="contacto", sla_phase_limit_minutes=15,
         sla_consumed_seconds=0, sla_last_resume_at=NOW - timedelta(minutes=20), sla_status="corriendo",
     )
-    updates = sla_service.apply_transition(ticket, "contacto", NOW, repo)
+    updates = sla_service.apply_transition(ticket, "en_analisis", NOW, repo)
     assert updates["sla_contact_result"] == "vencido"
 
 
@@ -140,13 +159,28 @@ def test_transition_to_cerrado_stops_and_freezes():
     assert updates["sla_last_resume_at"] is None
 
 
-def test_transition_to_resuelto_freezes_execution_result_cumplido():
-    """OBS-0059 (spec 033): análogo a Contacto, pero para Ejecución — se congela al cerrar."""
+def test_transition_to_resuelto_keeps_execution_phase_running_not_frozen():
+    """spec 038 US2 (FR-011): el SLA de Resolución sigue corriendo mientras el ticket permanece
+    en `resuelto` — ya no se congela ahí (reemplaza el congelamiento de OBS-0059/spec 033)."""
     ticket = _ticket(
         status="en_pruebas", sla_phase="ejecucion", sla_phase_limit_minutes=480,
         sla_consumed_seconds=0, sla_last_resume_at=NOW - timedelta(minutes=100), sla_status="corriendo",
     )
     updates = sla_service.apply_transition(ticket, "resuelto", NOW, _FakeSlaRuleRepo({}))
+    assert updates["sla_phase"] == "ejecucion"
+    assert updates["sla_status"] == "corriendo"
+    assert updates["sla_consumed_seconds"] == 6000  # sigue sumando, no se congela
+    assert "sla_execution_result" not in updates
+
+
+def test_transition_to_cerrado_freezes_execution_result_cumplido():
+    """OBS-0059 (spec 033) reubicado a `cerrado` (spec 038 US2 FR-012): se congela recién ahí,
+    con el ticket ya en `resuelto` (fase `ejecucion` sigue corriendo hasta este punto)."""
+    ticket = _ticket(
+        status="resuelto", sla_phase="ejecucion", sla_phase_limit_minutes=480,
+        sla_consumed_seconds=0, sla_last_resume_at=NOW - timedelta(minutes=100), sla_status="corriendo",
+    )
+    updates = sla_service.apply_transition(ticket, "cerrado", NOW, _FakeSlaRuleRepo({}))
     assert updates["sla_phase"] == "cerrado"
     assert updates["sla_execution_result"] == "cumplido"  # 100 min < 480 min límite
     assert updates["sla_execution_consumed_seconds"] == 6000
@@ -154,11 +188,24 @@ def test_transition_to_resuelto_freezes_execution_result_cumplido():
 
 def test_transition_to_cerrado_marks_execution_vencido_if_over_limit():
     ticket = _ticket(
-        status="en_pruebas", sla_phase="ejecucion", sla_phase_limit_minutes=480,
+        status="resuelto", sla_phase="ejecucion", sla_phase_limit_minutes=480,
         sla_consumed_seconds=0, sla_last_resume_at=NOW - timedelta(minutes=500), sla_status="vencido",
     )
     updates = sla_service.apply_transition(ticket, "cerrado", NOW, _FakeSlaRuleRepo({}))
     assert updates["sla_execution_result"] == "vencido"
+
+
+def test_reject_resolution_from_resuelto_keeps_consumed_without_reset():
+    """spec 038 US2 (FR-013): rechazar la resolución (`resuelto` -> `en_ejecucion`) no reinicia
+    el tiempo de SLA de Resolución ya consumido — nunca se congeló al entrar a `resuelto`."""
+    ticket = _ticket(
+        status="resuelto", sla_phase="ejecucion", sla_phase_limit_minutes=480,
+        sla_consumed_seconds=6000, sla_last_resume_at=NOW - timedelta(minutes=10), sla_status="corriendo",
+    )
+    updates = sla_service.apply_transition(ticket, "en_ejecucion", NOW, _FakeSlaRuleRepo({}))
+    assert updates["sla_phase"] == "ejecucion"
+    assert updates["sla_consumed_seconds"] == 6600  # 6000 + 10 min, sin reinicio
+    assert updates["sla_status"] == "corriendo"
 
 
 def test_transition_to_cancelado_from_contacto_leaves_execution_result_none():
