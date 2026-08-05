@@ -29,9 +29,12 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
             display: 'inline-flex', alignItems: 'center', background: '#fff', borderRadius: 10,
             padding: '10px 16px', width: 'fit-content', marginBottom: 28,
           }}>
-            <img src={logo} alt="SyWork" style={{ height: 32, display: 'block' }} />
+            <img src={logo} alt="SYTIX" style={{ height: 32, display: 'block' }} />
           </span>
-          <Title level={2} style={{ color: '#fff', margin: 0, letterSpacing: -0.3 }}>SyWork Desk</Title>
+          <Title level={2} style={{ color: '#fff', margin: 0, letterSpacing: -0.3 }}>SYTIX</Title>
+          <Text style={{ color: palette.slate300, fontSize: 13, marginTop: 6, letterSpacing: 1, display: 'block' }}>
+            Systems | Innovation | Xcellence
+          </Text>
           <Text style={{ color: palette.slate300, fontSize: 15, marginTop: 10, maxWidth: 320, display: 'block' }}>
             Tickets, tiempos y equipo de soporte en un solo lugar.
           </Text>
@@ -45,7 +48,7 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
         <div style={{ width: '100%', maxWidth: 360 }}>
           <div style={{ marginBottom: 28 }}>
             {!showBrandPanel && (
-              <img src={logo} alt="SyWork" style={{ height: 40, marginBottom: 16, display: 'block' }} />
+              <img src={logo} alt="SYTIX" style={{ height: 40, marginBottom: 16, display: 'block' }} />
             )}
             <Title level={3} style={{ margin: 0 }}>{title}</Title>
             <Text type="secondary">{subtitle}</Text>
